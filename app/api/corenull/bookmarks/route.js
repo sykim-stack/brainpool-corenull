@@ -2,6 +2,8 @@
 // 관심 저장 (수동) / 조회
 // Interest = 수동 저장 / DB = corenull_bookmarks
 
+export const dynamic = 'force-dynamic'
+
 const handler = async (req) => {
   const traceId = crypto.randomUUID()
 
