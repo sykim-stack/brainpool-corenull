@@ -1,6 +1,6 @@
-// CoreNull - Post API
-// 포스트 작성 / 조회 (Message type=post|event)
-// 방문 시 Footprint 자동 기록
+﻿// CoreNull - Post API
+// ?ъ뒪???묒꽦 / 議고쉶 (Message type=post|event)
+// 諛⑸Ц ??Footprint ?먮룞 湲곕줉
  
 const handler = async (req) => {
   const traceId = crypto.randomUUID()
@@ -14,7 +14,7 @@ const handler = async (req) => {
 const handleGet = async (req, traceId) => {
   const { searchParams } = new URL(req.url)
   const room_id = searchParams.get('room_id')
-  const owner_key = searchParams.get('owner_key') // Footprint 기록용 (선택)
+  const owner_key = searchParams.get('owner_key') // Footprint 湲곕줉??(?좏깮)
  
   if (!room_id) {
     return Response.json({ _error: 'room_id_required', traceId }, { status: 500 })
@@ -23,11 +23,12 @@ const handleGet = async (req, traceId) => {
   const { getSupabase } = await import('@/lib/supabase')
   const supabase = getSupabase()
  
-  // 방문 시 Footprint 자동 기록
+  // 諛⑸Ц ??Footprint ?먮룞 湲곕줉
   if (owner_key) {
-    await supabase
+    const { error: fpError } = await supabase
       .from('corenull_footprints')
       .insert({ owner_key, room_id })
+    console.log('footprint error:', fpError)
   }
  
   const { data, error } = await supabase
