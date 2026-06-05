@@ -28,7 +28,7 @@ const handleGet = async (req, traceId) => {
 
 const handlePost = async (req, traceId) => {
   const body = JSON.parse(await req.text())
-  const { owner_key, title, description, slug } = body
+  const { owner_key, title, description, slug, primary_language } = body
 
   if (!owner_key || !title) return Response.json({ _error: 'owner_key_and_title_required', traceId }, { status: 500 })
 
@@ -38,7 +38,7 @@ const handlePost = async (req, traceId) => {
 
   const { data, error } = await supabase
     .from('corenull_houses')
-    .insert({ owner_key, title, description, slug: slug || null })
+    .insert({ owner_key, title, description, slug: slug || null, primary_language: primary_language || 'ko' })
     .select()
     .single()
 
