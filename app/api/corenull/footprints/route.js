@@ -2,6 +2,8 @@
 // 발자취 조회 (자동 방문 기록)
 // 방문 기록은 posts GET에서 자동 생성됨 — 여기선 조회만
 
+export const dynamic = 'force-dynamic'
+
 const handler = async (req) => {
   const traceId = crypto.randomUUID()
 
