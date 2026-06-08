@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 const OWNER_KEY = 'test-device-001'
 
 export default function HomePage() {
-  const router = useRouter()  // ← 여기로 이동
+  const router = useRouter()
   const [houses, setHouses] = useState([])
   const [footprints, setFootprints] = useState([])
   const [loading, setLoading] = useState(true)
@@ -40,23 +40,32 @@ export default function HomePage() {
           <div style={{ fontSize: 32, marginBottom: 8 }}>🏡</div>
           <div style={styles.emptyText}>아직 집이 없어요</div>
           <button style={styles.createBtn} onClick={() => router.push('/houses/create')}>
-                  집 만들기
+            집 만들기
           </button>
         </div>
       ) : (
-        houses.map((house: any) => (
-        <div key={house.id} style={styles.houseCard} onClick={() => router.push(`/houses/${house.id}`)}>
-          <div style={styles.houseCover}>
-              <span style={{ fontSize: 32 }}>🏡</span>
-              <div>
-                <div style={styles.houseName}>{house.title}</div>
-                <div style={styles.houseLang}>
-                  {house.primary_language === 'ko' ? '🇰🇷' : house.primary_language === 'vi' ? '🇻🇳' : '🌐'} {house.primary_language}
+        <>
+          {houses.map((house: any) => (
+            <div key={house.id} style={styles.houseCard} onClick={() => router.push(`/houses/${house.id}`)}>
+              <div style={styles.houseCover}>
+                <span style={{ fontSize: 32 }}>🏡</span>
+                <div>
+                  <div style={styles.houseName}>{house.title}</div>
+                  <div style={styles.houseLang}>
+                    {house.primary_language === 'ko' ? '🇰🇷' : house.primary_language === 'vi' ? '🇻🇳' : '🌐'} {house.primary_language}
+                  </div>
                 </div>
               </div>
             </div>
+          ))}
+
+          {/* 집 추가 버튼 */}
+          <div style={{ padding: '0 16px', marginTop: 4, marginBottom: 8 }}>
+            <button style={styles.addHouseBtn} onClick={() => router.push('/houses/create')}>
+              + 집 만들기
+            </button>
           </div>
-        ))
+        </>
       )}
 
       {/* 최근 방문 */}
@@ -103,6 +112,7 @@ const styles: Record<string, React.CSSProperties> = {
     margin: '0 16px 12px', background: '#FEFCF8',
     borderRadius: 16, border: '1px solid rgba(92,61,46,0.12)',
     overflow: 'hidden', boxShadow: '0 2px 20px rgba(44,24,16,0.08)',
+    cursor: 'pointer',
   },
   houseCover: {
     height: 100, background: 'linear-gradient(135deg, #4A5240 0%, #7A8C6E 60%, #C8D5B9 100%)',
@@ -122,6 +132,11 @@ const styles: Record<string, React.CSSProperties> = {
   createBtn: {
     padding: '10px 24px', background: '#2C1810', color: 'white',
     border: 'none', borderRadius: 12, fontSize: 14, cursor: 'pointer',
+  },
+  addHouseBtn: {
+    width: '100%', padding: '12px', background: '#FEFCF8',
+    border: '1px dashed rgba(92,61,46,0.2)', borderRadius: 12,
+    fontSize: 14, color: '#9A8470', cursor: 'pointer',
   },
   visitItem: {
     background: '#FEFCF8', borderRadius: 12, border: '1px solid rgba(92,61,46,0.12)',
