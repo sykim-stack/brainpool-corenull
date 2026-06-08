@@ -45,8 +45,8 @@ export default function HomePage() {
         </div>
       ) : (
         houses.map((house: any) => (
-          <div key={house.id} style={styles.houseCard}>
-            <div style={styles.houseCover}>
+        <div key={house.id} style={styles.houseCard} onClick={() => router.push(`/houses/${house.id}`)}>
+          <div style={styles.houseCover}>
               <span style={{ fontSize: 32 }}>🏡</span>
               <div>
                 <div style={styles.houseName}>{house.title}</div>
