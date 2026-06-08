@@ -13,7 +13,7 @@ export default function TabBar() {
   const pathname = usePathname()
   const router = useRouter()
 
-  const isActive = (href) => {
+  const isActive = (href: string) => {
     if (href === '/') return pathname === '/'
     return pathname.startsWith(href)
   }
