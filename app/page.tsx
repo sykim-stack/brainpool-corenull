@@ -1,10 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 
-const OWNER_KEY = 'test-device-001' // 나중에 device_id로 교체
+const OWNER_KEY = 'test-device-001'
 
 export default function HomePage() {
+  const router = useRouter()  // ← 여기로 이동
   const [houses, setHouses] = useState([])
   const [footprints, setFootprints] = useState([])
   const [loading, setLoading] = useState(true)
@@ -37,7 +39,9 @@ export default function HomePage() {
         <div style={styles.emptyCard}>
           <div style={{ fontSize: 32, marginBottom: 8 }}>🏡</div>
           <div style={styles.emptyText}>아직 집이 없어요</div>
-          <button style={styles.createBtn}>집 만들기</button>
+          <button style={styles.createBtn} onClick={() => router.push('/houses/create')}>
+                  집 만들기
+          </button>
         </div>
       ) : (
         houses.map((house: any) => (

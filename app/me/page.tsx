@@ -112,7 +112,7 @@ const styles: Record<string, React.CSSProperties> = {
     height: '50vh', fontSize: 40,
   },
   header: {
-    position: 'fixed', top: 0, left: 0,
+    position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)',
     width: '100%', maxWidth: '430px', height: 56,
     background: 'rgba(254,252,248,0.95)', borderBottom: '1px solid rgba(92,61,46,0.12)',
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
