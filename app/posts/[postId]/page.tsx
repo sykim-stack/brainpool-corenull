@@ -9,7 +9,7 @@ export default function PostDetailPage() {
   const { postId } = useParams()
   const router = useRouter()
   const [post, setPost] = useState<any>(null)
-  const [comments, setComments] = useState([])
+  const [comments, setComments] = useState<any[]>([])
   const [newComment, setNewComment] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [showTranslate, setShowTranslate] = useState(false)
