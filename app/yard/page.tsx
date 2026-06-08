@@ -13,7 +13,7 @@ export default function YardPage() {
   useEffect(() => {
     // 마당 = 공개 방들의 포스트 피드
     // 현재는 테스트 room_id로 조회 (나중에 public rooms 전체로 확장)
-    fetch(`/api/corenull/posts?room_id=ddad9736-c424-4181-9abe-70c9d0061baf&owner_key=${OWNER_KEY}`)
+    fetch(`/api/corenull/yard`)
       .then(r => r.json())
       .then(d => {
         setPosts(d.data || [])
