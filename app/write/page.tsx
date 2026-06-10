@@ -7,23 +7,31 @@ const OWNER_KEY = 'test-device-001'
 
 export default function WritePage() {
   const [content, setContent] = useState('')
-  const [rooms, setRooms] = useState([])
+  const [rooms, setRooms] = useState<any[]>([])
   const [selectedRoom, setSelectedRoom] = useState<any>(null)
   const [mediaFiles, setMediaFiles] = useState<any[]>([])
   const [uploading, setUploading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [houseId, setHouseId] = useState<string | null>(null)
+
+  // 새 방 만들기
+  const [showNewRoom, setShowNewRoom] = useState(false)
+  const [newRoomName, setNewRoomName] = useState('')
+  const [isEventRoom, setIsEventRoom] = useState(false)
+  const [creatingRoom, setCreatingRoom] = useState(false)
+
   const fileInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
 
   useEffect(() => {
-    // 내 집의 방 목록 가져오기
     fetch(`/api/corenull/houses?owner_key=${OWNER_KEY}`)
       .then(r => r.json())
       .then(async d => {
         const houses = d.data || []
         if (houses.length === 0) return
-        const houseId = houses[0].id
-        const r = await fetch(`/api/corenull/rooms?house_id=${houseId}`)
+        const house = houses[0]
+        setHouseId(house.id)
+        const r = await fetch(`/api/corenull/rooms?house_id=${house.id}`)
         const rd = await r.json()
         const roomList = rd.data || []
         setRooms(roomList)
@@ -31,24 +39,53 @@ export default function WritePage() {
       })
   }, [])
 
+  // ─── 새 방 생성 ───────────────────────────────────────
+  const handleCreateRoom = async () => {
+    if (!newRoomName.trim() || !houseId) return
+    setCreatingRoom(true)
+
+    const res = await fetch('/api/corenull/rooms', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        house_id: houseId,
+        owner_key: OWNER_KEY,
+        room_name: newRoomName.trim(),
+        room_type: isEventRoom ? 'event' : 'normal',
+        visibility: 'public',
+        event_mode: isEventRoom,
+      }),
+    })
+
+    const data = await res.json()
+    if (data.data) {
+      const created = data.data
+      setRooms(prev => [...prev, created])
+      setSelectedRoom(created)
+      setShowNewRoom(false)
+      setNewRoomName('')
+      setIsEventRoom(false)
+    }
+    setCreatingRoom(false)
+  }
+
+  // ─── 미디어 업로드 ────────────────────────────────────
   const handleFileSelect = async (e: any) => {
     const files = Array.from(e.target.files || [])
     if (files.length === 0) return
-
     setUploading(true)
     const form = new FormData()
     files.forEach((f: any) => form.append('files', f))
-
     const res = await fetch('/api/corenull/upload', { method: 'POST', body: form })
     const data = await res.json()
     setMediaFiles(prev => [...prev, ...(data.data || [])])
     setUploading(false)
   }
 
+  // ─── 포스트 작성 ──────────────────────────────────────
   const handleSubmit = async () => {
     if (!content.trim() || !selectedRoom) return
     setSubmitting(true)
-
     const res = await fetch('/api/corenull/posts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -57,14 +94,11 @@ export default function WritePage() {
         owner_key: OWNER_KEY,
         content: content.trim(),
         meta: { media: mediaFiles },
-        type: 'post',
+        type: selectedRoom.event_mode ? 'event' : 'post',
       }),
     })
-
     const data = await res.json()
-    if (data.data) {
-      router.push('/yard')
-    }
+    if (data.data) router.push('/yard')
     setSubmitting(false)
   }
 
@@ -79,10 +113,7 @@ export default function WritePage() {
         <button style={styles.backBtn} onClick={() => router.back()}>←</button>
         <span style={styles.headerTitle}>새 이야기</span>
         <button
-          style={{
-            ...styles.submitBtn,
-            opacity: (!content.trim() || !selectedRoom || submitting) ? 0.4 : 1,
-          }}
+          style={{ ...styles.submitBtn, opacity: (!content.trim() || !selectedRoom || submitting) ? 0.4 : 1 }}
           onClick={handleSubmit}
           disabled={!content.trim() || !selectedRoom || submitting}
         >
@@ -91,33 +122,86 @@ export default function WritePage() {
       </div>
 
       <div style={styles.body}>
-        {/* 방 선택 */}
-        <div style={styles.roomSelect}>
-          <span style={styles.roomLabel}>어느 방에?</span>
-          <select
-            style={styles.roomDropdown}
-            value={selectedRoom?.id || ''}
-            onChange={e => {
-              const r = rooms.find((r: any) => r.id === e.target.value)
-              setSelectedRoom(r)
-            }}
-          >
-            {rooms.map((r: any) => (
-              <option key={r.id} value={r.id}>{r.room_name}</option>
-            ))}
-          </select>
-        </div>
+        {/* ── 방 선택 ── */}
+        {!showNewRoom ? (
+          <div style={styles.roomSelect}>
+            <span style={styles.roomLabel}>어느 방에?</span>
+            <select
+              style={styles.roomDropdown}
+              value={selectedRoom?.id || ''}
+              onChange={e => {
+                if (e.target.value === '__new__') {
+                  setShowNewRoom(true)
+                  return
+                }
+                const r = rooms.find((r: any) => r.id === e.target.value)
+                setSelectedRoom(r)
+              }}
+            >
+              {rooms.map((r: any) => (
+                <option key={r.id} value={r.id}>
+                  {r.room_name}{r.event_mode ? ' 🎉' : ''}
+                </option>
+              ))}
+              <option value="__new__">+ 새 방 만들기</option>
+            </select>
+          </div>
+        ) : (
+          /* ── 새 방 만들기 폼 ── */
+          <div style={styles.newRoomBox}>
+            <div style={styles.newRoomHeader}>
+              <span style={styles.roomLabel}>새 방 만들기</span>
+              <button
+                style={styles.cancelBtn}
+                onClick={() => { setShowNewRoom(false); setNewRoomName(''); setIsEventRoom(false) }}
+              >
+                취소
+              </button>
+            </div>
 
-        {/* 텍스트 입력 */}
+            <input
+              style={styles.newRoomInput}
+              placeholder="방 이름"
+              value={newRoomName}
+              onChange={e => setNewRoomName(e.target.value)}
+              maxLength={20}
+              autoFocus
+            />
+
+            {/* 이벤트방 토글 */}
+            <div style={styles.toggleRow} onClick={() => setIsEventRoom(v => !v)}>
+              <div style={styles.toggleLeft}>
+                <span style={{ fontSize: 18 }}>🎉</span>
+                <div>
+                  <div style={styles.toggleTitle}>이벤트 방</div>
+                  <div style={styles.toggleDesc}>생일, 기념일 등 특별한 날</div>
+                </div>
+              </div>
+              <div style={{ ...styles.toggleSwitch, background: isEventRoom ? '#2C1810' : '#e0d8d0' }}>
+                <div style={{ ...styles.toggleThumb, transform: isEventRoom ? 'translateX(20px)' : 'translateX(2px)' }} />
+              </div>
+            </div>
+
+            <button
+              style={{ ...styles.createRoomBtn, opacity: (!newRoomName.trim() || creatingRoom) ? 0.4 : 1 }}
+              onClick={handleCreateRoom}
+              disabled={!newRoomName.trim() || creatingRoom}
+            >
+              {creatingRoom ? '만드는 중...' : '방 만들기'}
+            </button>
+          </div>
+        )}
+
+        {/* ── 텍스트 입력 ── */}
         <textarea
           style={styles.textarea}
           placeholder="오늘 어떤 순간을 남기고 싶으세요?"
           value={content}
           onChange={e => setContent(e.target.value)}
-          autoFocus
+          autoFocus={!showNewRoom}
         />
 
-        {/* 미디어 미리보기 */}
+        {/* ── 미디어 미리보기 ── */}
         {mediaFiles.length > 0 && (
           <div style={styles.mediaPreview}>
             {mediaFiles.map((m, i) => (
@@ -133,7 +217,7 @@ export default function WritePage() {
           </div>
         )}
 
-        {/* 미디어 추가 */}
+        {/* ── 미디어 추가 ── */}
         <div style={styles.mediaRow}>
           <button
             style={styles.mediaBtn}
@@ -159,7 +243,7 @@ export default function WritePage() {
 
 const styles: Record<string, React.CSSProperties> = {
   header: {
-    position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)' ,
+    position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)',
     width: '100%', maxWidth: '430px', height: 56,
     background: 'rgba(254,252,248,0.95)', borderBottom: '1px solid rgba(92,61,46,0.12)',
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -187,6 +271,45 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 14, color: '#1C1208', fontFamily: "'Noto Sans KR', sans-serif",
     outline: 'none', cursor: 'pointer',
   },
+  newRoomBox: {
+    background: '#FEFCF8', border: '1px solid rgba(92,61,46,0.12)',
+    borderRadius: 12, padding: '14px', marginBottom: 12,
+    display: 'flex', flexDirection: 'column', gap: 10,
+  },
+  newRoomHeader: {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+  },
+  cancelBtn: {
+    fontSize: 13, color: '#9A8470', background: 'none', border: 'none', cursor: 'pointer',
+  },
+  newRoomInput: {
+    width: '100%', height: 44,
+    background: '#F5F0E8', border: '1px solid rgba(92,61,46,0.12)',
+    borderRadius: 10, padding: '0 12px',
+    fontSize: 14, color: '#1C1208', outline: 'none', boxSizing: 'border-box',
+    fontFamily: "'Noto Sans KR', sans-serif",
+  },
+  toggleRow: {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    padding: '10px 12px', background: '#F5F0E8', borderRadius: 10, cursor: 'pointer',
+  },
+  toggleLeft: { display: 'flex', alignItems: 'center', gap: 10 },
+  toggleTitle: { fontSize: 13, fontWeight: 500, color: '#1C1208' },
+  toggleDesc: { fontSize: 11, color: '#9A8470', marginTop: 1 },
+  toggleSwitch: {
+    width: 44, height: 24, borderRadius: 12, position: 'relative',
+    transition: 'background 0.2s', flexShrink: 0,
+  },
+  toggleThumb: {
+    position: 'absolute', top: 2, width: 20, height: 20,
+    borderRadius: '50%', background: 'white',
+    transition: 'transform 0.2s', boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
+  },
+  createRoomBtn: {
+    width: '100%', padding: '12px',
+    background: '#2C1810', color: 'white',
+    border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 500, cursor: 'pointer',
+  },
   textarea: {
     width: '100%', minHeight: 200,
     background: '#FEFCF8', border: '1px solid rgba(92,61,46,0.12)',
@@ -199,9 +322,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12,
   },
   mediaItem: { position: 'relative' },
-  mediaThumb: {
-    width: 80, height: 80, borderRadius: 10, objectFit: 'cover',
-  },
+  mediaThumb: { width: 80, height: 80, borderRadius: 10, objectFit: 'cover' },
   videoThumb: {
     width: 80, height: 80, borderRadius: 10,
     background: '#2d4a3e', display: 'flex', alignItems: 'center',
