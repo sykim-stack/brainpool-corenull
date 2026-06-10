@@ -1,6 +1,8 @@
 // CoreNull - House API
 // 집 생성 / 조회
 
+export const dynamic = 'force-dynamic'
+
 const handler = async (req) => {
   const traceId = crypto.randomUUID()
 
@@ -13,13 +15,29 @@ const handler = async (req) => {
 const handleGet = async (req, traceId) => {
   const { searchParams } = new URL(req.url)
   const owner_key = searchParams.get('owner_key')
-
-  if (!owner_key) {
-    return Response.json({ _error: 'owner_key_required', traceId }, { status: 500 })
-  }
+  const house_id = searchParams.get('house_id')
 
   const { getSupabase } = await import('@/lib/supabase')
   const supabase = getSupabase()
+  if (!supabase) return Response.json({ _error: 'supabase_init_failed', traceId }, { status: 500 })
+
+  // house_id 단건 조회
+  if (house_id) {
+    const { data, error } = await supabase
+      .from('corenull_houses')
+      .select('*')
+      .eq('id', house_id)
+      .single()
+
+    if (error || !data) return Response.json({ _error: 'house_not_found', traceId }, { status: 500 })
+
+    return Response.json({ house: data, traceId })
+  }
+
+  // owner_key 목록 조회
+  if (!owner_key) {
+    return Response.json({ _error: 'owner_key_or_house_id_required', traceId }, { status: 500 })
+  }
 
   const { data, error } = await supabase
     .from('corenull_houses')
@@ -42,6 +60,7 @@ const handlePost = async (req, traceId) => {
 
   const { getSupabase } = await import('@/lib/supabase')
   const supabase = getSupabase()
+  if (!supabase) return Response.json({ _error: 'supabase_init_failed', traceId }, { status: 500 })
 
   // 집 생성
   const { data: house, error } = await supabase
