@@ -182,7 +182,7 @@ function PostCard({ post }: { post: Post }) {
   const hasMore = (post.content?.length || 0) > 120
 
   return (
-    <Link href={`/posts/${post.id}`} style={{ textDecoration: 'none' }}>
+    <Link href={`/posts/${post.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
       <div style={cardStyle}>
         {/* 이미지 */}
         {post.meta?.image_url && (
