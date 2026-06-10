@@ -24,10 +24,10 @@ const handleGet = async (req, traceId) => {
   const supabase = getSupabase()
   if (!supabase) return Response.json({ _error: 'supabase_init_failed', traceId }, { status: 500 })
 
-  // 발자취 + 방 정보 함께 조회
+  // 발자취 + 방 이름 join
   const { data, error } = await supabase
     .from('corenull_footprints')
-    .select('*')
+    .select('*, corenull_rooms(id, room_name)')
     .eq('owner_key', owner_key)
     .order('visited_at', { ascending: false })
 

@@ -52,14 +52,18 @@ export default function HomePage() {
                 <div>
                   <div style={styles.houseName}>{house.title}</div>
                   <div style={styles.houseLang}>
-                    {house.primary_language === 'ko' ? '🇰🇷' : house.primary_language === 'vi' ? '🇻🇳' : '🌐'} {house.primary_language}
+                    {house.primary_language === 'ko' ? '🇰🇷'
+                      : house.primary_language === 'vi' ? '🇻🇳'
+                      : house.primary_language === 'en' ? '🇺🇸'
+                      : house.primary_language === 'ja' ? '🇯🇵'
+                      : house.primary_language === 'zh' ? '🇨🇳' : '🌐'
+                    } {house.primary_language}
                   </div>
                 </div>
               </div>
             </div>
           ))}
 
-          {/* 집 추가 버튼 */}
           <div style={{ padding: '0 16px', marginTop: 4, marginBottom: 8 }}>
             <button style={styles.addHouseBtn} onClick={() => router.push('/houses/create')}>
               + 집 만들기
@@ -74,11 +78,19 @@ export default function HomePage() {
           <div style={styles.sectionTitle}>최근 방문</div>
           <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
             {footprints.slice(0, 5).map((fp: any) => (
-              <div key={fp.id} style={styles.visitItem}>
+              <div
+                key={fp.id}
+                style={styles.visitItem}
+                onClick={() => router.push(`/rooms/${fp.room_id}`)}
+              >
                 <div style={styles.visitIcon}>👣</div>
                 <div style={{ flex: 1 }}>
-                  <div style={styles.visitRoom}>{fp.room_id}</div>
-                  <div style={styles.visitTime}>{new Date(fp.visited_at).toLocaleDateString('ko-KR')}</div>
+                  <div style={styles.visitRoom}>
+                    {fp.corenull_rooms?.room_name || fp.room_id}
+                  </div>
+                  <div style={styles.visitTime}>
+                    {new Date(fp.visited_at).toLocaleDateString('ko-KR')}
+                  </div>
                 </div>
               </div>
             ))}
@@ -141,6 +153,7 @@ const styles: Record<string, React.CSSProperties> = {
   visitItem: {
     background: '#FEFCF8', borderRadius: 12, border: '1px solid rgba(92,61,46,0.12)',
     padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12,
+    cursor: 'pointer',
   },
   visitIcon: {
     width: 40, height: 40, borderRadius: 10,
