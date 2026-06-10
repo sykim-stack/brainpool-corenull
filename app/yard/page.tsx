@@ -5,14 +5,20 @@ import { useRouter } from 'next/navigation'
 
 const OWNER_KEY = 'test-device-001'
 
+const LANG_FLAG: Record<string, string> = {
+  ko: '🇰🇷',
+  vi: '🇻🇳',
+  en: '🇺🇸',
+  ja: '🇯🇵',
+  zh: '🇨🇳',
+}
+
 export default function YardPage() {
   const [posts, setPosts] = useState([])
   const [loading, setLoading] = useState(true)
   const router = useRouter()
 
   useEffect(() => {
-    // 마당 = 공개 방들의 포스트 피드
-    // 현재는 테스트 room_id로 조회 (나중에 public rooms 전체로 확장)
     fetch(`/api/corenull/yard`)
       .then(r => r.json())
       .then(d => {
@@ -64,6 +70,9 @@ function PostCard({ post, ownerKey, onClick }: any) {
   const hasImage = firstMedia?.type === 'image'
   const hasVideo = firstMedia?.type === 'video'
 
+  const room = post._room
+  const langFlag = room?.house_language ? (LANG_FLAG[room.house_language] || '🏡') : '🏡'
+
   useEffect(() => {
     fetch(`/api/corenull/comments?post_id=${post.id}`)
       .then(r => r.json())
@@ -83,12 +92,16 @@ function PostCard({ post, ownerKey, onClick }: any) {
 
   return (
     <div style={styles.card} onClick={onClick}>
-      {/* 공간 먼저 */}
+      {/* 공간 정보 */}
       <div style={styles.cardHeader}>
         <div style={styles.spaceRow}>
-          <span style={styles.spaceHouse}>🏡 집</span>
+          <span style={styles.spaceHouse}>
+            {langFlag} {room?.house_title || '집'}
+          </span>
           <span style={styles.spaceSep}>·</span>
-          <span style={styles.spaceRoom}>방</span>
+          <span style={styles.spaceRoom}>
+            {room?.room_name || '방'}
+          </span>
         </div>
         <div style={styles.authorRow}>
           <div style={styles.avatar}>🌿</div>
@@ -105,11 +118,10 @@ function PostCard({ post, ownerKey, onClick }: any) {
           <img src={firstMedia.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         </div>
       )}
-
       {hasVideo && (
         <div style={styles.mediaVideo}>
           <button style={styles.playBtn} onClick={e => e.stopPropagation()}>▶</button>
-          <div style={styles.videoDuration}>🎬 0:15</div>
+          <div style={styles.videoDuration}>🎬</div>
         </div>
       )}
 
@@ -117,7 +129,7 @@ function PostCard({ post, ownerKey, onClick }: any) {
       <div style={styles.cardBody}>
         <div style={styles.postText}>{post.content}</div>
 
-        {/* 번역 토글 — 나중에 언어 감지 후 조건부 표시 */}
+        {/* 번역 토글 */}
         {post.translated_ko && (
           <div>
             <div
@@ -172,9 +184,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontFamily: "'Noto Serif KR', serif", fontSize: 18, fontWeight: 600, color: '#2C1810',
   },
   feed: { padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 12 },
-  empty: {
-    textAlign: 'center', padding: '48px 24px', color: '#9A8470',
-  },
+  empty: { textAlign: 'center', padding: '48px 24px', color: '#9A8470' },
   card: {
     background: '#FEFCF8', borderRadius: 18,
     border: '1px solid rgba(92,61,46,0.12)',
@@ -223,9 +233,7 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer', width: 'fit-content',
   },
   translateLabel: { fontSize: 12, color: '#C17F3C', fontWeight: 500 },
-  translateResult: {
-    marginTop: 8, fontSize: 13, lineHeight: 1.65, color: '#5C4A35',
-  },
+  translateResult: { marginTop: 8, fontSize: 13, lineHeight: 1.65, color: '#5C4A35' },
   cardFooter: {
     padding: '10px 16px 14px', display: 'flex', alignItems: 'center', gap: 16,
   },

@@ -135,4 +135,8 @@
 - Phase 3-A 연동 준비 필요:
   messages 테이블 공유
   type: "comment" + relations.parent_id 구조
-```
+  
+✅ /rooms/[id]       방 상세 + 포스트 목록
+✅ /me/posts         내가 쓴 이야기
+✅ rooms API         room_id 단건 조회 추가
+✅ houses API        house_id 단건 조회 추가

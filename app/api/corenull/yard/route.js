@@ -1,6 +1,7 @@
 // CoreNull - Yard API
 // 마당 = public 방들의 포스트 피드
 // visibility = 'public' 인 방들의 포스트 전체 조회
+// room + house 정보 join 포함
 
 export const dynamic = 'force-dynamic'
 
@@ -21,10 +22,10 @@ const handleGet = async (req, traceId) => {
   const supabase = getSupabase()
   if (!supabase) return Response.json({ _error: 'supabase_init_failed', traceId }, { status: 500 })
 
-  // public 방 목록 먼저
+  // public 방 + 집 정보 함께 조회
   const { data: rooms, error: roomError } = await supabase
     .from('corenull_rooms')
-    .select('id')
+    .select('id, room_name, house_id, corenull_houses(id, title, primary_language)')
     .eq('visibility', 'public')
 
   if (roomError) return Response.json({ _error: roomError.message, traceId }, { status: 500 })
@@ -36,7 +37,7 @@ const handleGet = async (req, traceId) => {
   }
 
   // public 방들의 포스트 전체
-  const { data, error } = await supabase
+  const { data: posts, error } = await supabase
     .from('messages')
     .select('*')
     .in('room_id', roomIds)
@@ -46,6 +47,22 @@ const handleGet = async (req, traceId) => {
     .range(offset, offset + limit - 1)
 
   if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
+
+  // 포스트에 room + house 정보 붙이기
+  const roomMap = {}
+  for (const room of (rooms || [])) {
+    roomMap[room.id] = {
+      room_name: room.room_name,
+      house_id: room.house_id,
+      house_title: room.corenull_houses?.title || null,
+      house_language: room.corenull_houses?.primary_language || null,
+    }
+  }
+
+  const data = (posts || []).map(post => ({
+    ...post,
+    _room: roomMap[post.room_id] || null,
+  }))
 
   return Response.json({ data, traceId })
 }
