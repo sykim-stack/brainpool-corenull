@@ -33,7 +33,15 @@ const handleGet = async (req, traceId) => {
 
   if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
 
-  return Response.json({ data, traceId })
+  // room_id 기준 중복 제거 — 가장 최근 방문 1개만
+  const seen = new Set()
+  const deduped = (data || []).filter(fp => {
+    if (seen.has(fp.room_id)) return false
+    seen.add(fp.room_id)
+    return true
+  })
+
+  return Response.json({ data: deduped, traceId })
 }
 
 export { handler as GET }
