@@ -17,7 +17,7 @@ type Room = {
 
 type House = {
   id: string
-  room_name: string
+  title: string
   primary_language: string
   owner_key: string
 }
