@@ -96,11 +96,11 @@ export default function RoomPage() {
         setHouse(hData.house)
       }
 
-      // 포스트 목록
-      const pRes = await fetch(`/api/corenull/posts?room_id=${roomId}`)
+      // 포스트 목록 + 방문 기록 (owner_key 전달)
+      const pRes = await fetch(`/api/corenull/posts?room_id=${roomId}&owner_key=${OWNER_KEY}`)
       const pData = await pRes.json()
-      if (!pData._error && pData.posts) {
-        setPosts(pData.posts.filter((p: Post) => !p.meta?.archived))
+      if (!pData._error && pData.data) {
+        setPosts(pData.data.filter((p: Post) => !p.meta?.archived))
       }
     } catch {
       setError('불러오는 중 문제가 생겼어요.')
