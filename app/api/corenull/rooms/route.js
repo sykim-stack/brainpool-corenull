@@ -56,7 +56,7 @@ const handleGet = async (req, traceId) => {
 
 const handlePost = async (req, traceId) => {
   const body = JSON.parse(await req.text())
-  const { house_id, owner_key, room_name, room_type, visibility, event_mode, slug } = body
+  const { house_id, owner_key, room_name, room_type, visibility, seed_mode, bloom_date, slug } = body
 
   if (!house_id || !owner_key || !room_name) {
     return Response.json({ _error: 'house_id_owner_key_room_name_required', traceId }, { status: 500 })
@@ -85,7 +85,8 @@ const handlePost = async (req, traceId) => {
       room_name,
       room_type: room_type || 'normal',
       visibility: visibility || 'public',
-      event_mode: event_mode || false,
+      seed_mode: seed_mode || false,
+      bloom_date: bloom_date || null,
       slug: slug || null,
     })
     .select()

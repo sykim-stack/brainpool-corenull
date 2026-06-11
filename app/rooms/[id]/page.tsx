@@ -9,7 +9,7 @@ type Room = {
   id: string
   room_name: string
   visibility: 'public' | 'private'
-  event_mode: boolean
+  seed_mode: boolean
   slug: string | null
   house_id: string
   created_at: string
@@ -147,7 +147,7 @@ export default function RoomPage() {
             <span style={visibilityBadge(room.visibility)}>
               {room.visibility === 'public' ? '공개' : '비공개'}
             </span>
-            {room.event_mode && (
+            {room.seed_mode && (
               <span style={eventBadge}>🌱 씨앗</span>
             )}
           </div>

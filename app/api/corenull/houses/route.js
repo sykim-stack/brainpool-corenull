@@ -79,7 +79,7 @@ const handlePost = async (req, traceId) => {
       room_name: '일상',
       room_type: 'normal',
       visibility: 'public',
-      event_mode: false,
+      seed_mode: false,
     })
 
   return Response.json({ data: house, traceId })

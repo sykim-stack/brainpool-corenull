@@ -17,7 +17,7 @@ export default function WritePage() {
   // 새 방 만들기
   const [showNewRoom, setShowNewRoom] = useState(false)
   const [newRoomName, setNewRoomName] = useState('')
-  const [isEventRoom, setIsEventRoom] = useState(false)
+  const [isSeed, setIsSeed] = useState(false)
   const [creatingRoom, setCreatingRoom] = useState(false)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -51,9 +51,9 @@ export default function WritePage() {
         house_id: houseId,
         owner_key: OWNER_KEY,
         room_name: newRoomName.trim(),
-        room_type: isEventRoom ? 'event' : 'normal',
+        room_type: isSeed ? 'seed' : 'normal',
         visibility: 'public',
-        event_mode: isEventRoom,
+        seed_mode: isSeed,
       }),
     })
 
@@ -64,7 +64,7 @@ export default function WritePage() {
       setSelectedRoom(created)
       setShowNewRoom(false)
       setNewRoomName('')
-      setIsEventRoom(false)
+      setIsSeed(false)
     }
     setCreatingRoom(false)
   }
@@ -94,7 +94,7 @@ export default function WritePage() {
         owner_key: OWNER_KEY,
         content: content.trim(),
         meta: { media: mediaFiles },
-        type: selectedRoom.event_mode ? 'event' : 'post',
+        type: selectedRoom.seed_mode ? 'seed' : 'post',
       }),
     })
     const data = await res.json()
@@ -140,7 +140,7 @@ export default function WritePage() {
             >
               {rooms.map((r: any) => (
                 <option key={r.id} value={r.id}>
-                  {r.room_name}{r.event_mode ? ' 🌱' : ''}
+                  {r.room_name}{r.seed_mode ? ' 🌱' : ''}
                 </option>
               ))}
               <option value="__new__">+ 새 방 만들기</option>
@@ -153,7 +153,7 @@ export default function WritePage() {
               <span style={styles.roomLabel}>새 방 만들기</span>
               <button
                 style={styles.cancelBtn}
-                onClick={() => { setShowNewRoom(false); setNewRoomName(''); setIsEventRoom(false) }}
+                onClick={() => { setShowNewRoom(false); setNewRoomName(''); setIsSeed(false) }}
               >
                 취소
               </button>
@@ -169,7 +169,7 @@ export default function WritePage() {
             />
 
             {/* 씨앗 토글 */}
-            <div style={styles.toggleRow} onClick={() => setIsEventRoom(v => !v)}>
+            <div style={styles.toggleRow} onClick={() => setIsSeed(v => !v)}>
               <div style={styles.toggleLeft}>
                 <span style={{ fontSize: 18 }}>🌱</span>
                 <div>
@@ -177,8 +177,8 @@ export default function WritePage() {
                   <div style={styles.toggleDesc}>스스로에게 한 약속</div>
                 </div>
               </div>
-              <div style={{ ...styles.toggleSwitch, background: isEventRoom ? '#2C1810' : '#e0d8d0' }}>
-                <div style={{ ...styles.toggleThumb, transform: isEventRoom ? 'translateX(20px)' : 'translateX(2px)' }} />
+              <div style={{ ...styles.toggleSwitch, background: isSeed ? '#2C1810' : '#e0d8d0' }}>
+                <div style={{ ...styles.toggleThumb, transform: isSeed ? 'translateX(20px)' : 'translateX(2px)' }} />
               </div>
             </div>
 

@@ -41,7 +41,7 @@ const handleGet = async (req, traceId) => {
     .from('messages')
     .select('*')
     .in('room_id', roomIds)
-    .in('type', ['post', 'event'])
+    .in('type', ['post', 'seed'])
     .not('meta', 'cs', '{"archived":true}')
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1)

@@ -38,7 +38,7 @@ const handleGet = async (req, traceId) => {
     .from('messages')
     .select('*')
     .eq('room_id', room_id)
-    .in('type', ['post', 'event'])
+    .in('type', ['post', 'seed'])
     .order('created_at', { ascending: false })
 
   if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })

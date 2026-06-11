@@ -72,13 +72,13 @@ export default function HouseDetailPage() {
                 onClick={() => router.push(`/rooms/${room.id}`)}
               >
                 <div style={styles.roomIcon}>
-                  {room.event_mode ? '🌱' : '🚪'}
+                  {room.seed_mode ? '🌱' : '🚪'}
                 </div>
                 <div style={styles.roomInfo}>
                   <div style={styles.roomName}>{room.room_name}</div>
                   <div style={styles.roomMeta}>
                     {room.visibility === 'public' ? '🌍 공개' : room.visibility === 'friend' ? '👥 친구' : '👨‍👩‍👧 가족'}
-                    {room.event_mode && ' · 🌱 씨앗'}
+                    {room.seed_mode && ' · 🌱 씨앗'}
                   </div>
                 </div>
                 <span style={styles.roomArrow}>›</span>
