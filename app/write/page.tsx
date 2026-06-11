@@ -140,7 +140,7 @@ export default function WritePage() {
             >
               {rooms.map((r: any) => (
                 <option key={r.id} value={r.id}>
-                  {r.room_name}{r.event_mode ? ' 🎉' : ''}
+                  {r.room_name}{r.event_mode ? ' 🌱' : ''}
                 </option>
               ))}
               <option value="__new__">+ 새 방 만들기</option>
@@ -168,13 +168,13 @@ export default function WritePage() {
               autoFocus
             />
 
-            {/* 이벤트방 토글 */}
+            {/* 씨앗 토글 */}
             <div style={styles.toggleRow} onClick={() => setIsEventRoom(v => !v)}>
               <div style={styles.toggleLeft}>
-                <span style={{ fontSize: 18 }}>🎉</span>
+                <span style={{ fontSize: 18 }}>🌱</span>
                 <div>
-                  <div style={styles.toggleTitle}>이벤트 방</div>
-                  <div style={styles.toggleDesc}>생일, 기념일 등 특별한 날</div>
+                  <div style={styles.toggleTitle}>씨앗</div>
+                  <div style={styles.toggleDesc}>스스로에게 한 약속</div>
                 </div>
               </div>
               <div style={{ ...styles.toggleSwitch, background: isEventRoom ? '#2C1810' : '#e0d8d0' }}>

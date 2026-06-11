@@ -136,10 +136,18 @@
   messages 테이블 공유
   type: "comment" + relations.parent_id 구조
 
-✅ /rooms/[id]          방 상세 + 포스트 목록
-✅ /me/posts            내가 쓴 이야기
-✅ rooms API            room_id 단건 조회
-✅ houses API           house_id 단건 조회
-✅ yard API             집/방 이름 join
-✅ footprints API       room_name join + 중복 제거
-✅ 홈                   최근 방문 room_name 표시 + 클릭 이동
+오늘 전체 작업 완료 정리:
+✅ /rooms/[id]           방 상세 + 포스트 목록
+✅ /me/posts             내가 쓴 이야기
+✅ /write                방 인라인 생성 (씨앗 토글 포함)
+✅ rooms API             room_id 단건 조회
+✅ houses API            house_id 단건 조회
+✅ yard API              집/방 이름 join
+✅ footprints API        room_name join + 중복 제거
+✅ 씨앗 텍스트           전체 UI 반영
+Phase 2 예정:
+⏳ bloom_date 컬럼 추가  (꽃 피는 날)
+⏳ 마당 씨앗/꽃 섹션 분리
+⏳ 서재 씨앗/꽃 탭
+⏳ CSS 분리 + 마당 상단 검은 영역
+⏳ owner_key 실제 device_id 연동

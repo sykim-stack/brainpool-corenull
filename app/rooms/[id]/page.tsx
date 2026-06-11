@@ -141,7 +141,7 @@ export default function RoomPage() {
               {room.visibility === 'public' ? '공개' : '비공개'}
             </span>
             {room.event_mode && (
-              <span style={eventBadge}>이벤트</span>
+              <span style={eventBadge}>🌱 씨앗</span>
             )}
           </div>
           {house && (

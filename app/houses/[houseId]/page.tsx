@@ -15,11 +15,10 @@ export default function HouseDetailPage() {
   useEffect(() => {
     if (!houseId) return
     Promise.all([
-      fetch(`/api/corenull/houses?owner_key=${OWNER_KEY}`).then(r => r.json()),
+      fetch(`/api/corenull/houses?house_id=${houseId}`).then(r => r.json()),
       fetch(`/api/corenull/rooms?house_id=${houseId}`).then(r => r.json()),
     ]).then(([h, r]) => {
-      const found = (h.data || []).find((h: any) => h.id === houseId)
-      setHouse(found || null)
+      setHouse(h.house || null)
       setRooms(r.data || [])
       setLoading(false)
     })
@@ -73,13 +72,13 @@ export default function HouseDetailPage() {
                 onClick={() => router.push(`/rooms/${room.id}`)}
               >
                 <div style={styles.roomIcon}>
-                  {room.event_mode ? '🎉' : '🚪'}
+                  {room.event_mode ? '🌱' : '🚪'}
                 </div>
                 <div style={styles.roomInfo}>
                   <div style={styles.roomName}>{room.room_name}</div>
                   <div style={styles.roomMeta}>
                     {room.visibility === 'public' ? '🌍 공개' : room.visibility === 'friend' ? '👥 친구' : '👨‍👩‍👧 가족'}
-                    {room.event_mode && ' · 🎉 이벤트'}
+                    {room.event_mode && ' · 🌱 씨앗'}
                   </div>
                 </div>
                 <span style={styles.roomArrow}>›</span>
@@ -91,7 +90,7 @@ export default function HouseDetailPage() {
         {/* 방 만들기 버튼 */}
         <button
           style={styles.addRoomBtn}
-          onClick={() => router.push(`/houses/${houseId}/rooms/create`)}
+          onClick={() => router.push('/write')}
         >
           + 방 만들기
         </button>
