@@ -65,8 +65,10 @@ export default function RoomPage() {
   const [posts, setPosts] = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [isMember, setIsMember] = useState(false)
 
   const isOwner = house?.owner_key === OWNER_KEY
+  const canWrite = isOwner || isMember
 
   // ─── Fetch ─────────────────────────────────────────────
   useEffect(() => {
@@ -94,6 +96,11 @@ export default function RoomPage() {
       const hData = await hRes.json()
       if (!hData._error && hData.house) {
         setHouse(hData.house)
+
+        // 멤버 확인
+        const mRes = await fetch(`/api/corenull/members?house_id=${rData.room.house_id}&device_id=${OWNER_KEY}`)
+        const mData = await mRes.json()
+        setIsMember(!mData._error && mData.is_member === true)
       }
 
       // 포스트 목록 + 방문 기록 (owner_key 전달)
@@ -150,7 +157,7 @@ export default function RoomPage() {
             </p>
           )}
         </div>
-        {isOwner && (
+        {canWrite && (
           <Link
             href={`/write?room_id=${roomId}`}
             style={writeBtn}
@@ -163,7 +170,7 @@ export default function RoomPage() {
       {/* ── 포스트 목록 ── */}
       <main style={{ maxWidth: '640px', margin: '0 auto', padding: '16px' }}>
         {posts.length === 0 ? (
-          <EmptyState isOwner={isOwner} roomId={roomId} />
+          <EmptyState isOwner={canWrite} roomId={roomId} />
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {posts.map((post) => (
