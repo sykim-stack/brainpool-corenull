@@ -6,165 +6,188 @@ import { useRouter } from 'next/navigation'
 import { getDeviceId } from '@/lib/deviceId'
 const OWNER_KEY = getDeviceId()
 
-export default function HomePage() {
+type Post = {
+  id: string
+  content: string
+  meta: {
+    media?: { type: string; url: string }[]
+    archived?: boolean
+    reborn_from?: string
+  }
+  created_at: string
+}
+
+export default function MyPostsPage() {
   const router = useRouter()
-  const [houses, setHouses] = useState([])
-  const [footprints, setFootprints] = useState([])
+  const [posts, setPosts] = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    Promise.all([
-      fetch(`/api/corenull/houses?owner_key=${OWNER_KEY}`).then(r => r.json()),
-      fetch(`/api/corenull/footprints?owner_key=${OWNER_KEY}`).then(r => r.json()),
-    ]).then(([h, f]) => {
-      setHouses(h.data || [])
-      setFootprints(f.data || [])
-      setLoading(false)
-    })
+    fetch(`/api/corenull/library?owner_key=${OWNER_KEY}`)
+      .then(r => r.json())
+      .then(d => {
+        setPosts(d.data?.my_posts || [])
+        setLoading(false)
+      })
   }, [])
 
-  if (loading) return <div style={styles.loading}>🏡</div>
+  if (loading) {
+    return (
+      <div style={styles.loading}>
+        <span style={{ fontSize: 32 }}>📝</span>
+      </div>
+    )
+  }
 
   return (
     <div>
       {/* 헤더 */}
       <div style={styles.header}>
-        <span style={styles.logo}>Core<span style={{ color: '#C17F3C' }}>Null</span></span>
-        <button style={styles.iconBtn}>🔍</button>
+        <button style={styles.backBtn} onClick={() => router.back()}>←</button>
+        <span style={styles.headerTitle}>내가 쓴 이야기</span>
+        <div style={{ width: 36 }} />
       </div>
 
-      {/* 내 집 */}
-      <div style={styles.sectionTitle}>내 집</div>
-
-      {houses.length === 0 ? (
-        <div style={styles.emptyCard}>
-          <div style={{ fontSize: 32, marginBottom: 8 }}>🏡</div>
-          <div style={styles.emptyText}>아직 집이 없어요</div>
-          <button style={styles.createBtn} onClick={() => router.push('/houses/create')}>
-            집 만들기
-          </button>
-        </div>
-      ) : (
-        <>
-          {houses.map((house: any) => (
-            <div key={house.id} style={styles.houseCard} onClick={() => router.push(`/houses/${house.id}`)}>
-              <div style={styles.houseCover}>
-                <span style={{ fontSize: 32 }}>🏡</span>
-                <div>
-                  <div style={styles.houseName}>{house.title}</div>
-                  <div style={styles.houseLang}>
-                    {house.primary_language === 'ko' ? '🇰🇷'
-                      : house.primary_language === 'vi' ? '🇻🇳'
-                      : house.primary_language === 'en' ? '🇺🇸'
-                      : house.primary_language === 'ja' ? '🇯🇵'
-                      : house.primary_language === 'zh' ? '🇨🇳' : '🌐'
-                    } {house.primary_language}
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
-
-          <div style={{ padding: '0 16px', marginTop: 4, marginBottom: 8 }}>
-            <button style={styles.addHouseBtn} onClick={() => router.push('/houses/create')}>
-              + 집 만들기
-            </button>
-          </div>
-        </>
-      )}
-
-      {/* 최근 방문 */}
-      {footprints.length > 0 && (
-        <>
-          <div style={styles.sectionTitle}>최근 방문</div>
-          <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {footprints.slice(0, 5).map((fp: any) => (
-              <div
-                key={fp.id}
-                style={styles.visitItem}
-                onClick={() => router.push(`/rooms/${fp.room_id}`)}
-              >
-                <div style={styles.visitIcon}>👣</div>
-                <div style={{ flex: 1 }}>
-                  <div style={styles.visitRoom}>
-                    {fp.corenull_rooms?.room_name || fp.room_id}
-                  </div>
-                  <div style={styles.visitTime}>
-                    {new Date(fp.visited_at).toLocaleDateString('ko-KR')}
-                  </div>
-                </div>
-              </div>
+      <div style={styles.body}>
+        {posts.length === 0 ? (
+          <Empty />
+        ) : (
+          <div style={styles.list}>
+            {posts.map(post => (
+              <PostItem
+                key={post.id}
+                post={post}
+                onClick={() => router.push(`/posts/${post.id}`)}
+              />
             ))}
           </div>
-        </>
-      )}
+        )}
+      </div>
     </div>
   )
 }
 
+// ─── PostItem ─────────────────────────────────────────────
+function PostItem({ post, onClick }: { post: Post; onClick: () => void }) {
+  const thumb = post.meta?.media?.find(m => m.type === 'image')
+  const preview = post.content?.slice(0, 80) || ''
+  const hasMore = (post.content?.length || 0) > 80
+
+  return (
+    <div style={styles.item} onClick={onClick}>
+      {/* 썸네일 */}
+      {thumb && (
+        <img src={thumb.url} alt="" style={styles.thumb} />
+      )}
+
+      {/* 내용 */}
+      <div style={styles.itemInfo}>
+        <p style={styles.itemContent}>
+          {preview}{hasMore ? '…' : ''}
+        </p>
+        <div style={styles.itemMeta}>
+          {post.meta?.archived && (
+            <span style={styles.archivedBadge}>보관됨</span>
+          )}
+          {post.meta?.reborn_from && (
+            <span style={styles.rebornBadge}>재탄생</span>
+          )}
+          <span style={styles.itemDate}>
+            {formatDate(post.created_at)}
+          </span>
+        </div>
+      </div>
+
+      <span style={styles.arrow}>›</span>
+    </div>
+  )
+}
+
+// ─── Empty ────────────────────────────────────────────────
+function Empty() {
+  return (
+    <div style={{ textAlign: 'center', padding: '64px 24px' }}>
+      <div style={{ fontSize: 40, marginBottom: 12 }}>📝</div>
+      <p style={{ fontSize: 14, color: '#9A8470', lineHeight: 1.6 }}>
+        아직 쓴 이야기가 없어요
+      </p>
+    </div>
+  )
+}
+
+// ─── Utils ────────────────────────────────────────────────
+function formatDate(iso: string) {
+  const d = new Date(iso)
+  const now = new Date()
+  const diff = Math.floor((now.getTime() - d.getTime()) / 1000)
+  if (diff < 60) return '방금 전'
+  if (diff < 3600) return `${Math.floor(diff / 60)}분 전`
+  if (diff < 86400) return `${Math.floor(diff / 3600)}시간 전`
+  return d.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })
+}
+
+// ─── Styles ───────────────────────────────────────────────
 const styles: Record<string, React.CSSProperties> = {
+  loading: {
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    height: '50vh',
+  },
   header: {
     position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)',
     width: '100%', maxWidth: '430px', height: 56,
     background: 'rgba(254,252,248,0.95)', borderBottom: '1px solid rgba(92,61,46,0.12)',
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '0 20px', zIndex: 100, backdropFilter: 'blur(12px)',
+    padding: '0 16px', zIndex: 100, backdropFilter: 'blur(12px)',
   },
-  logo: {
-    fontFamily: "'Noto Serif KR', serif", fontSize: 18, fontWeight: 600, color: '#2C1810',
+  backBtn: {
+    fontSize: 20, color: '#2C1810', background: 'none', border: 'none', cursor: 'pointer',
   },
-  iconBtn: {
-    width: 36, height: 36, borderRadius: '50%', background: '#F5F0E8',
-    border: 'none', fontSize: 16, cursor: 'pointer',
+  headerTitle: {
+    fontFamily: "'Noto Serif KR', serif", fontSize: 16, fontWeight: 600, color: '#2C1810',
   },
-  sectionTitle: {
-    fontSize: 11, color: '#9A8470', letterSpacing: '1px',
-    textTransform: 'uppercase', padding: '20px 20px 10px',
+  body: {
+    padding: '16px',
   },
-  houseCard: {
-    margin: '0 16px 12px', background: '#FEFCF8',
-    borderRadius: 16, border: '1px solid rgba(92,61,46,0.12)',
-    overflow: 'hidden', boxShadow: '0 2px 20px rgba(44,24,16,0.08)',
+  list: {
+    display: 'flex', flexDirection: 'column', gap: 8,
+  },
+  item: {
+    background: '#FEFCF8', borderRadius: 12,
+    border: '1px solid rgba(92,61,46,0.12)',
+    padding: '12px 14px',
+    display: 'flex', alignItems: 'center', gap: 12,
     cursor: 'pointer',
   },
-  houseCover: {
-    height: 100, background: 'linear-gradient(135deg, #4A5240 0%, #7A8C6E 60%, #C8D5B9 100%)',
-    display: 'flex', alignItems: 'flex-end', padding: '14px 16px', gap: 10,
+  thumb: {
+    width: 52, height: 52, borderRadius: 8,
+    objectFit: 'cover', flexShrink: 0,
   },
-  houseName: {
-    fontFamily: "'Noto Serif KR', serif", fontSize: 16, fontWeight: 600,
-    color: 'white', textShadow: '0 1px 4px rgba(0,0,0,0.3)',
+  itemInfo: {
+    flex: 1, minWidth: 0,
   },
-  houseLang: { fontSize: 11, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
-  emptyCard: {
-    margin: '0 16px', background: '#FEFCF8', borderRadius: 16,
-    border: '1px dashed rgba(92,61,46,0.2)', padding: '32px 20px',
-    textAlign: 'center',
+  itemContent: {
+    fontSize: 13, color: '#1C1208', lineHeight: 1.5,
+    margin: '0 0 4px',
+    overflow: 'hidden', textOverflow: 'ellipsis',
+    display: '-webkit-box',
+    WebkitLineClamp: 2,
+    WebkitBoxOrient: 'vertical',
   },
-  emptyText: { fontSize: 14, color: '#9A8470', marginBottom: 16 },
-  createBtn: {
-    padding: '10px 24px', background: '#2C1810', color: 'white',
-    border: 'none', borderRadius: 12, fontSize: 14, cursor: 'pointer',
+  itemMeta: {
+    display: 'flex', alignItems: 'center', gap: 6,
   },
-  addHouseBtn: {
-    width: '100%', padding: '12px', background: '#FEFCF8',
-    border: '1px dashed rgba(92,61,46,0.2)', borderRadius: 12,
-    fontSize: 14, color: '#9A8470', cursor: 'pointer',
+  itemDate: {
+    fontSize: 11, color: '#9A8470',
   },
-  visitItem: {
-    background: '#FEFCF8', borderRadius: 12, border: '1px solid rgba(92,61,46,0.12)',
-    padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12,
-    cursor: 'pointer',
+  archivedBadge: {
+    fontSize: 10, color: '#9A8470',
+    background: 'rgba(92,61,46,0.08)', padding: '2px 6px', borderRadius: 6,
   },
-  visitIcon: {
-    width: 40, height: 40, borderRadius: 10,
-    background: 'linear-gradient(135deg, #7A8C6E, #C8D5B9)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
+  rebornBadge: {
+    fontSize: 10, color: '#C17F3C',
+    background: 'rgba(193,127,60,0.1)', padding: '2px 6px', borderRadius: 6,
   },
-  visitRoom: { fontSize: 13, color: '#1C1208', fontWeight: 500 },
-  visitTime: { fontSize: 11, color: '#9A8470', marginTop: 2 },
-  loading: {
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    height: '50vh', fontSize: 40,
+  arrow: {
+    fontSize: 16, color: '#9A8470', flexShrink: 0,
   },
 }

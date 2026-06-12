@@ -2,212 +2,169 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { getDeviceId } from '@/lib/deviceId'
 
+import { getDeviceId } from '@/lib/deviceId'
 const OWNER_KEY = getDeviceId()
 
-type Tab = 'footprints' | 'saved' | 'posts'
-
-export default function LibraryPage() {
-  const [library, setLibrary] = useState<any>(null)
-  const [activeTab, setActiveTab] = useState<Tab>('footprints')
-  const [loading, setLoading] = useState(true)
+export default function HomePage() {
   const router = useRouter()
+  const [houses, setHouses] = useState([])
+  const [footprints, setFootprints] = useState([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch(`/api/corenull/library?owner_key=${OWNER_KEY}`)
-      .then(r => r.json())
-      .then(d => {
-        setLibrary(d.data)
-        setLoading(false)
-      })
+    Promise.all([
+      fetch(`/api/corenull/houses?owner_key=${OWNER_KEY}`).then(r => r.json()),
+      fetch(`/api/corenull/footprints?owner_key=${OWNER_KEY}`).then(r => r.json()),
+    ]).then(([h, f]) => {
+      setHouses(h.data || [])
+      setFootprints(f.data || [])
+      setLoading(false)
+    })
   }, [])
 
-  if (loading) return <div style={styles.loading}>📚</div>
-
-  const tabs = [
-    { id: 'footprints', label: '👣 발자취', count: library?.footprints?.length || 0 },
-    { id: 'saved', label: '🔖 저장', count: (library?.saved_rooms?.length || 0) + (library?.saved_posts?.length || 0) },
-    { id: 'posts', label: '📝 내 글', count: library?.my_posts?.length || 0 },
-  ]
+  if (loading) return <div style={styles.loading}>🏡</div>
 
   return (
     <div>
       {/* 헤더 */}
       <div style={styles.header}>
-        <button style={styles.backBtn} onClick={() => router.back()}>←</button>
-        <span style={styles.headerTitle}>📚 서재</span>
-        <div style={{ width: 36 }} />
+        <span style={styles.logo}>Core<span style={{ color: '#C17F3C' }}>Null</span></span>
+        <button style={styles.iconBtn}>🔍</button>
       </div>
 
-      {/* 탭 */}
-      <div style={styles.tabRow}>
-        {tabs.map(tab => (
-          <button
-            key={tab.id}
-            style={{ ...styles.tab, ...(activeTab === tab.id ? styles.tabActive : {}) }}
-            onClick={() => setActiveTab(tab.id as Tab)}
-          >
-            {tab.label}
-            {tab.count > 0 && <span style={styles.tabCount}>{tab.count}</span>}
+      {/* 내 집 */}
+      <div style={styles.sectionTitle}>내 집</div>
+
+      {houses.length === 0 ? (
+        <div style={styles.emptyCard}>
+          <div style={{ fontSize: 32, marginBottom: 8 }}>🏡</div>
+          <div style={styles.emptyText}>아직 집이 없어요</div>
+          <button style={styles.createBtn} onClick={() => router.push('/houses/create')}>
+            집 만들기
           </button>
-        ))}
-      </div>
-
-      <div style={styles.body}>
-        {/* 발자취 탭 */}
-        {activeTab === 'footprints' && (
-          <div style={styles.list}>
-            {(library?.footprints || []).length === 0 ? (
-              <Empty emoji="👣" text="아직 방문한 곳이 없어요" />
-            ) : (
-              library.footprints.map((fp: any) => (
-                <div key={fp.id} style={styles.listItem} onClick={() => router.push(`/rooms/${fp.room_id}`)}>
-                  <div style={styles.listIcon}>👣</div>
-                  <div style={styles.listInfo}>
-                    <div style={styles.listTitle}>{fp.corenull_rooms?.room_name || fp.room_id}</div>
-                    <div style={styles.listSub}>{new Date(fp.visited_at).toLocaleDateString('ko-KR')}</div>
+        </div>
+      ) : (
+        <>
+          {houses.map((house: any) => (
+            <div key={house.id} style={styles.houseCard} onClick={() => router.push(`/houses/${house.id}`)}>
+              <div style={styles.houseCover}>
+                <span style={{ fontSize: 32 }}>🏡</span>
+                <div>
+                  <div style={styles.houseName}>{house.title}</div>
+                  <div style={styles.houseLang}>
+                    {house.primary_language === 'ko' ? '🇰🇷'
+                      : house.primary_language === 'vi' ? '🇻🇳'
+                      : house.primary_language === 'en' ? '🇺🇸'
+                      : house.primary_language === 'ja' ? '🇯🇵'
+                      : house.primary_language === 'zh' ? '🇨🇳' : '🌐'
+                    } {house.primary_language}
                   </div>
-                  <span style={styles.listArrow}>›</span>
                 </div>
-              ))
-            )}
-          </div>
-        )}
+              </div>
+            </div>
+          ))}
 
-        {/* 저장 탭 */}
-        {activeTab === 'saved' && (
-          <div>
-            {(library?.saved_rooms || []).length > 0 && (
-              <>
-                <div style={styles.subTitle}>저장한 방</div>
-                <div style={styles.list}>
-                  {library.saved_rooms.map((b: any) => (
-                    <div key={b.id} style={styles.listItem}>
-                      <div style={styles.listIcon}>🏠</div>
-                      <div style={styles.listInfo}>
-                        <div style={styles.listTitle}>{b.room_id}</div>
-                        <div style={styles.listSub}>{new Date(b.created_at).toLocaleDateString('ko-KR')}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-            {(library?.saved_posts || []).length > 0 && (
-              <>
-                <div style={styles.subTitle}>저장한 포스트</div>
-                <div style={styles.list}>
-                  {library.saved_posts.map((b: any) => (
-                    <div key={b.id} style={styles.listItem} onClick={() => router.push(`/posts/${b.message_id}`)}>
-                      <div style={styles.listIcon}>🔖</div>
-                      <div style={styles.listInfo}>
-                        <div style={styles.listTitle}>저장한 이야기</div>
-                        <div style={styles.listSub}>{new Date(b.created_at).toLocaleDateString('ko-KR')}</div>
-                      </div>
-                      <span style={styles.listArrow}>›</span>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-            {(library?.saved_rooms || []).length === 0 && (library?.saved_posts || []).length === 0 && (
-              <Empty emoji="🔖" text="저장한 것이 없어요" />
-            )}
+          <div style={{ padding: '0 16px', marginTop: 4, marginBottom: 8 }}>
+            <button style={styles.addHouseBtn} onClick={() => router.push('/houses/create')}>
+              + 집 만들기
+            </button>
           </div>
-        )}
+        </>
+      )}
 
-        {/* 내 글 탭 */}
-        {activeTab === 'posts' && (
-          <div style={styles.list}>
-            {(library?.my_posts || []).length === 0 ? (
-              <Empty emoji="📝" text="아직 쓴 이야기가 없어요" />
-            ) : (
-              library.my_posts.map((post: any) => (
-                <div key={post.id} style={styles.postItem} onClick={() => router.push(`/posts/${post.id}`)}>
-                  {post.meta?.media?.[0]?.type === 'image' && (
-                    <img src={post.meta.media[0].url} alt="" style={styles.postThumb} />
-                  )}
-                  <div style={styles.postInfo}>
-                    <div style={styles.postContent}>
-                      {post.content?.slice(0, 60)}{post.content?.length > 60 ? '...' : ''}
-                    </div>
-                    <div style={styles.postMeta}>
-                      {post.meta?.archived && <span style={styles.archivedBadge}>보관됨</span>}
-                      {post.meta?.reborn_from && <span style={styles.rebornBadge}>재탄생</span>}
-                      <span style={styles.listSub}>{new Date(post.created_at).toLocaleDateString('ko-KR')}</span>
-                    </div>
+      {/* 최근 방문 */}
+      {footprints.length > 0 && (
+        <>
+          <div style={styles.sectionTitle}>최근 방문</div>
+          <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {footprints.slice(0, 5).map((fp: any) => (
+              <div
+                key={fp.id}
+                style={styles.visitItem}
+                onClick={() => router.push(`/rooms/${fp.room_id}`)}
+              >
+                <div style={styles.visitIcon}>👣</div>
+                <div style={{ flex: 1 }}>
+                  <div style={styles.visitRoom}>
+                    {fp.corenull_rooms?.room_name || fp.room_id}
                   </div>
-                  <span style={styles.listArrow}>›</span>
+                  <div style={styles.visitTime}>
+                    {new Date(fp.visited_at).toLocaleDateString('ko-KR')}
+                  </div>
                 </div>
-              ))
-            )}
+              </div>
+            ))}
           </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function Empty({ emoji, text }: { emoji: string; text: string }) {
-  return (
-    <div style={{ textAlign: 'center', padding: '48px 24px' }}>
-      <div style={{ fontSize: 40, marginBottom: 12 }}>{emoji}</div>
-      <p style={{ fontSize: 14, color: '#9A8470', lineHeight: 1.6 }}>{text}</p>
+        </>
+      )}
     </div>
   )
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  loading: { display: 'flex', alignItems: 'center', justifyContent: 'center', height: '50vh', fontSize: 40 },
   header: {
     position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)',
     width: '100%', maxWidth: '430px', height: 56,
     background: 'rgba(254,252,248,0.95)', borderBottom: '1px solid rgba(92,61,46,0.12)',
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '0 16px', zIndex: 100, backdropFilter: 'blur(12px)',
+    padding: '0 20px', zIndex: 100, backdropFilter: 'blur(12px)',
   },
-  backBtn: { fontSize: 20, color: '#2C1810', background: 'none', border: 'none', cursor: 'pointer' },
-  headerTitle: { fontFamily: "'Noto Serif KR', serif", fontSize: 16, fontWeight: 600, color: '#2C1810' },
-  tabRow: {
-    position: 'fixed', top: 56, left: 0, width: '100%', maxWidth: '430px',
-    background: 'rgba(254,252,248,0.95)', borderBottom: '1px solid rgba(92,61,46,0.12)',
-    display: 'flex', zIndex: 99, backdropFilter: 'blur(12px)',
+  logo: {
+    fontFamily: "'Noto Serif KR', serif", fontSize: 18, fontWeight: 600, color: '#2C1810',
   },
-  tab: {
-    flex: 1, padding: '12px 8px', border: 'none', background: 'none',
-    fontSize: 13, color: '#9A8470', cursor: 'pointer',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
-    borderBottom: '2px solid transparent', transition: 'all 0.2s',
+  iconBtn: {
+    width: 36, height: 36, borderRadius: '50%', background: '#F5F0E8',
+    border: 'none', fontSize: 16, cursor: 'pointer',
   },
-  tabActive: { color: '#2C1810', fontWeight: 500, borderBottom: '2px solid #C17F3C' },
-  tabCount: {
-    fontSize: 11, color: '#C17F3C', fontWeight: 600,
-    background: 'rgba(193,127,60,0.12)', padding: '1px 6px', borderRadius: 10,
+  sectionTitle: {
+    fontSize: 11, color: '#9A8470', letterSpacing: '1px',
+    textTransform: 'uppercase', padding: '20px 20px 10px',
   },
-  body: { padding: '16px', marginTop: '40px' },
-  subTitle: { fontSize: 11, color: '#9A8470', letterSpacing: '0.5px', textTransform: 'uppercase', padding: '8px 4px 6px' },
-  list: { display: 'flex', flexDirection: 'column', gap: 8 },
-  listItem: {
+  houseCard: {
+    margin: '0 16px 12px', background: '#FEFCF8',
+    borderRadius: 16, border: '1px solid rgba(92,61,46,0.12)',
+    overflow: 'hidden', boxShadow: '0 2px 20px rgba(44,24,16,0.08)',
+    cursor: 'pointer',
+  },
+  houseCover: {
+    height: 100, background: 'linear-gradient(135deg, #4A5240 0%, #7A8C6E 60%, #C8D5B9 100%)',
+    display: 'flex', alignItems: 'flex-end', padding: '14px 16px', gap: 10,
+  },
+  houseName: {
+    fontFamily: "'Noto Serif KR', serif", fontSize: 16, fontWeight: 600,
+    color: 'white', textShadow: '0 1px 4px rgba(0,0,0,0.3)',
+  },
+  houseLang: { fontSize: 11, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
+  emptyCard: {
+    margin: '0 16px', background: '#FEFCF8', borderRadius: 16,
+    border: '1px dashed rgba(92,61,46,0.2)', padding: '32px 20px',
+    textAlign: 'center',
+  },
+  emptyText: { fontSize: 14, color: '#9A8470', marginBottom: 16 },
+  createBtn: {
+    padding: '10px 24px', background: '#2C1810', color: 'white',
+    border: 'none', borderRadius: 12, fontSize: 14, cursor: 'pointer',
+  },
+  addHouseBtn: {
+    width: '100%', padding: '12px', background: '#FEFCF8',
+    border: '1px dashed rgba(92,61,46,0.2)', borderRadius: 12,
+    fontSize: 14, color: '#9A8470', cursor: 'pointer',
+  },
+  visitItem: {
     background: '#FEFCF8', borderRadius: 12, border: '1px solid rgba(92,61,46,0.12)',
-    padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer',
+    padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12,
+    cursor: 'pointer',
   },
-  listIcon: {
-    width: 40, height: 40, borderRadius: 10, background: 'rgba(74,82,64,0.1)',
+  visitIcon: {
+    width: 40, height: 40, borderRadius: 10,
+    background: 'linear-gradient(135deg, #7A8C6E, #C8D5B9)',
     display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
   },
-  listInfo: { flex: 1, minWidth: 0 },
-  listTitle: { fontSize: 13, fontWeight: 500, color: '#1C1208', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-  listSub: { fontSize: 11, color: '#9A8470', marginTop: 2 },
-  listArrow: { fontSize: 16, color: '#9A8470' },
-  postItem: {
-    background: '#FEFCF8', borderRadius: 12, border: '1px solid rgba(92,61,46,0.12)',
-    padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', marginBottom: 8,
+  visitRoom: { fontSize: 13, color: '#1C1208', fontWeight: 500 },
+  visitTime: { fontSize: 11, color: '#9A8470', marginTop: 2 },
+  loading: {
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    height: '50vh', fontSize: 40,
   },
-  postThumb: { width: 48, height: 48, borderRadius: 8, objectFit: 'cover', flexShrink: 0 },
-  postInfo: { flex: 1, minWidth: 0 },
-  postContent: { fontSize: 13, color: '#1C1208', lineHeight: 1.5, overflow: 'hidden', display: '-webkit-box' },
-  postMeta: { display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 },
-  archivedBadge: { fontSize: 10, color: '#9A8470', background: 'rgba(92,61,46,0.08)', padding: '2px 6px', borderRadius: 6 },
-  rebornBadge: { fontSize: 10, color: '#C17F3C', background: 'rgba(193,127,60,0.1)', padding: '2px 6px', borderRadius: 6 },
 }
