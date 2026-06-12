@@ -1,338 +1,345 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
-import Link from 'next/link'
+import { useState, useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 
-// ─── Types ───────────────────────────────────────────────
-type Room = {
-  id: string
-  room_name: string
-  visibility: 'public' | 'private'
-  seed_mode: boolean
-  slug: string | null
-  house_id: string
-  created_at: string
-}
-
-type House = {
-  id: string
-  title: string
-  primary_language: string
-  owner_key: string
-}
-
-type Post = {
-  id: string
-  content: string
-  meta: {
-    title?: string
-    image_url?: string
-    video_url?: string
-    archived?: boolean
-    language?: string
-  }
-  relations: {
-    room_id?: string
-    house_id?: string
-  }
-  created_at: string
-  owner_key: string
-}
-
-// ─── Constants ───────────────────────────────────────────
 import { getDeviceId } from '@/lib/deviceId'
 const OWNER_KEY = getDeviceId()
 
-const LANG_FLAG: Record<string, string> = {
-  ko: '🇰🇷',
-  vi: '🇻🇳',
-  en: '🇺🇸',
-  ja: '🇯🇵',
-  zh: '🇨🇳',
-}
+export default function WritePage() {
+  const [content, setContent] = useState('')
+  const [rooms, setRooms] = useState<any[]>([])
+  const [selectedRoom, setSelectedRoom] = useState<any>(null)
+  const [mediaFiles, setMediaFiles] = useState<any[]>([])
+  const [uploading, setUploading] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [houseId, setHouseId] = useState<string | null>(null)
 
-// ─── Component ───────────────────────────────────────────
-export default function RoomPage() {
-  const params = useParams()
+  // 새 방 만들기
+  const [showNewRoom, setShowNewRoom] = useState(false)
+  const [newRoomName, setNewRoomName] = useState('')
+  const [isSeed, setIsSeed] = useState(false)
+  const [creatingRoom, setCreatingRoom] = useState(false)
+
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
-  const roomId = params.id as string
 
-  const [room, setRoom] = useState<Room | null>(null)
-  const [house, setHouse] = useState<House | null>(null)
-  const [posts, setPosts] = useState<Post[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [isMember, setIsMember] = useState(false)
-
-  const isOwner = house?.owner_key === OWNER_KEY
-  const canWrite = isOwner || isMember
-
-  // ─── Fetch ─────────────────────────────────────────────
   useEffect(() => {
-    if (!roomId) return
-    fetchRoom()
-  }, [roomId])
+    fetch(`/api/corenull/houses?owner_key=${OWNER_KEY}`)
+      .then(r => r.json())
+      .then(async d => {
+        const houses = d.data || []
+        if (houses.length === 0) return
+        const house = houses[0]
+        setHouseId(house.id)
+        const r = await fetch(`/api/corenull/rooms?house_id=${house.id}`)
+        const rd = await r.json()
+        const roomList = rd.data || []
+        setRooms(roomList)
+        if (roomList.length > 0) setSelectedRoom(roomList[0])
+      })
+  }, [])
 
-  async function fetchRoom() {
-    setLoading(true)
-    setError(null)
+  // ─── 새 방 생성 ───────────────────────────────────────
+  const handleCreateRoom = async () => {
+    if (!newRoomName.trim() || !houseId) return
+    setCreatingRoom(true)
 
-    try {
-      // 방 정보
-      const rRes = await fetch(`/api/corenull/rooms?room_id=${roomId}`)
-      const rData = await rRes.json()
-      if (rData._error || !rData.room) {
-        setError('방을 찾을 수 없어요.')
-        setLoading(false)
-        return
-      }
-      setRoom(rData.room)
+    const res = await fetch('/api/corenull/rooms', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        house_id: houseId,
+        owner_key: OWNER_KEY,
+        room_name: newRoomName.trim(),
+        room_type: isSeed ? 'seed' : 'normal',
+        visibility: 'public',
+        seed_mode: isSeed,
+      }),
+    })
 
-      // 집 정보
-      const hRes = await fetch(`/api/corenull/houses?house_id=${rData.room.house_id}`)
-      const hData = await hRes.json()
-      if (!hData._error && hData.house) {
-        setHouse(hData.house)
-
-        // 멤버 확인
-        const mRes = await fetch(`/api/corenull/members?house_id=${rData.room.house_id}&device_id=${OWNER_KEY}`)
-        const mData = await mRes.json()
-        setIsMember(!mData._error && mData.is_member === true)
-      }
-
-      // 포스트 목록 + 방문 기록 (owner_key 전달)
-      const pRes = await fetch(`/api/corenull/posts?room_id=${roomId}&owner_key=${OWNER_KEY}`)
-      const pData = await pRes.json()
-      if (!pData._error && pData.data) {
-        setPosts(pData.data.filter((p: Post) => !p.meta?.archived))
-      }
-    } catch {
-      setError('불러오는 중 문제가 생겼어요.')
-    } finally {
-      setLoading(false)
+    const data = await res.json()
+    if (data.data) {
+      const created = data.data
+      setRooms(prev => [...prev, created])
+      setSelectedRoom(created)
+      setShowNewRoom(false)
+      setNewRoomName('')
+      setIsSeed(false)
     }
+    setCreatingRoom(false)
   }
 
-  // ─── Render states ─────────────────────────────────────
-  if (loading) {
-    return (
-      <div style={{ minHeight: '100vh', background: 'var(--cream)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <p style={{ color: 'var(--bark)', fontSize: '14px' }}>불러오는 중...</p>
-      </div>
-    )
+  // ─── 미디어 업로드 ────────────────────────────────────
+  const handleFileSelect = async (e: any) => {
+    const files = Array.from(e.target.files || [])
+    if (files.length === 0) return
+    setUploading(true)
+    const form = new FormData()
+    files.forEach((f: any) => form.append('files', f))
+    const res = await fetch('/api/corenull/upload', { method: 'POST', body: form })
+    const data = await res.json()
+    setMediaFiles(prev => [...prev, ...(data.data || [])])
+    setUploading(false)
   }
 
-  if (error || !room) {
-    return (
-      <div style={{ minHeight: '100vh', background: 'var(--cream)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
-        <p style={{ color: 'var(--bark)', fontSize: '14px' }}>{error || '방을 찾을 수 없어요.'}</p>
-        <button onClick={() => router.back()} style={btnSecondary}>← 돌아가기</button>
-      </div>
-    )
+  // ─── 포스트 작성 ──────────────────────────────────────
+  const handleSubmit = async () => {
+    if (!content.trim() || !selectedRoom) return
+    setSubmitting(true)
+    const res = await fetch('/api/corenull/posts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        room_id: selectedRoom.id,
+        owner_key: OWNER_KEY,
+        content: content.trim(),
+        meta: { media: mediaFiles },
+        type: selectedRoom.seed_mode ? 'seed' : 'post',
+      }),
+    })
+    const data = await res.json()
+    if (data.data) router.push('/yard')
+    setSubmitting(false)
+  }
+
+  const removeMedia = (index: number) => {
+    setMediaFiles(prev => prev.filter((_, i) => i !== index))
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--cream)' }}>
-      {/* ── Header ── */}
-      <header style={headerStyle}>
-        <button onClick={() => router.back()} style={backBtn}>←</button>
-        <div style={{ flex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <h1 style={{ fontSize: '16px', fontWeight: '700', color: 'var(--soil)', margin: 0 }}>
-              {room.room_name}
-            </h1>
-            <span style={visibilityBadge(room.visibility)}>
-              {room.visibility === 'public' ? '공개' : '비공개'}
-            </span>
-            {room.seed_mode && (
-              <span style={eventBadge}>🌱 씨앗</span>
-            )}
-          </div>
-          {house && (
-            <p style={{ fontSize: '12px', color: 'var(--bark)', margin: '2px 0 0' }}>
-              {LANG_FLAG[house.primary_language] || '🏡'} {house.title}
-            </p>
-          )}
-        </div>
-        {canWrite && (
-          <Link
-            href={`/write?room_id=${roomId}`}
-            style={writeBtn}
-          >
-            + 글쓰기
-          </Link>
-        )}
-      </header>
+    <div>
+      {/* 헤더 */}
+      <div style={styles.header}>
+        <button style={styles.backBtn} onClick={() => router.back()}>←</button>
+        <span style={styles.headerTitle}>새 이야기</span>
+        <button
+          style={{ ...styles.submitBtn, opacity: (!content.trim() || !selectedRoom || submitting) ? 0.4 : 1 }}
+          onClick={handleSubmit}
+          disabled={!content.trim() || !selectedRoom || submitting}
+        >
+          {submitting ? '...' : '올리기'}
+        </button>
+      </div>
 
-      {/* ── 포스트 목록 ── */}
-      <main style={{ maxWidth: '640px', margin: '0 auto', padding: '16px' }}>
-        {posts.length === 0 ? (
-          <EmptyState isOwner={canWrite} roomId={roomId} />
+      <div style={styles.body}>
+        {/* ── 방 선택 ── */}
+        {!showNewRoom ? (
+          <div style={styles.roomSelect}>
+            <span style={styles.roomLabel}>어느 방에?</span>
+            <select
+              style={styles.roomDropdown}
+              value={selectedRoom?.id || ''}
+              onChange={e => {
+                if (e.target.value === '__new__') {
+                  setShowNewRoom(true)
+                  return
+                }
+                const r = rooms.find((r: any) => r.id === e.target.value)
+                setSelectedRoom(r)
+              }}
+            >
+              {rooms.map((r: any) => (
+                <option key={r.id} value={r.id}>
+                  {r.room_name}{r.seed_mode ? ' 🌱' : ''}
+                </option>
+              ))}
+              <option value="__new__">+ 새 방 만들기</option>
+            </select>
+          </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {posts.map((post) => (
-              <PostCard key={post.id} post={post} />
+          /* ── 새 방 만들기 폼 ── */
+          <div style={styles.newRoomBox}>
+            <div style={styles.newRoomHeader}>
+              <span style={styles.roomLabel}>새 방 만들기</span>
+              <button
+                style={styles.cancelBtn}
+                onClick={() => { setShowNewRoom(false); setNewRoomName(''); setIsSeed(false) }}
+              >
+                취소
+              </button>
+            </div>
+
+            <input
+              style={styles.newRoomInput}
+              placeholder="방 이름"
+              value={newRoomName}
+              onChange={e => setNewRoomName(e.target.value)}
+              maxLength={20}
+              autoFocus
+            />
+
+            {/* 씨앗 토글 */}
+            <div style={styles.toggleRow} onClick={() => setIsSeed(v => !v)}>
+              <div style={styles.toggleLeft}>
+                <span style={{ fontSize: 18 }}>🌱</span>
+                <div>
+                  <div style={styles.toggleTitle}>씨앗</div>
+                  <div style={styles.toggleDesc}>스스로에게 한 약속</div>
+                </div>
+              </div>
+              <div style={{ ...styles.toggleSwitch, background: isSeed ? '#2C1810' : '#e0d8d0' }}>
+                <div style={{ ...styles.toggleThumb, transform: isSeed ? 'translateX(20px)' : 'translateX(2px)' }} />
+              </div>
+            </div>
+
+            <button
+              style={{ ...styles.createRoomBtn, opacity: (!newRoomName.trim() || creatingRoom) ? 0.4 : 1 }}
+              onClick={handleCreateRoom}
+              disabled={!newRoomName.trim() || creatingRoom}
+            >
+              {creatingRoom ? '만드는 중...' : '방 만들기'}
+            </button>
+          </div>
+        )}
+
+        {/* ── 텍스트 입력 ── */}
+        <textarea
+          style={styles.textarea}
+          placeholder="오늘 어떤 순간을 남기고 싶으세요?"
+          value={content}
+          onChange={e => setContent(e.target.value)}
+          autoFocus={!showNewRoom}
+        />
+
+        {/* ── 미디어 미리보기 ── */}
+        {mediaFiles.length > 0 && (
+          <div style={styles.mediaPreview}>
+            {mediaFiles.map((m, i) => (
+              <div key={i} style={styles.mediaItem}>
+                {m.type === 'image' ? (
+                  <img src={m.url} alt="" style={styles.mediaThumb} />
+                ) : (
+                  <div style={styles.videoThumb}>🎬</div>
+                )}
+                <button style={styles.removeBtn} onClick={() => removeMedia(i)}>✕</button>
+              </div>
             ))}
           </div>
         )}
-      </main>
-    </div>
-  )
-}
 
-// ─── PostCard ─────────────────────────────────────────────
-function PostCard({ post }: { post: Post }) {
-  const preview = post.content?.slice(0, 120) || ''
-  const hasMore = (post.content?.length || 0) > 120
+        {/* ── 미디어 추가 ── */}
+        <div style={styles.mediaRow}>
+          <button
+            style={styles.mediaBtn}
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+          >
+            {uploading ? '⏳' : '📷'} {uploading ? '업로드 중...' : '사진/영상'}
+          </button>
+        </div>
 
-  return (
-    <Link href={`/posts/${post.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
-      <div style={cardStyle}>
-        {/* 이미지 */}
-        {post.meta?.image_url && (
-          <div style={imagWrap}>
-            <img
-              src={post.meta.image_url}
-              alt=""
-              style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px' }}
-            />
-          </div>
-        )}
-
-        {/* 영상 썸네일 */}
-        {!post.meta?.image_url && post.meta?.video_url && (
-          <div style={{ ...imagWrap, background: 'var(--bark)', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px' }}>
-            <span style={{ fontSize: '28px' }}>▶</span>
-          </div>
-        )}
-
-        {/* 제목 */}
-        {post.meta?.title && (
-          <h2 style={{ fontSize: '15px', fontWeight: '700', color: 'var(--soil)', margin: '0 0 6px' }}>
-            {post.meta.title}
-          </h2>
-        )}
-
-        {/* 본문 미리보기 */}
-        {preview && (
-          <p style={{ fontSize: '14px', color: 'var(--bark)', margin: '0 0 8px', lineHeight: '1.6' }}>
-            {preview}{hasMore && '…'}
-          </p>
-        )}
-
-        {/* 날짜 */}
-        <p style={{ fontSize: '11px', color: '#aaa', margin: 0 }}>
-          {formatDate(post.created_at)}
-        </p>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*,video/*"
+          multiple
+          style={{ display: 'none' }}
+          onChange={handleFileSelect}
+        />
       </div>
-    </Link>
-  )
-}
-
-// ─── EmptyState ───────────────────────────────────────────
-function EmptyState({ isOwner, roomId }: { isOwner: boolean; roomId: string }) {
-  return (
-    <div style={{ textAlign: 'center', padding: '60px 20px' }}>
-      <p style={{ fontSize: '32px', marginBottom: '12px' }}>🌱</p>
-      <p style={{ fontSize: '14px', color: 'var(--bark)', marginBottom: '20px' }}>
-        아직 글이 없어요
-      </p>
-      {isOwner && (
-        <Link href={`/write?room_id=${roomId}`} style={writeBtn}>
-          첫 글 쓰기
-        </Link>
-      )}
     </div>
   )
 }
 
-// ─── Utils ────────────────────────────────────────────────
-function formatDate(iso: string) {
-  const d = new Date(iso)
-  const now = new Date()
-  const diff = Math.floor((now.getTime() - d.getTime()) / 1000)
-  if (diff < 60) return '방금 전'
-  if (diff < 3600) return `${Math.floor(diff / 60)}분 전`
-  if (diff < 86400) return `${Math.floor(diff / 3600)}시간 전`
-  return d.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })
-}
-
-// ─── Styles ───────────────────────────────────────────────
-const headerStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: '12px',
-  padding: '14px 16px',
-  background: 'var(--warm-white)',
-  borderBottom: '1px solid #e8e0d5',
-  position: 'sticky',
-  top: 0,
-  zIndex: 10,
-}
-
-const backBtn: React.CSSProperties = {
-  background: 'none',
-  border: 'none',
-  fontSize: '18px',
-  cursor: 'pointer',
-  color: 'var(--soil)',
-  padding: '4px',
-}
-
-const writeBtn: React.CSSProperties = {
-  background: 'var(--soil)',
-  color: 'var(--cream)',
-  border: 'none',
-  borderRadius: '20px',
-  padding: '7px 14px',
-  fontSize: '13px',
-  cursor: 'pointer',
-  textDecoration: 'none',
-  whiteSpace: 'nowrap',
-}
-
-const btnSecondary: React.CSSProperties = {
-  background: 'none',
-  border: '1px solid var(--bark)',
-  color: 'var(--bark)',
-  borderRadius: '8px',
-  padding: '8px 16px',
-  fontSize: '13px',
-  cursor: 'pointer',
-}
-
-const cardStyle: React.CSSProperties = {
-  background: 'var(--warm-white)',
-  borderRadius: '12px',
-  padding: '16px',
-  cursor: 'pointer',
-  transition: 'transform 0.1s',
-}
-
-const imagWrap: React.CSSProperties = {
-  width: '100%',
-  height: '180px',
-  marginBottom: '12px',
-  overflow: 'hidden',
-}
-
-function visibilityBadge(v: string): React.CSSProperties {
-  return {
-    fontSize: '10px',
-    padding: '2px 7px',
-    borderRadius: '10px',
-    background: v === 'public' ? '#e8f0e4' : '#f0ece8',
-    color: v === 'public' ? 'var(--moss)' : 'var(--bark)',
-    fontWeight: '600',
-  }
-}
-
-const eventBadge: React.CSSProperties = {
-  fontSize: '10px',
-  padding: '2px 7px',
-  borderRadius: '10px',
-  background: '#fef3e2',
-  color: 'var(--accent)',
-  fontWeight: '600',
+const styles: Record<string, React.CSSProperties> = {
+  header: {
+    position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)',
+    width: '100%', maxWidth: '430px', height: 56,
+    background: 'rgba(254,252,248,0.95)', borderBottom: '1px solid rgba(92,61,46,0.12)',
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    padding: '0 16px', zIndex: 100, backdropFilter: 'blur(12px)',
+  },
+  backBtn: {
+    fontSize: 20, color: '#2C1810', background: 'none', border: 'none', cursor: 'pointer',
+  },
+  headerTitle: {
+    fontFamily: "'Noto Serif KR', serif", fontSize: 16, fontWeight: 600, color: '#2C1810',
+  },
+  submitBtn: {
+    padding: '8px 16px', background: '#2C1810', color: 'white',
+    border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 500, cursor: 'pointer',
+  },
+  body: { padding: '16px' },
+  roomSelect: {
+    display: 'flex', alignItems: 'center', gap: 10,
+    background: '#FEFCF8', border: '1px solid rgba(92,61,46,0.12)',
+    borderRadius: 12, padding: '10px 14px', marginBottom: 12,
+  },
+  roomLabel: { fontSize: 13, color: '#9A8470', flexShrink: 0 },
+  roomDropdown: {
+    flex: 1, border: 'none', background: 'none',
+    fontSize: 14, color: '#1C1208', fontFamily: "'Noto Sans KR', sans-serif",
+    outline: 'none', cursor: 'pointer',
+  },
+  newRoomBox: {
+    background: '#FEFCF8', border: '1px solid rgba(92,61,46,0.12)',
+    borderRadius: 12, padding: '14px', marginBottom: 12,
+    display: 'flex', flexDirection: 'column', gap: 10,
+  },
+  newRoomHeader: {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+  },
+  cancelBtn: {
+    fontSize: 13, color: '#9A8470', background: 'none', border: 'none', cursor: 'pointer',
+  },
+  newRoomInput: {
+    width: '100%', height: 44,
+    background: '#F5F0E8', border: '1px solid rgba(92,61,46,0.12)',
+    borderRadius: 10, padding: '0 12px',
+    fontSize: 14, color: '#1C1208', outline: 'none', boxSizing: 'border-box',
+    fontFamily: "'Noto Sans KR', sans-serif",
+  },
+  toggleRow: {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    padding: '10px 12px', background: '#F5F0E8', borderRadius: 10, cursor: 'pointer',
+  },
+  toggleLeft: { display: 'flex', alignItems: 'center', gap: 10 },
+  toggleTitle: { fontSize: 13, fontWeight: 500, color: '#1C1208' },
+  toggleDesc: { fontSize: 11, color: '#9A8470', marginTop: 1 },
+  toggleSwitch: {
+    width: 44, height: 24, borderRadius: 12, position: 'relative',
+    transition: 'background 0.2s', flexShrink: 0,
+  },
+  toggleThumb: {
+    position: 'absolute', top: 2, width: 20, height: 20,
+    borderRadius: '50%', background: 'white',
+    transition: 'transform 0.2s', boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
+  },
+  createRoomBtn: {
+    width: '100%', padding: '12px',
+    background: '#2C1810', color: 'white',
+    border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 500, cursor: 'pointer',
+  },
+  textarea: {
+    width: '100%', minHeight: 200,
+    background: '#FEFCF8', border: '1px solid rgba(92,61,46,0.12)',
+    borderRadius: 12, padding: 14,
+    fontFamily: "'Noto Sans KR', sans-serif", fontSize: 15, lineHeight: 1.7,
+    color: '#1C1208', resize: 'none', outline: 'none', marginBottom: 12,
+    boxSizing: 'border-box',
+  },
+  mediaPreview: {
+    display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12,
+  },
+  mediaItem: { position: 'relative' },
+  mediaThumb: { width: 80, height: 80, borderRadius: 10, objectFit: 'cover' },
+  videoThumb: {
+    width: 80, height: 80, borderRadius: 10,
+    background: '#2d4a3e', display: 'flex', alignItems: 'center',
+    justifyContent: 'center', fontSize: 28,
+  },
+  removeBtn: {
+    position: 'absolute', top: -6, right: -6,
+    width: 20, height: 20, borderRadius: '50%',
+    background: '#2C1810', color: 'white',
+    border: 'none', fontSize: 10, cursor: 'pointer',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+  },
+  mediaRow: { display: 'flex', gap: 8 },
+  mediaBtn: {
+    flex: 1, height: 48,
+    background: '#FEFCF8', border: '1px dashed rgba(92,61,46,0.2)',
+    borderRadius: 12, fontSize: 14, color: '#9A8470', cursor: 'pointer',
+  },
 }

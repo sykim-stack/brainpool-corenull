@@ -1,46 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
-import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 
-// ─── Types ───────────────────────────────────────────────
-type Room = {
-  id: string
-  room_name: string
-  visibility: 'public' | 'private'
-  seed_mode: boolean
-  slug: string | null
-  house_id: string
-  created_at: string
-}
-
-type House = {
-  id: string
-  title: string
-  primary_language: string
-  owner_key: string
-}
-
-type Post = {
-  id: string
-  content: string
-  meta: {
-    title?: string
-    image_url?: string
-    video_url?: string
-    archived?: boolean
-    language?: string
-  }
-  relations: {
-    room_id?: string
-    house_id?: string
-  }
-  created_at: string
-  owner_key: string
-}
-
-// ─── Constants ───────────────────────────────────────────
 import { getDeviceId } from '@/lib/deviceId'
 const OWNER_KEY = getDeviceId()
 
@@ -52,287 +14,239 @@ const LANG_FLAG: Record<string, string> = {
   zh: '🇨🇳',
 }
 
-// ─── Component ───────────────────────────────────────────
-export default function RoomPage() {
-  const params = useParams()
-  const router = useRouter()
-  const roomId = params.id as string
-
-  const [room, setRoom] = useState<Room | null>(null)
-  const [house, setHouse] = useState<House | null>(null)
-  const [posts, setPosts] = useState<Post[]>([])
+export default function YardPage() {
+  const [posts, setPosts] = useState([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [isMember, setIsMember] = useState(false)
+  const router = useRouter()
 
-  const isOwner = house?.owner_key === OWNER_KEY
-  const canWrite = isOwner || isMember
-
-  // ─── Fetch ─────────────────────────────────────────────
   useEffect(() => {
-    if (!roomId) return
-    fetchRoom()
-  }, [roomId])
-
-  async function fetchRoom() {
-    setLoading(true)
-    setError(null)
-
-    try {
-      // 방 정보
-      const rRes = await fetch(`/api/corenull/rooms?room_id=${roomId}`)
-      const rData = await rRes.json()
-      if (rData._error || !rData.room) {
-        setError('방을 찾을 수 없어요.')
+    fetch(`/api/corenull/yard`)
+      .then(r => r.json())
+      .then(d => {
+        setPosts(d.data || [])
         setLoading(false)
-        return
-      }
-      setRoom(rData.room)
+      })
+  }, [])
 
-      // 집 정보
-      const hRes = await fetch(`/api/corenull/houses?house_id=${rData.room.house_id}`)
-      const hData = await hRes.json()
-      if (!hData._error && hData.house) {
-        setHouse(hData.house)
+  if (loading) return <div style={styles.loading}>🌳</div>
 
-        // 멤버 확인
-        const mRes = await fetch(`/api/corenull/members?house_id=${rData.room.house_id}&device_id=${OWNER_KEY}`)
-        const mData = await mRes.json()
-        setIsMember(!mData._error && mData.is_member === true)
-      }
-
-      // 포스트 목록 + 방문 기록 (owner_key 전달)
-      const pRes = await fetch(`/api/corenull/posts?room_id=${roomId}&owner_key=${OWNER_KEY}`)
-      const pData = await pRes.json()
-      if (!pData._error && pData.data) {
-        setPosts(pData.data.filter((p: Post) => !p.meta?.archived))
-      }
-    } catch {
-      setError('불러오는 중 문제가 생겼어요.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // ─── Render states ─────────────────────────────────────
-  if (loading) {
-    return (
-      <div style={{ minHeight: '100vh', background: 'var(--cream)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <p style={{ color: 'var(--bark)', fontSize: '14px' }}>불러오는 중...</p>
+  return (
+    <div>
+      {/* 헤더 */}
+      <div style={styles.header}>
+        <span style={styles.headerTitle}>🌳 마당</span>
       </div>
-    )
-  }
 
-  if (error || !room) {
-    return (
-      <div style={{ minHeight: '100vh', background: 'var(--cream)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
-        <p style={{ color: 'var(--bark)', fontSize: '14px' }}>{error || '방을 찾을 수 없어요.'}</p>
-        <button onClick={() => router.back()} style={btnSecondary}>← 돌아가기</button>
+      {/* 포스트 피드 */}
+      <div style={styles.feed}>
+        {posts.length === 0 ? (
+          <div style={styles.empty}>
+            <div style={{ fontSize: 40, marginBottom: 12 }}>🌱</div>
+            <p style={{ fontSize: 14, color: '#9A8470', lineHeight: 1.6 }}>
+              아직 이야기가 없어요.<br />첫 이야기를 남겨보세요.
+            </p>
+          </div>
+        ) : (
+          posts.map((post: any) => (
+            <PostCard
+              key={post.id}
+              post={post}
+              ownerKey={OWNER_KEY}
+              onClick={() => router.push(`/posts/${post.id}`)}
+            />
+          ))
+        )}
       </div>
-    )
+    </div>
+  )
+}
+
+function PostCard({ post, ownerKey, onClick }: any) {
+  const [showTranslate, setShowTranslate] = useState(false)
+  const [bookmarked, setBookmarked] = useState(false)
+  const [commentCount, setCommentCount] = useState(0)
+
+  const media = post.meta?.media || []
+  const firstMedia = media[0]
+  const hasImage = firstMedia?.type === 'image'
+  const hasVideo = firstMedia?.type === 'video'
+
+  const room = post._room
+  const langFlag = room?.house_language ? (LANG_FLAG[room.house_language] || '🏡') : '🏡'
+
+  useEffect(() => {
+    fetch(`/api/corenull/comments?post_id=${post.id}`)
+      .then(r => r.json())
+      .then(d => setCommentCount((d.data || []).length))
+  }, [post.id])
+
+  const handleBookmark = async (e: any) => {
+    e.stopPropagation()
+    if (bookmarked) return
+    await fetch('/api/corenull/bookmarks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ owner_key: ownerKey, message_id: post.id }),
+    })
+    setBookmarked(true)
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--cream)' }}>
-      {/* ── Header ── */}
-      <header style={headerStyle}>
-        <button onClick={() => router.back()} style={backBtn}>←</button>
-        <div style={{ flex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <h1 style={{ fontSize: '16px', fontWeight: '700', color: 'var(--soil)', margin: 0 }}>
-              {room.room_name}
-            </h1>
-            <span style={visibilityBadge(room.visibility)}>
-              {room.visibility === 'public' ? '공개' : '비공개'}
-            </span>
-            {room.seed_mode && (
-              <span style={eventBadge}>🌱 씨앗</span>
+    <div style={styles.card} onClick={onClick}>
+      {/* 공간 정보 */}
+      <div style={styles.cardHeader}>
+        <div style={styles.spaceRow}>
+          <span style={styles.spaceHouse}>
+            {langFlag} {room?.house_title || '집'}
+          </span>
+          <span style={styles.spaceSep}>·</span>
+          <span style={styles.spaceRoom}>
+            {room?.room_name || '방'}
+          </span>
+        </div>
+        <div style={styles.authorRow}>
+          <div style={styles.avatar}>🌿</div>
+          <span style={styles.authorName}>작성자</span>
+          <span style={styles.postTime}>
+            {new Date(post.created_at).toLocaleDateString('ko-KR')}
+          </span>
+        </div>
+      </div>
+
+      {/* 미디어 */}
+      {hasImage && (
+        <div style={styles.mediaImage}>
+          <img src={firstMedia.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        </div>
+      )}
+      {hasVideo && (
+        <div style={styles.mediaVideo}>
+          <button style={styles.playBtn} onClick={e => e.stopPropagation()}>▶</button>
+          <div style={styles.videoDuration}>🎬</div>
+        </div>
+      )}
+
+      {/* 본문 */}
+      <div style={styles.cardBody}>
+        <div style={styles.postText}>{post.content}</div>
+
+        {/* 번역 토글 */}
+        {post.translated_ko && (
+          <div>
+            <div
+              style={styles.translateToggle}
+              onClick={e => { e.stopPropagation(); setShowTranslate(!showTranslate) }}
+            >
+              <span>🇰🇷</span>
+              <span style={styles.translateLabel}>
+                {showTranslate ? '번역 닫기' : '번역 보기'}
+              </span>
+              <span style={{ fontSize: 10, color: '#C17F3C' }}>
+                {showTranslate ? '▴' : '▾'}
+              </span>
+            </div>
+            {showTranslate && (
+              <div style={styles.translateResult}>{post.translated_ko}</div>
             )}
           </div>
-          {house && (
-            <p style={{ fontSize: '12px', color: 'var(--bark)', margin: '2px 0 0' }}>
-              {LANG_FLAG[house.primary_language] || '🏡'} {house.title}
-            </p>
-          )}
-        </div>
-        {canWrite && (
-          <Link
-            href={`/write?room_id=${roomId}`}
-            style={writeBtn}
-          >
-            + 글쓰기
-          </Link>
         )}
-      </header>
-
-      {/* ── 포스트 목록 ── */}
-      <main style={{ maxWidth: '640px', margin: '0 auto', padding: '16px' }}>
-        {posts.length === 0 ? (
-          <EmptyState isOwner={canWrite} roomId={roomId} />
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {posts.map((post) => (
-              <PostCard key={post.id} post={post} />
-            ))}
-          </div>
-        )}
-      </main>
-    </div>
-  )
-}
-
-// ─── PostCard ─────────────────────────────────────────────
-function PostCard({ post }: { post: Post }) {
-  const preview = post.content?.slice(0, 120) || ''
-  const hasMore = (post.content?.length || 0) > 120
-
-  return (
-    <Link href={`/posts/${post.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
-      <div style={cardStyle}>
-        {/* 이미지 */}
-        {post.meta?.image_url && (
-          <div style={imagWrap}>
-            <img
-              src={post.meta.image_url}
-              alt=""
-              style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px' }}
-            />
-          </div>
-        )}
-
-        {/* 영상 썸네일 */}
-        {!post.meta?.image_url && post.meta?.video_url && (
-          <div style={{ ...imagWrap, background: 'var(--bark)', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px' }}>
-            <span style={{ fontSize: '28px' }}>▶</span>
-          </div>
-        )}
-
-        {/* 제목 */}
-        {post.meta?.title && (
-          <h2 style={{ fontSize: '15px', fontWeight: '700', color: 'var(--soil)', margin: '0 0 6px' }}>
-            {post.meta.title}
-          </h2>
-        )}
-
-        {/* 본문 미리보기 */}
-        {preview && (
-          <p style={{ fontSize: '14px', color: 'var(--bark)', margin: '0 0 8px', lineHeight: '1.6' }}>
-            {preview}{hasMore && '…'}
-          </p>
-        )}
-
-        {/* 날짜 */}
-        <p style={{ fontSize: '11px', color: '#aaa', margin: 0 }}>
-          {formatDate(post.created_at)}
-        </p>
       </div>
-    </Link>
-  )
-}
 
-// ─── EmptyState ───────────────────────────────────────────
-function EmptyState({ isOwner, roomId }: { isOwner: boolean; roomId: string }) {
-  return (
-    <div style={{ textAlign: 'center', padding: '60px 20px' }}>
-      <p style={{ fontSize: '32px', marginBottom: '12px' }}>🌱</p>
-      <p style={{ fontSize: '14px', color: 'var(--bark)', marginBottom: '20px' }}>
-        아직 글이 없어요
-      </p>
-      {isOwner && (
-        <Link href={`/write?room_id=${roomId}`} style={writeBtn}>
-          첫 글 쓰기
-        </Link>
-      )}
+      {/* 푸터 */}
+      <div style={styles.cardFooter}>
+        <button style={styles.footerAction} onClick={e => e.stopPropagation()}>
+          💬 {commentCount}
+        </button>
+        <div style={{ flex: 1 }} />
+        <button
+          style={{ ...styles.bookmarkBtn, ...(bookmarked ? styles.bookmarked : {}) }}
+          onClick={handleBookmark}
+        >
+          🔖
+        </button>
+      </div>
     </div>
   )
 }
 
-// ─── Utils ────────────────────────────────────────────────
-function formatDate(iso: string) {
-  const d = new Date(iso)
-  const now = new Date()
-  const diff = Math.floor((now.getTime() - d.getTime()) / 1000)
-  if (diff < 60) return '방금 전'
-  if (diff < 3600) return `${Math.floor(diff / 60)}분 전`
-  if (diff < 86400) return `${Math.floor(diff / 3600)}시간 전`
-  return d.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })
-}
-
-// ─── Styles ───────────────────────────────────────────────
-const headerStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: '12px',
-  padding: '14px 16px',
-  background: 'var(--warm-white)',
-  borderBottom: '1px solid #e8e0d5',
-  position: 'sticky',
-  top: 0,
-  zIndex: 10,
-}
-
-const backBtn: React.CSSProperties = {
-  background: 'none',
-  border: 'none',
-  fontSize: '18px',
-  cursor: 'pointer',
-  color: 'var(--soil)',
-  padding: '4px',
-}
-
-const writeBtn: React.CSSProperties = {
-  background: 'var(--soil)',
-  color: 'var(--cream)',
-  border: 'none',
-  borderRadius: '20px',
-  padding: '7px 14px',
-  fontSize: '13px',
-  cursor: 'pointer',
-  textDecoration: 'none',
-  whiteSpace: 'nowrap',
-}
-
-const btnSecondary: React.CSSProperties = {
-  background: 'none',
-  border: '1px solid var(--bark)',
-  color: 'var(--bark)',
-  borderRadius: '8px',
-  padding: '8px 16px',
-  fontSize: '13px',
-  cursor: 'pointer',
-}
-
-const cardStyle: React.CSSProperties = {
-  background: 'var(--warm-white)',
-  borderRadius: '12px',
-  padding: '16px',
-  cursor: 'pointer',
-  transition: 'transform 0.1s',
-}
-
-const imagWrap: React.CSSProperties = {
-  width: '100%',
-  height: '180px',
-  marginBottom: '12px',
-  overflow: 'hidden',
-}
-
-function visibilityBadge(v: string): React.CSSProperties {
-  return {
-    fontSize: '10px',
-    padding: '2px 7px',
-    borderRadius: '10px',
-    background: v === 'public' ? '#e8f0e4' : '#f0ece8',
-    color: v === 'public' ? 'var(--moss)' : 'var(--bark)',
-    fontWeight: '600',
-  }
-}
-
-const eventBadge: React.CSSProperties = {
-  fontSize: '10px',
-  padding: '2px 7px',
-  borderRadius: '10px',
-  background: '#fef3e2',
-  color: 'var(--accent)',
-  fontWeight: '600',
+const styles: Record<string, React.CSSProperties> = {
+  loading: {
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    height: '50vh', fontSize: 40,
+  },
+  header: {
+    position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)',
+    width: '100%', maxWidth: '430px', height: 56,
+    background: 'rgba(254,252,248,0.95)', borderBottom: '1px solid rgba(92,61,46,0.12)',
+    display: 'flex', alignItems: 'center', padding: '0 20px',
+    zIndex: 100, backdropFilter: 'blur(12px)',
+  },
+  headerTitle: {
+    fontFamily: "'Noto Serif KR', serif", fontSize: 18, fontWeight: 600, color: '#2C1810',
+  },
+  feed: { padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 12 },
+  empty: { textAlign: 'center', padding: '48px 24px', color: '#9A8470' },
+  card: {
+    background: '#FEFCF8', borderRadius: 18,
+    border: '1px solid rgba(92,61,46,0.12)',
+    overflow: 'hidden', boxShadow: '0 2px 20px rgba(44,24,16,0.08)',
+    cursor: 'pointer',
+  },
+  cardHeader: { padding: '14px 16px 10px' },
+  spaceRow: { display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 },
+  spaceHouse: {
+    fontSize: 12, fontWeight: 500, color: '#4A5240',
+    background: 'rgba(74,82,64,0.1)', padding: '3px 8px', borderRadius: 20,
+  },
+  spaceSep: { fontSize: 11, color: '#9A8470' },
+  spaceRoom: { fontSize: 12, color: '#5C4A35' },
+  authorRow: { display: 'flex', alignItems: 'center', gap: 8 },
+  avatar: {
+    width: 28, height: 28, borderRadius: '50%',
+    background: 'linear-gradient(135deg, #5C3D2E, #C17F3C)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14,
+  },
+  authorName: { fontSize: 13, fontWeight: 500, color: '#1C1208', flex: 1 },
+  postTime: { fontSize: 11, color: '#9A8470' },
+  mediaImage: { width: '100%', height: 220, overflow: 'hidden' },
+  mediaVideo: {
+    width: '100%', height: 220,
+    background: 'linear-gradient(160deg, #1a1a2e 0%, #2d4a3e 100%)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative',
+  },
+  playBtn: {
+    width: 56, height: 56, borderRadius: '50%',
+    background: 'rgba(255,255,255,0.2)', backdropFilter: 'blur(8px)',
+    border: '2px solid rgba(255,255,255,0.4)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    fontSize: 22, cursor: 'pointer', color: 'white',
+  },
+  videoDuration: {
+    position: 'absolute', bottom: 10, right: 12,
+    background: 'rgba(0,0,0,0.55)', color: 'white',
+    fontSize: 11, padding: '3px 7px', borderRadius: 6,
+  },
+  cardBody: { padding: '12px 16px' },
+  postText: { fontSize: 14, lineHeight: 1.7, color: '#1C1208' },
+  translateToggle: {
+    display: 'flex', alignItems: 'center', gap: 6, marginTop: 10,
+    paddingTop: 10, borderTop: '1px solid rgba(92,61,46,0.12)',
+    cursor: 'pointer', width: 'fit-content',
+  },
+  translateLabel: { fontSize: 12, color: '#C17F3C', fontWeight: 500 },
+  translateResult: { marginTop: 8, fontSize: 13, lineHeight: 1.65, color: '#5C4A35' },
+  cardFooter: {
+    padding: '10px 16px 14px', display: 'flex', alignItems: 'center', gap: 16,
+  },
+  footerAction: {
+    display: 'flex', alignItems: 'center', gap: 5,
+    fontSize: 13, color: '#9A8470', border: 'none', background: 'none', cursor: 'pointer',
+  },
+  bookmarkBtn: {
+    width: 36, height: 36, borderRadius: '50%',
+    background: '#F5F0E8', border: 'none',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    fontSize: 16, cursor: 'pointer',
+  },
+  bookmarked: { background: 'rgba(193,127,60,0.12)' },
 }
