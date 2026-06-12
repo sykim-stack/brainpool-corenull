@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
+import { getDeviceId } from '@/lib/deviceId'
 
-const OWNER_KEY = 'test-device-001'
+const OWNER_KEY = getDeviceId()
 
 export default function PostDetailPage() {
   const { postId } = useParams()
@@ -18,27 +19,18 @@ export default function PostDetailPage() {
   useEffect(() => {
     if (!postId) return
     Promise.all([
-      fetch(`/api/corenull/posts?room_id=all&owner_key=${OWNER_KEY}`),
-      fetch(`/api/corenull/comments?post_id=${postId}`),
-    ]).then(async ([, c]) => {
-      const cd = await c.json()
-      setComments(cd.data || [])
+      fetch(`/api/corenull/posts?post_id=${postId}`).then(r => r.json()),
+      fetch(`/api/corenull/comments?post_id=${postId}`).then(r => r.json()),
+    ]).then(([p, c]) => {
+      setPost(p.data || null)
+      setComments(c.data || [])
+      setLoading(false)
     })
-
-    // 포스트 단건 조회 — yard API로 우회
-    fetch(`/api/corenull/yard`)
-      .then(r => r.json())
-      .then(d => {
-        const found = (d.data || []).find((p: any) => p.id === postId)
-        setPost(found || null)
-        setLoading(false)
-      })
   }, [postId])
 
   const handleComment = async () => {
     if (!newComment.trim() || !post) return
     setSubmitting(true)
-
     const res = await fetch('/api/corenull/comments', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -49,7 +41,6 @@ export default function PostDetailPage() {
         content: newComment.trim(),
       }),
     })
-
     const data = await res.json()
     if (data.data) {
       setComments(prev => [...prev, data.data])
@@ -66,7 +57,6 @@ export default function PostDetailPage() {
 
   return (
     <div>
-      {/* 헤더 */}
       <div style={styles.header}>
         <button style={styles.backBtn} onClick={() => router.back()}>←</button>
         <span style={styles.headerTitle}>이야기</span>
@@ -74,23 +64,12 @@ export default function PostDetailPage() {
       </div>
 
       <div style={styles.body}>
-        {/* 공간 */}
-        <div style={styles.spaceRow}>
-          <span style={styles.spaceHouse}>🏡 집</span>
-          <span style={styles.spaceSep}>·</span>
-          <span style={styles.spaceRoom}>방</span>
-        </div>
-
-        {/* 작성자 */}
         <div style={styles.authorRow}>
           <div style={styles.avatar}>🌿</div>
           <span style={styles.authorName}>작성자</span>
-          <span style={styles.postTime}>
-            {new Date(post.created_at).toLocaleDateString('ko-KR')}
-          </span>
+          <span style={styles.postTime}>{new Date(post.created_at).toLocaleDateString('ko-KR')}</span>
         </div>
 
-        {/* 미디어 */}
         {firstMedia?.type === 'image' && (
           <div style={styles.mediaWrap}>
             <img src={firstMedia.url} alt="" style={styles.mediaImg} />
@@ -99,14 +78,11 @@ export default function PostDetailPage() {
         {firstMedia?.type === 'video' && (
           <div style={styles.mediaVideo}>
             <button style={styles.playBtn}>▶</button>
-            <div style={styles.videoDuration}>🎬</div>
           </div>
         )}
 
-        {/* 본문 */}
         <div style={styles.content}>{post.content}</div>
 
-        {/* 번역 */}
         {post.translated_ko && (
           <div>
             <div style={styles.translateToggle} onClick={() => setShowTranslate(!showTranslate)}>
@@ -118,12 +94,9 @@ export default function PostDetailPage() {
           </div>
         )}
 
-        {/* 구분선 */}
         <div style={styles.divider} />
 
-        {/* 댓글 목록 */}
         <div style={styles.commentCount}>💬 댓글 {comments.length}</div>
-
         {comments.length === 0 ? (
           <div style={styles.emptyComment}>첫 댓글을 남겨보세요</div>
         ) : (
@@ -133,9 +106,7 @@ export default function PostDetailPage() {
                 <div style={styles.commentAvatar}>🌱</div>
                 <div style={styles.commentBody}>
                   <div style={styles.commentContent}>{c.content}</div>
-                  <div style={styles.commentTime}>
-                    {new Date(c.created_at).toLocaleDateString('ko-KR')}
-                  </div>
+                  <div style={styles.commentTime}>{new Date(c.created_at).toLocaleDateString('ko-KR')}</div>
                 </div>
               </div>
             ))}
@@ -143,7 +114,6 @@ export default function PostDetailPage() {
         )}
       </div>
 
-      {/* 댓글 입력 */}
       <div style={styles.commentInput}>
         <input
           style={styles.commentField}
@@ -156,19 +126,14 @@ export default function PostDetailPage() {
           style={{ ...styles.commentSubmit, opacity: (!newComment.trim() || submitting) ? 0.4 : 1 }}
           onClick={handleComment}
           disabled={!newComment.trim() || submitting}
-        >
-          ↑
-        </button>
+        >↑</button>
       </div>
     </div>
   )
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  loading: {
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    height: '50vh', fontSize: 40,
-  },
+  loading: { display: 'flex', alignItems: 'center', justifyContent: 'center', height: '50vh', fontSize: 40 },
   header: {
     position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)',
     width: '100%', maxWidth: '430px', height: 56,
@@ -179,13 +144,6 @@ const styles: Record<string, React.CSSProperties> = {
   backBtn: { fontSize: 20, color: '#2C1810', background: 'none', border: 'none', cursor: 'pointer' },
   headerTitle: { fontFamily: "'Noto Serif KR', serif", fontSize: 16, fontWeight: 600, color: '#2C1810' },
   body: { padding: '16px 16px 80px' },
-  spaceRow: { display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 },
-  spaceHouse: {
-    fontSize: 12, fontWeight: 500, color: '#4A5240',
-    background: 'rgba(74,82,64,0.1)', padding: '3px 8px', borderRadius: 20,
-  },
-  spaceSep: { fontSize: 11, color: '#9A8470' },
-  spaceRoom: { fontSize: 12, color: '#5C4A35' },
   authorRow: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 },
   avatar: {
     width: 32, height: 32, borderRadius: '50%',
@@ -199,18 +157,12 @@ const styles: Record<string, React.CSSProperties> = {
   mediaVideo: {
     width: '100%', height: 220, borderRadius: 12,
     background: 'linear-gradient(160deg, #1a1a2e 0%, #2d4a3e 100%)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    position: 'relative', marginBottom: 16,
+    display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16,
   },
   playBtn: {
     width: 56, height: 56, borderRadius: '50%',
     background: 'rgba(255,255,255,0.2)', border: '2px solid rgba(255,255,255,0.4)',
     fontSize: 22, cursor: 'pointer', color: 'white',
-  },
-  videoDuration: {
-    position: 'absolute', bottom: 10, right: 12,
-    background: 'rgba(0,0,0,0.55)', color: 'white',
-    fontSize: 11, padding: '3px 7px', borderRadius: 6,
   },
   content: { fontSize: 16, lineHeight: 1.8, color: '#1C1208', marginBottom: 16 },
   translateToggle: {
@@ -226,29 +178,25 @@ const styles: Record<string, React.CSSProperties> = {
   commentList: { display: 'flex', flexDirection: 'column', gap: 12 },
   commentItem: { display: 'flex', gap: 10 },
   commentAvatar: {
-    width: 28, height: 28, borderRadius: '50%',
-    background: 'rgba(74,82,64,0.15)',
+    width: 28, height: 28, borderRadius: '50%', background: 'rgba(74,82,64,0.15)',
     display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0,
   },
   commentBody: { flex: 1 },
   commentContent: { fontSize: 14, lineHeight: 1.6, color: '#1C1208' },
   commentTime: { fontSize: 11, color: '#9A8470', marginTop: 3 },
   commentInput: {
-    position: 'fixed', bottom: 64, left: 0,
+    position: 'fixed', bottom: 64, left: '50%', transform: 'translateX(-50%)',
     width: '100%', maxWidth: '430px',
     background: 'rgba(254,252,248,0.95)', borderTop: '1px solid rgba(92,61,46,0.12)',
     padding: '10px 16px', display: 'flex', gap: 8, backdropFilter: 'blur(12px)',
   },
   commentField: {
-    flex: 1, height: 40,
-    background: '#F5F0E8', border: '1px solid rgba(92,61,46,0.12)',
+    flex: 1, height: 40, background: '#F5F0E8', border: '1px solid rgba(92,61,46,0.12)',
     borderRadius: 20, padding: '0 14px',
-    fontFamily: "'Noto Sans KR', sans-serif", fontSize: 14, color: '#1C1208',
-    outline: 'none',
+    fontFamily: "'Noto Sans KR', sans-serif", fontSize: 14, color: '#1C1208', outline: 'none',
   },
   commentSubmit: {
     width: 40, height: 40, borderRadius: '50%',
-    background: '#2C1810', color: 'white',
-    border: 'none', fontSize: 18, cursor: 'pointer',
+    background: '#2C1810', color: 'white', border: 'none', fontSize: 18, cursor: 'pointer',
   },
 }

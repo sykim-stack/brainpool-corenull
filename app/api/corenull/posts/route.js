@@ -17,15 +17,29 @@ const handler = async (req) => {
 const handleGet = async (req, traceId) => {
   const { searchParams } = new URL(req.url)
   const room_id = searchParams.get('room_id')
-  const owner_key = searchParams.get('owner_key') // Footprint 기록용 (선택)
-
-  if (!room_id) {
-    return Response.json({ _error: 'room_id_required', traceId }, { status: 500 })
-  }
+  const post_id = searchParams.get('post_id')
+  const owner_key = searchParams.get('owner_key')
 
   const { getSupabase } = await import('@/lib/supabase')
   const supabase = getSupabase()
   if (!supabase) return Response.json({ _error: 'supabase_init_failed', traceId }, { status: 500 })
+
+  // post_id 단건 조회
+  if (post_id) {
+    const { data, error } = await supabase
+      .from('messages')
+      .select('*')
+      .eq('id', post_id)
+      .single()
+
+    if (error || !data) return Response.json({ _error: 'post_not_found', traceId }, { status: 500 })
+
+    return Response.json({ data, traceId })
+  }
+
+  if (!room_id) {
+    return Response.json({ _error: 'room_id_or_post_id_required', traceId }, { status: 500 })
+  }
 
   // 방문 시 Footprint 자동 기록
   if (owner_key) {
