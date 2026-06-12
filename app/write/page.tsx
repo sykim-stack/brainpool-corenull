@@ -1,242 +1,103 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
-const OWNER_KEY = 'test-device-001'
+import { getDeviceId } from '@/lib/deviceId'
+const OWNER_KEY = getDeviceId()
 
-export default function WritePage() {
-  const [content, setContent] = useState('')
-  const [rooms, setRooms] = useState<any[]>([])
-  const [selectedRoom, setSelectedRoom] = useState<any>(null)
-  const [mediaFiles, setMediaFiles] = useState<any[]>([])
-  const [uploading, setUploading] = useState(false)
-  const [submitting, setSubmitting] = useState(false)
-  const [houseId, setHouseId] = useState<string | null>(null)
-
-  // 새 방 만들기
-  const [showNewRoom, setShowNewRoom] = useState(false)
-  const [newRoomName, setNewRoomName] = useState('')
-  const [isSeed, setIsSeed] = useState(false)
-  const [creatingRoom, setCreatingRoom] = useState(false)
-
-  const fileInputRef = useRef<HTMLInputElement>(null)
+export default function HomePage() {
   const router = useRouter()
+  const [houses, setHouses] = useState([])
+  const [footprints, setFootprints] = useState([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch(`/api/corenull/houses?owner_key=${OWNER_KEY}`)
-      .then(r => r.json())
-      .then(async d => {
-        const houses = d.data || []
-        if (houses.length === 0) return
-        const house = houses[0]
-        setHouseId(house.id)
-        const r = await fetch(`/api/corenull/rooms?house_id=${house.id}`)
-        const rd = await r.json()
-        const roomList = rd.data || []
-        setRooms(roomList)
-        if (roomList.length > 0) setSelectedRoom(roomList[0])
-      })
+    Promise.all([
+      fetch(`/api/corenull/houses?owner_key=${OWNER_KEY}`).then(r => r.json()),
+      fetch(`/api/corenull/footprints?owner_key=${OWNER_KEY}`).then(r => r.json()),
+    ]).then(([h, f]) => {
+      setHouses(h.data || [])
+      setFootprints(f.data || [])
+      setLoading(false)
+    })
   }, [])
 
-  // ─── 새 방 생성 ───────────────────────────────────────
-  const handleCreateRoom = async () => {
-    if (!newRoomName.trim() || !houseId) return
-    setCreatingRoom(true)
-
-    const res = await fetch('/api/corenull/rooms', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        house_id: houseId,
-        owner_key: OWNER_KEY,
-        room_name: newRoomName.trim(),
-        room_type: isSeed ? 'seed' : 'normal',
-        visibility: 'public',
-        seed_mode: isSeed,
-      }),
-    })
-
-    const data = await res.json()
-    if (data.data) {
-      const created = data.data
-      setRooms(prev => [...prev, created])
-      setSelectedRoom(created)
-      setShowNewRoom(false)
-      setNewRoomName('')
-      setIsSeed(false)
-    }
-    setCreatingRoom(false)
-  }
-
-  // ─── 미디어 업로드 ────────────────────────────────────
-  const handleFileSelect = async (e: any) => {
-    const files = Array.from(e.target.files || [])
-    if (files.length === 0) return
-    setUploading(true)
-    const form = new FormData()
-    files.forEach((f: any) => form.append('files', f))
-    const res = await fetch('/api/corenull/upload', { method: 'POST', body: form })
-    const data = await res.json()
-    setMediaFiles(prev => [...prev, ...(data.data || [])])
-    setUploading(false)
-  }
-
-  // ─── 포스트 작성 ──────────────────────────────────────
-  const handleSubmit = async () => {
-    if (!content.trim() || !selectedRoom) return
-    setSubmitting(true)
-    const res = await fetch('/api/corenull/posts', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        room_id: selectedRoom.id,
-        owner_key: OWNER_KEY,
-        content: content.trim(),
-        meta: { media: mediaFiles },
-        type: selectedRoom.seed_mode ? 'seed' : 'post',
-      }),
-    })
-    const data = await res.json()
-    if (data.data) router.push('/yard')
-    setSubmitting(false)
-  }
-
-  const removeMedia = (index: number) => {
-    setMediaFiles(prev => prev.filter((_, i) => i !== index))
-  }
+  if (loading) return <div style={styles.loading}>🏡</div>
 
   return (
     <div>
       {/* 헤더 */}
       <div style={styles.header}>
-        <button style={styles.backBtn} onClick={() => router.back()}>←</button>
-        <span style={styles.headerTitle}>새 이야기</span>
-        <button
-          style={{ ...styles.submitBtn, opacity: (!content.trim() || !selectedRoom || submitting) ? 0.4 : 1 }}
-          onClick={handleSubmit}
-          disabled={!content.trim() || !selectedRoom || submitting}
-        >
-          {submitting ? '...' : '올리기'}
-        </button>
+        <span style={styles.logo}>Core<span style={{ color: '#C17F3C' }}>Null</span></span>
+        <button style={styles.iconBtn}>🔍</button>
       </div>
 
-      <div style={styles.body}>
-        {/* ── 방 선택 ── */}
-        {!showNewRoom ? (
-          <div style={styles.roomSelect}>
-            <span style={styles.roomLabel}>어느 방에?</span>
-            <select
-              style={styles.roomDropdown}
-              value={selectedRoom?.id || ''}
-              onChange={e => {
-                if (e.target.value === '__new__') {
-                  setShowNewRoom(true)
-                  return
-                }
-                const r = rooms.find((r: any) => r.id === e.target.value)
-                setSelectedRoom(r)
-              }}
-            >
-              {rooms.map((r: any) => (
-                <option key={r.id} value={r.id}>
-                  {r.room_name}{r.seed_mode ? ' 🌱' : ''}
-                </option>
-              ))}
-              <option value="__new__">+ 새 방 만들기</option>
-            </select>
-          </div>
-        ) : (
-          /* ── 새 방 만들기 폼 ── */
-          <div style={styles.newRoomBox}>
-            <div style={styles.newRoomHeader}>
-              <span style={styles.roomLabel}>새 방 만들기</span>
-              <button
-                style={styles.cancelBtn}
-                onClick={() => { setShowNewRoom(false); setNewRoomName(''); setIsSeed(false) }}
-              >
-                취소
-              </button>
-            </div>
+      {/* 내 집 */}
+      <div style={styles.sectionTitle}>내 집</div>
 
-            <input
-              style={styles.newRoomInput}
-              placeholder="방 이름"
-              value={newRoomName}
-              onChange={e => setNewRoomName(e.target.value)}
-              maxLength={20}
-              autoFocus
-            />
-
-            {/* 씨앗 토글 */}
-            <div style={styles.toggleRow} onClick={() => setIsSeed(v => !v)}>
-              <div style={styles.toggleLeft}>
-                <span style={{ fontSize: 18 }}>🌱</span>
+      {houses.length === 0 ? (
+        <div style={styles.emptyCard}>
+          <div style={{ fontSize: 32, marginBottom: 8 }}>🏡</div>
+          <div style={styles.emptyText}>아직 집이 없어요</div>
+          <button style={styles.createBtn} onClick={() => router.push('/houses/create')}>
+            집 만들기
+          </button>
+        </div>
+      ) : (
+        <>
+          {houses.map((house: any) => (
+            <div key={house.id} style={styles.houseCard} onClick={() => router.push(`/houses/${house.id}`)}>
+              <div style={styles.houseCover}>
+                <span style={{ fontSize: 32 }}>🏡</span>
                 <div>
-                  <div style={styles.toggleTitle}>씨앗</div>
-                  <div style={styles.toggleDesc}>스스로에게 한 약속</div>
+                  <div style={styles.houseName}>{house.title}</div>
+                  <div style={styles.houseLang}>
+                    {house.primary_language === 'ko' ? '🇰🇷'
+                      : house.primary_language === 'vi' ? '🇻🇳'
+                      : house.primary_language === 'en' ? '🇺🇸'
+                      : house.primary_language === 'ja' ? '🇯🇵'
+                      : house.primary_language === 'zh' ? '🇨🇳' : '🌐'
+                    } {house.primary_language}
+                  </div>
                 </div>
               </div>
-              <div style={{ ...styles.toggleSwitch, background: isSeed ? '#2C1810' : '#e0d8d0' }}>
-                <div style={{ ...styles.toggleThumb, transform: isSeed ? 'translateX(20px)' : 'translateX(2px)' }} />
-              </div>
             </div>
+          ))}
 
-            <button
-              style={{ ...styles.createRoomBtn, opacity: (!newRoomName.trim() || creatingRoom) ? 0.4 : 1 }}
-              onClick={handleCreateRoom}
-              disabled={!newRoomName.trim() || creatingRoom}
-            >
-              {creatingRoom ? '만드는 중...' : '방 만들기'}
+          <div style={{ padding: '0 16px', marginTop: 4, marginBottom: 8 }}>
+            <button style={styles.addHouseBtn} onClick={() => router.push('/houses/create')}>
+              + 집 만들기
             </button>
           </div>
-        )}
+        </>
+      )}
 
-        {/* ── 텍스트 입력 ── */}
-        <textarea
-          style={styles.textarea}
-          placeholder="오늘 어떤 순간을 남기고 싶으세요?"
-          value={content}
-          onChange={e => setContent(e.target.value)}
-          autoFocus={!showNewRoom}
-        />
-
-        {/* ── 미디어 미리보기 ── */}
-        {mediaFiles.length > 0 && (
-          <div style={styles.mediaPreview}>
-            {mediaFiles.map((m, i) => (
-              <div key={i} style={styles.mediaItem}>
-                {m.type === 'image' ? (
-                  <img src={m.url} alt="" style={styles.mediaThumb} />
-                ) : (
-                  <div style={styles.videoThumb}>🎬</div>
-                )}
-                <button style={styles.removeBtn} onClick={() => removeMedia(i)}>✕</button>
+      {/* 최근 방문 */}
+      {footprints.length > 0 && (
+        <>
+          <div style={styles.sectionTitle}>최근 방문</div>
+          <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {footprints.slice(0, 5).map((fp: any) => (
+              <div
+                key={fp.id}
+                style={styles.visitItem}
+                onClick={() => router.push(`/rooms/${fp.room_id}`)}
+              >
+                <div style={styles.visitIcon}>👣</div>
+                <div style={{ flex: 1 }}>
+                  <div style={styles.visitRoom}>
+                    {fp.corenull_rooms?.room_name || fp.room_id}
+                  </div>
+                  <div style={styles.visitTime}>
+                    {new Date(fp.visited_at).toLocaleDateString('ko-KR')}
+                  </div>
+                </div>
               </div>
             ))}
           </div>
-        )}
-
-        {/* ── 미디어 추가 ── */}
-        <div style={styles.mediaRow}>
-          <button
-            style={styles.mediaBtn}
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
-          >
-            {uploading ? '⏳' : '📷'} {uploading ? '업로드 중...' : '사진/영상'}
-          </button>
-        </div>
-
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*,video/*"
-          multiple
-          style={{ display: 'none' }}
-          onChange={handleFileSelect}
-        />
-      </div>
+        </>
+      )}
     </div>
   )
 }
@@ -247,98 +108,63 @@ const styles: Record<string, React.CSSProperties> = {
     width: '100%', maxWidth: '430px', height: 56,
     background: 'rgba(254,252,248,0.95)', borderBottom: '1px solid rgba(92,61,46,0.12)',
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '0 16px', zIndex: 100, backdropFilter: 'blur(12px)',
+    padding: '0 20px', zIndex: 100, backdropFilter: 'blur(12px)',
   },
-  backBtn: {
-    fontSize: 20, color: '#2C1810', background: 'none', border: 'none', cursor: 'pointer',
+  logo: {
+    fontFamily: "'Noto Serif KR', serif", fontSize: 18, fontWeight: 600, color: '#2C1810',
   },
-  headerTitle: {
-    fontFamily: "'Noto Serif KR', serif", fontSize: 16, fontWeight: 600, color: '#2C1810',
+  iconBtn: {
+    width: 36, height: 36, borderRadius: '50%', background: '#F5F0E8',
+    border: 'none', fontSize: 16, cursor: 'pointer',
   },
-  submitBtn: {
-    padding: '8px 16px', background: '#2C1810', color: 'white',
-    border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 500, cursor: 'pointer',
+  sectionTitle: {
+    fontSize: 11, color: '#9A8470', letterSpacing: '1px',
+    textTransform: 'uppercase', padding: '20px 20px 10px',
   },
-  body: { padding: '16px' },
-  roomSelect: {
-    display: 'flex', alignItems: 'center', gap: 10,
-    background: '#FEFCF8', border: '1px solid rgba(92,61,46,0.12)',
-    borderRadius: 12, padding: '10px 14px', marginBottom: 12,
+  houseCard: {
+    margin: '0 16px 12px', background: '#FEFCF8',
+    borderRadius: 16, border: '1px solid rgba(92,61,46,0.12)',
+    overflow: 'hidden', boxShadow: '0 2px 20px rgba(44,24,16,0.08)',
+    cursor: 'pointer',
   },
-  roomLabel: { fontSize: 13, color: '#9A8470', flexShrink: 0 },
-  roomDropdown: {
-    flex: 1, border: 'none', background: 'none',
-    fontSize: 14, color: '#1C1208', fontFamily: "'Noto Sans KR', sans-serif",
-    outline: 'none', cursor: 'pointer',
+  houseCover: {
+    height: 100, background: 'linear-gradient(135deg, #4A5240 0%, #7A8C6E 60%, #C8D5B9 100%)',
+    display: 'flex', alignItems: 'flex-end', padding: '14px 16px', gap: 10,
   },
-  newRoomBox: {
-    background: '#FEFCF8', border: '1px solid rgba(92,61,46,0.12)',
-    borderRadius: 12, padding: '14px', marginBottom: 12,
-    display: 'flex', flexDirection: 'column', gap: 10,
+  houseName: {
+    fontFamily: "'Noto Serif KR', serif", fontSize: 16, fontWeight: 600,
+    color: 'white', textShadow: '0 1px 4px rgba(0,0,0,0.3)',
   },
-  newRoomHeader: {
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+  houseLang: { fontSize: 11, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
+  emptyCard: {
+    margin: '0 16px', background: '#FEFCF8', borderRadius: 16,
+    border: '1px dashed rgba(92,61,46,0.2)', padding: '32px 20px',
+    textAlign: 'center',
   },
-  cancelBtn: {
-    fontSize: 13, color: '#9A8470', background: 'none', border: 'none', cursor: 'pointer',
+  emptyText: { fontSize: 14, color: '#9A8470', marginBottom: 16 },
+  createBtn: {
+    padding: '10px 24px', background: '#2C1810', color: 'white',
+    border: 'none', borderRadius: 12, fontSize: 14, cursor: 'pointer',
   },
-  newRoomInput: {
-    width: '100%', height: 44,
-    background: '#F5F0E8', border: '1px solid rgba(92,61,46,0.12)',
-    borderRadius: 10, padding: '0 12px',
-    fontSize: 14, color: '#1C1208', outline: 'none', boxSizing: 'border-box',
-    fontFamily: "'Noto Sans KR', sans-serif",
+  addHouseBtn: {
+    width: '100%', padding: '12px', background: '#FEFCF8',
+    border: '1px dashed rgba(92,61,46,0.2)', borderRadius: 12,
+    fontSize: 14, color: '#9A8470', cursor: 'pointer',
   },
-  toggleRow: {
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '10px 12px', background: '#F5F0E8', borderRadius: 10, cursor: 'pointer',
+  visitItem: {
+    background: '#FEFCF8', borderRadius: 12, border: '1px solid rgba(92,61,46,0.12)',
+    padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12,
+    cursor: 'pointer',
   },
-  toggleLeft: { display: 'flex', alignItems: 'center', gap: 10 },
-  toggleTitle: { fontSize: 13, fontWeight: 500, color: '#1C1208' },
-  toggleDesc: { fontSize: 11, color: '#9A8470', marginTop: 1 },
-  toggleSwitch: {
-    width: 44, height: 24, borderRadius: 12, position: 'relative',
-    transition: 'background 0.2s', flexShrink: 0,
+  visitIcon: {
+    width: 40, height: 40, borderRadius: 10,
+    background: 'linear-gradient(135deg, #7A8C6E, #C8D5B9)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
   },
-  toggleThumb: {
-    position: 'absolute', top: 2, width: 20, height: 20,
-    borderRadius: '50%', background: 'white',
-    transition: 'transform 0.2s', boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
-  },
-  createRoomBtn: {
-    width: '100%', padding: '12px',
-    background: '#2C1810', color: 'white',
-    border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 500, cursor: 'pointer',
-  },
-  textarea: {
-    width: '100%', minHeight: 200,
-    background: '#FEFCF8', border: '1px solid rgba(92,61,46,0.12)',
-    borderRadius: 12, padding: 14,
-    fontFamily: "'Noto Sans KR', sans-serif", fontSize: 15, lineHeight: 1.7,
-    color: '#1C1208', resize: 'none', outline: 'none', marginBottom: 12,
-    boxSizing: 'border-box',
-  },
-  mediaPreview: {
-    display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12,
-  },
-  mediaItem: { position: 'relative' },
-  mediaThumb: { width: 80, height: 80, borderRadius: 10, objectFit: 'cover' },
-  videoThumb: {
-    width: 80, height: 80, borderRadius: 10,
-    background: '#2d4a3e', display: 'flex', alignItems: 'center',
-    justifyContent: 'center', fontSize: 28,
-  },
-  removeBtn: {
-    position: 'absolute', top: -6, right: -6,
-    width: 20, height: 20, borderRadius: '50%',
-    background: '#2C1810', color: 'white',
-    border: 'none', fontSize: 10, cursor: 'pointer',
+  visitRoom: { fontSize: 13, color: '#1C1208', fontWeight: 500 },
+  visitTime: { fontSize: 11, color: '#9A8470', marginTop: 2 },
+  loading: {
     display: 'flex', alignItems: 'center', justifyContent: 'center',
-  },
-  mediaRow: { display: 'flex', gap: 8 },
-  mediaBtn: {
-    flex: 1, height: 48,
-    background: '#FEFCF8', border: '1px dashed rgba(92,61,46,0.2)',
-    borderRadius: 12, fontSize: 14, color: '#9A8470', cursor: 'pointer',
+    height: '50vh', fontSize: 40,
   },
 }

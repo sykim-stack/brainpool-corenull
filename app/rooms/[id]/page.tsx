@@ -41,10 +41,8 @@ type Post = {
 }
 
 // ─── Constants ───────────────────────────────────────────
-const OWNER_KEY =
-  typeof window !== 'undefined'
-    ? localStorage.getItem('owner_key') || 'test-device-001'
-    : 'test-device-001'
+import { getDeviceId } from '@/lib/deviceId'
+const OWNER_KEY = getDeviceId()
 
 const LANG_FLAG: Record<string, string> = {
   ko: '🇰🇷',

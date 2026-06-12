@@ -2,106 +2,116 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { getDeviceId } from '@/lib/deviceId'
 
-const OWNER_KEY = 'test-device-001'
+const OWNER_KEY = getDeviceId()
 
-export default function HomePage() {
-  const router = useRouter()
-  const [houses, setHouses] = useState([])
-  const [footprints, setFootprints] = useState([])
+export default function MePage() {
+  const [library, setLibrary] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const router = useRouter()
 
   useEffect(() => {
-    Promise.all([
-      fetch(`/api/corenull/houses?owner_key=${OWNER_KEY}`).then(r => r.json()),
-      fetch(`/api/corenull/footprints?owner_key=${OWNER_KEY}`).then(r => r.json()),
-    ]).then(([h, f]) => {
-      setHouses(h.data || [])
-      setFootprints(f.data || [])
-      setLoading(false)
-    })
+    fetch(`/api/corenull/library?owner_key=${OWNER_KEY}`)
+      .then(r => r.json())
+      .then(d => {
+        setLibrary(d.data)
+        setLoading(false)
+      })
   }, [])
 
-  if (loading) return <div style={styles.loading}>🏡</div>
+  if (loading) return <div style={styles.loading}>👤</div>
 
   return (
     <div>
       {/* 헤더 */}
       <div style={styles.header}>
-        <span style={styles.logo}>Core<span style={{ color: '#C17F3C' }}>Null</span></span>
-        <button style={styles.iconBtn}>🔍</button>
+        <span style={styles.headerTitle}>나</span>
+        <button style={styles.iconBtn}>⚙️</button>
       </div>
 
-      {/* 내 집 */}
-      <div style={styles.sectionTitle}>내 집</div>
-
-      {houses.length === 0 ? (
-        <div style={styles.emptyCard}>
-          <div style={{ fontSize: 32, marginBottom: 8 }}>🏡</div>
-          <div style={styles.emptyText}>아직 집이 없어요</div>
-          <button style={styles.createBtn} onClick={() => router.push('/houses/create')}>
-            집 만들기
-          </button>
+      <div style={styles.body}>
+        {/* 프로필 */}
+        <div style={styles.profileCard}>
+          <div style={styles.profileAvatar}>🌱</div>
+          <div>
+            <div style={styles.profileName}>나의 공간</div>
+            <div style={styles.profileDevice}>{OWNER_KEY}</div>
+          </div>
         </div>
-      ) : (
-        <>
-          {houses.map((house: any) => (
-            <div key={house.id} style={styles.houseCard} onClick={() => router.push(`/houses/${house.id}`)}>
-              <div style={styles.houseCover}>
-                <span style={{ fontSize: 32 }}>🏡</span>
-                <div>
-                  <div style={styles.houseName}>{house.title}</div>
-                  <div style={styles.houseLang}>
-                    {house.primary_language === 'ko' ? '🇰🇷'
-                      : house.primary_language === 'vi' ? '🇻🇳'
-                      : house.primary_language === 'en' ? '🇺🇸'
-                      : house.primary_language === 'ja' ? '🇯🇵'
-                      : house.primary_language === 'zh' ? '🇨🇳' : '🌐'
-                    } {house.primary_language}
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
 
-          <div style={{ padding: '0 16px', marginTop: 4, marginBottom: 8 }}>
-            <button style={styles.addHouseBtn} onClick={() => router.push('/houses/create')}>
-              + 집 만들기
-            </button>
+        {/* 활동 요약 */}
+        <div style={styles.statsRow}>
+          <div style={styles.statItem}>
+            <span style={styles.statNum}>{library?.my_posts?.length || 0}</span>
+            <span style={styles.statLabel}>이야기</span>
           </div>
-        </>
-      )}
+          <div style={styles.statDivider} />
+          <div style={styles.statItem}>
+            <span style={styles.statNum}>{library?.footprints?.length || 0}</span>
+            <span style={styles.statLabel}>발자취</span>
+          </div>
+          <div style={styles.statDivider} />
+          <div style={styles.statItem}>
+            <span style={styles.statNum}>{(library?.saved_rooms?.length || 0) + (library?.saved_posts?.length || 0)}</span>
+            <span style={styles.statLabel}>저장</span>
+          </div>
+        </div>
 
-      {/* 최근 방문 */}
-      {footprints.length > 0 && (
-        <>
-          <div style={styles.sectionTitle}>최근 방문</div>
-          <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {footprints.slice(0, 5).map((fp: any) => (
-              <div
-                key={fp.id}
-                style={styles.visitItem}
-                onClick={() => router.push(`/rooms/${fp.room_id}`)}
-              >
-                <div style={styles.visitIcon}>👣</div>
-                <div style={{ flex: 1 }}>
-                  <div style={styles.visitRoom}>
-                    {fp.corenull_rooms?.room_name || fp.room_id}
-                  </div>
-                  <div style={styles.visitTime}>
-                    {new Date(fp.visited_at).toLocaleDateString('ko-KR')}
-                  </div>
-                </div>
-              </div>
-            ))}
+        {/* 메뉴 */}
+        <div style={styles.menuSection}>
+          <div style={styles.menuItem} onClick={() => router.push('/me/library')}>
+            <div style={{ ...styles.menuIcon, background: 'rgba(74,82,64,0.12)' }}>📚</div>
+            <span style={styles.menuLabel}>서재</span>
+            <span style={styles.menuBadge}>{
+              (library?.footprints?.length || 0) +
+              (library?.saved_rooms?.length || 0) +
+              (library?.saved_posts?.length || 0)
+            }</span>
+            <span style={styles.menuArrow}>›</span>
           </div>
-        </>
-      )}
+          <div style={styles.menuItem} onClick={() => router.push('/me/posts')}>
+            <div style={{ ...styles.menuIcon, background: 'rgba(193,127,60,0.12)' }}>📝</div>
+            <span style={styles.menuLabel}>내가 쓴 이야기</span>
+            <span style={styles.menuBadge}>{library?.my_posts?.length || 0}</span>
+            <span style={styles.menuArrow}>›</span>
+          </div>
+          <div style={styles.menuItem}>
+            <div style={{ ...styles.menuIcon, background: 'rgba(200,213,185,0.4)' }}>👣</div>
+            <span style={styles.menuLabel}>발자취</span>
+            <span style={styles.menuBadge}>{library?.footprints?.length || 0}</span>
+            <span style={styles.menuArrow}>›</span>
+          </div>
+          <div style={styles.menuItem}>
+            <div style={{ ...styles.menuIcon, background: 'rgba(200,213,185,0.4)' }}>🔖</div>
+            <span style={styles.menuLabel}>저장한 것들</span>
+            <span style={styles.menuBadge}>{(library?.saved_rooms?.length || 0) + (library?.saved_posts?.length || 0)}</span>
+            <span style={styles.menuArrow}>›</span>
+          </div>
+        </div>
+
+        <div style={styles.menuSection}>
+          <div style={styles.menuItem}>
+            <div style={{ ...styles.menuIcon, background: 'rgba(193,127,60,0.12)' }}>🏡</div>
+            <span style={styles.menuLabel}>내 집 관리</span>
+            <span style={styles.menuArrow}>›</span>
+          </div>
+          <div style={styles.menuItem}>
+            <div style={{ ...styles.menuIcon, background: 'rgba(200,213,185,0.4)' }}>⚙️</div>
+            <span style={styles.menuLabel}>설정</span>
+            <span style={styles.menuArrow}>›</span>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
 
 const styles: Record<string, React.CSSProperties> = {
+  loading: {
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    height: '50vh', fontSize: 40,
+  },
   header: {
     position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)',
     width: '100%', maxWidth: '430px', height: 56,
@@ -109,61 +119,56 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
     padding: '0 20px', zIndex: 100, backdropFilter: 'blur(12px)',
   },
-  logo: {
+  headerTitle: {
     fontFamily: "'Noto Serif KR', serif", fontSize: 18, fontWeight: 600, color: '#2C1810',
   },
   iconBtn: {
     width: 36, height: 36, borderRadius: '50%', background: '#F5F0E8',
     border: 'none', fontSize: 16, cursor: 'pointer',
   },
-  sectionTitle: {
-    fontSize: 11, color: '#9A8470', letterSpacing: '1px',
-    textTransform: 'uppercase', padding: '20px 20px 10px',
+  body: { padding: '16px' },
+  profileCard: {
+    background: '#FEFCF8', borderRadius: 20,
+    border: '1px solid rgba(92,61,46,0.12)',
+    padding: '20px', display: 'flex', alignItems: 'center', gap: 16,
+    marginBottom: 12, boxShadow: '0 2px 20px rgba(44,24,16,0.08)',
   },
-  houseCard: {
-    margin: '0 16px 12px', background: '#FEFCF8',
-    borderRadius: 16, border: '1px solid rgba(92,61,46,0.12)',
-    overflow: 'hidden', boxShadow: '0 2px 20px rgba(44,24,16,0.08)',
+  profileAvatar: {
+    width: 64, height: 64, borderRadius: '50%',
+    background: 'linear-gradient(135deg, #4A5240, #C17F3C)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28,
+  },
+  profileName: {
+    fontFamily: "'Noto Serif KR', serif", fontSize: 18, fontWeight: 600, color: '#2C1810',
+  },
+  profileDevice: { fontSize: 11, color: '#9A8470', marginTop: 4 },
+  statsRow: {
+    background: '#FEFCF8', borderRadius: 16,
+    border: '1px solid rgba(92,61,46,0.12)',
+    padding: '16px', display: 'flex', alignItems: 'center',
+    marginBottom: 12, boxShadow: '0 2px 20px rgba(44,24,16,0.08)',
+  },
+  statItem: {
+    flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+  },
+  statNum: { fontSize: 22, fontWeight: 600, color: '#2C1810' },
+  statLabel: { fontSize: 11, color: '#9A8470' },
+  statDivider: { width: 1, height: 32, background: 'rgba(92,61,46,0.12)' },
+  menuSection: {
+    background: '#FEFCF8', borderRadius: 16,
+    border: '1px solid rgba(92,61,46,0.12)',
+    overflow: 'hidden', marginBottom: 12,
+  },
+  menuItem: {
+    display: 'flex', alignItems: 'center', gap: 14,
+    padding: '14px 16px', borderBottom: '1px solid rgba(92,61,46,0.08)',
     cursor: 'pointer',
   },
-  houseCover: {
-    height: 100, background: 'linear-gradient(135deg, #4A5240 0%, #7A8C6E 60%, #C8D5B9 100%)',
-    display: 'flex', alignItems: 'flex-end', padding: '14px 16px', gap: 10,
-  },
-  houseName: {
-    fontFamily: "'Noto Serif KR', serif", fontSize: 16, fontWeight: 600,
-    color: 'white', textShadow: '0 1px 4px rgba(0,0,0,0.3)',
-  },
-  houseLang: { fontSize: 11, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
-  emptyCard: {
-    margin: '0 16px', background: '#FEFCF8', borderRadius: 16,
-    border: '1px dashed rgba(92,61,46,0.2)', padding: '32px 20px',
-    textAlign: 'center',
-  },
-  emptyText: { fontSize: 14, color: '#9A8470', marginBottom: 16 },
-  createBtn: {
-    padding: '10px 24px', background: '#2C1810', color: 'white',
-    border: 'none', borderRadius: 12, fontSize: 14, cursor: 'pointer',
-  },
-  addHouseBtn: {
-    width: '100%', padding: '12px', background: '#FEFCF8',
-    border: '1px dashed rgba(92,61,46,0.2)', borderRadius: 12,
-    fontSize: 14, color: '#9A8470', cursor: 'pointer',
-  },
-  visitItem: {
-    background: '#FEFCF8', borderRadius: 12, border: '1px solid rgba(92,61,46,0.12)',
-    padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12,
-    cursor: 'pointer',
-  },
-  visitIcon: {
-    width: 40, height: 40, borderRadius: 10,
-    background: 'linear-gradient(135deg, #7A8C6E, #C8D5B9)',
+  menuIcon: {
+    width: 36, height: 36, borderRadius: 10,
     display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
   },
-  visitRoom: { fontSize: 13, color: '#1C1208', fontWeight: 500 },
-  visitTime: { fontSize: 11, color: '#9A8470', marginTop: 2 },
-  loading: {
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    height: '50vh', fontSize: 40,
-  },
+  menuLabel: { flex: 1, fontSize: 14, color: '#1C1208' },
+  menuBadge: { fontSize: 12, color: '#9A8470', fontWeight: 500 },
+  menuArrow: { fontSize: 16, color: '#9A8470' },
 }
