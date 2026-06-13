@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 import { getDeviceId } from '@/lib/deviceId'
-const OWNER_KEY = getDeviceId()
 
 const LANG_FLAG: Record<string, string> = {
   ko: '🇰🇷',
@@ -16,6 +15,7 @@ const LANG_FLAG: Record<string, string> = {
 
 export default function YardPage() {
   const [posts, setPosts] = useState([])
+  const [ownerKey, setOwnerKey] = useState('')
   const [loading, setLoading] = useState(true)
   const router = useRouter()
 
@@ -51,7 +51,7 @@ export default function YardPage() {
             <PostCard
               key={post.id}
               post={post}
-              ownerKey={OWNER_KEY}
+              ownerKey={ownerKey}
               onClick={() => router.push(`/posts/${post.id}`)}
             />
           ))

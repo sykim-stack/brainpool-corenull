@@ -2,9 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-
 import { getDeviceId } from '@/lib/deviceId'
-const OWNER_KEY = getDeviceId()
 
 export default function HomePage() {
   const router = useRouter()
@@ -13,6 +11,7 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    const OWNER_KEY = getDeviceId()
     Promise.all([
       fetch(`/api/corenull/houses?owner_key=${OWNER_KEY}`).then(r => r.json()),
       fetch(`/api/corenull/footprints?owner_key=${OWNER_KEY}`).then(r => r.json()),

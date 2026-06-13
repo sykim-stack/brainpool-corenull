@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 import { getDeviceId } from '@/lib/deviceId'
-const OWNER_KEY = getDeviceId()
 
 type Post = {
   id: string
@@ -20,10 +19,13 @@ type Post = {
 export default function MyPostsPage() {
   const router = useRouter()
   const [posts, setPosts] = useState<Post[]>([])
+  const [ownerKey, setOwnerKey] = useState('')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch(`/api/corenull/library?owner_key=${OWNER_KEY}`)
+    const key = getDeviceId()
+    setOwnerKey(key)
+    fetch(`/api/corenull/library?owner_key=${key}`)
       .then(r => r.json())
       .then(d => {
         setPosts(d.data?.my_posts || [])

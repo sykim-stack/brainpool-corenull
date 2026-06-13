@@ -4,18 +4,20 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { getDeviceId } from '@/lib/deviceId'
 
-const OWNER_KEY = getDeviceId()
 
 type Tab = 'footprints' | 'saved' | 'posts'
 
 export default function LibraryPage() {
   const [library, setLibrary] = useState<any>(null)
   const [activeTab, setActiveTab] = useState<Tab>('footprints')
+  const [ownerKey, setOwnerKey] = useState('')
   const [loading, setLoading] = useState(true)
   const router = useRouter()
 
   useEffect(() => {
-    fetch(`/api/corenull/library?owner_key=${OWNER_KEY}`)
+    const key = getDeviceId()
+    setOwnerKey(key)
+    fetch(`/api/corenull/library?owner_key=${key}`)
       .then(r => r.json())
       .then(d => {
         setLibrary(d.data)

@@ -4,7 +4,6 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 
 import { getDeviceId } from '@/lib/deviceId'
-const OWNER_KEY = getDeviceId()
 
 export default function WritePage() {
   const [content, setContent] = useState('')
@@ -14,6 +13,7 @@ export default function WritePage() {
   const [uploading, setUploading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [houseId, setHouseId] = useState<string | null>(null)
+  const [ownerKey, setOwnerKey] = useState('')
 
   // 새 방 만들기
   const [showNewRoom, setShowNewRoom] = useState(false)
@@ -25,7 +25,9 @@ export default function WritePage() {
   const router = useRouter()
 
   useEffect(() => {
-    fetch(`/api/corenull/houses?owner_key=${OWNER_KEY}`)
+    const key = getDeviceId()
+    setOwnerKey(key)
+    fetch(`/api/corenull/houses?owner_key=${key}`)
       .then(r => r.json())
       .then(async d => {
         const houses = d.data || []
@@ -50,7 +52,7 @@ export default function WritePage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         house_id: houseId,
-        owner_key: OWNER_KEY,
+        owner_key: ownerKey,
         room_name: newRoomName.trim(),
         room_type: isSeed ? 'seed' : 'normal',
         visibility: 'public',
@@ -92,7 +94,7 @@ export default function WritePage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         room_id: selectedRoom.id,
-        owner_key: OWNER_KEY,
+        owner_key: ownerKey,
         content: content.trim(),
         meta: { media: mediaFiles },
         type: selectedRoom.seed_mode ? 'seed' : 'post',

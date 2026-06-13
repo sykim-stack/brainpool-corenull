@@ -4,15 +4,17 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { getDeviceId } from '@/lib/deviceId'
 
-const OWNER_KEY = getDeviceId()
 
 export default function MePage() {
   const [library, setLibrary] = useState<any>(null)
+  const [ownerKey, setOwnerKey] = useState('')
   const [loading, setLoading] = useState(true)
   const router = useRouter()
 
   useEffect(() => {
-    fetch(`/api/corenull/library?owner_key=${OWNER_KEY}`)
+    const key = getDeviceId()
+    setOwnerKey(key)
+    fetch(`/api/corenull/library?owner_key=${key}`)
       .then(r => r.json())
       .then(d => {
         setLibrary(d.data)
@@ -36,7 +38,7 @@ export default function MePage() {
           <div style={styles.profileAvatar}>🌱</div>
           <div>
             <div style={styles.profileName}>나의 공간</div>
-            <div style={styles.profileDevice}>{OWNER_KEY}</div>
+            <div style={styles.profileDevice}>{ownerKey}</div>
           </div>
         </div>
 
