@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
-const OWNER_KEY = 'test-device-001'
+import { getDeviceId } from '@/lib/deviceId'
 
 const LANGUAGES = [
   { code: 'ko', flag: '🇰🇷', label: '한국어' },
@@ -19,6 +19,7 @@ export default function CreateHousePage() {
   const [language, setLanguage] = useState('ko')
   const [submitting, setSubmitting] = useState(false)
   const router = useRouter()
+  const OWNER_KEY = getDeviceId()
 
   const handleSubmit = async () => {
     if (!title.trim()) return
