@@ -1,15 +1,13 @@
 // CoreNull - Yard API
 // 마당 = public 방들의 포스트 피드
 // visibility = 'public' 인 방들의 포스트 전체 조회
-// room + house 정보 join 포함
+// room + house + seed 정보 join 포함
 
 export const dynamic = 'force-dynamic'
 
 const handler = async (req) => {
   const traceId = crypto.randomUUID()
-
   if (req.method === 'GET') return handleGet(req, traceId)
-
   return Response.json({ _error: 'method_not_allowed', traceId }, { status: 500 })
 }
 
@@ -22,21 +20,17 @@ const handleGet = async (req, traceId) => {
   const supabase = getSupabase()
   if (!supabase) return Response.json({ _error: 'supabase_init_failed', traceId }, { status: 500 })
 
-  // public 방 + 집 정보 함께 조회
+  // public 방 + 집 정보 + seed 정보 함께 조회
   const { data: rooms, error: roomError } = await supabase
     .from('corenull_rooms')
-    .select('id, room_name, house_id, corenull_houses(id, title, primary_language)')
+    .select('id, room_name, house_id, seed_mode, bloom_date, corenull_houses(id, title, primary_language)')
     .eq('visibility', 'public')
 
   if (roomError) return Response.json({ _error: roomError.message, traceId }, { status: 500 })
 
   const roomIds = (rooms || []).map(r => r.id)
+  if (roomIds.length === 0) return Response.json({ data: [], traceId })
 
-  if (roomIds.length === 0) {
-    return Response.json({ data: [], traceId })
-  }
-
-  // public 방들의 포스트 전체
   const { data: posts, error } = await supabase
     .from('messages')
     .select('*')
@@ -48,7 +42,6 @@ const handleGet = async (req, traceId) => {
 
   if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
 
-  // 포스트에 room + house 정보 붙이기
   const roomMap = {}
   for (const room of (rooms || [])) {
     roomMap[room.id] = {
@@ -56,6 +49,8 @@ const handleGet = async (req, traceId) => {
       house_id: room.house_id,
       house_title: room.corenull_houses?.title || null,
       house_language: room.corenull_houses?.primary_language || null,
+      seed_mode: room.seed_mode || false,
+      bloom_date: room.bloom_date || null,
     }
   }
 

@@ -2,24 +2,30 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-
 import { getDeviceId } from '@/lib/deviceId'
 
 const LANG_FLAG: Record<string, string> = {
-  ko: '🇰🇷',
-  vi: '🇻🇳',
-  en: '🇺🇸',
-  ja: '🇯🇵',
-  zh: '🇨🇳',
+  ko: '🇰🇷', vi: '🇻🇳', en: '🇺🇸', ja: '🇯🇵', zh: '🇨🇳',
+}
+
+function isBloomed(bloomDate: string | null): boolean {
+  if (!bloomDate) return false
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const bloom = new Date(bloomDate)
+  bloom.setHours(0, 0, 0, 0)
+  return bloom <= today
 }
 
 export default function YardPage() {
-  const [posts, setPosts] = useState([])
+  const [posts, setPosts] = useState<any[]>([])
   const [ownerKey, setOwnerKey] = useState('')
   const [loading, setLoading] = useState(true)
   const router = useRouter()
 
   useEffect(() => {
+    const key = getDeviceId()
+    setOwnerKey(key)
     fetch(`/api/corenull/yard`)
       .then(r => r.json())
       .then(d => {
@@ -30,14 +36,17 @@ export default function YardPage() {
 
   if (loading) return <div style={styles.loading}>🌳</div>
 
+  // 섹션 분리
+  const bloomed = posts.filter(p => p._room?.seed_mode && isBloomed(p._room?.bloom_date))
+  const seeds   = posts.filter(p => p._room?.seed_mode && !isBloomed(p._room?.bloom_date))
+  const normal  = posts.filter(p => !p._room?.seed_mode)
+
   return (
     <div>
-      {/* 헤더 */}
       <div style={styles.header}>
         <span style={styles.headerTitle}>🌳 마당</span>
       </div>
 
-      {/* 포스트 피드 */}
       <div style={styles.feed}>
         {posts.length === 0 ? (
           <div style={styles.empty}>
@@ -47,21 +56,83 @@ export default function YardPage() {
             </p>
           </div>
         ) : (
-          posts.map((post: any) => (
-            <PostCard
-              key={post.id}
-              post={post}
-              ownerKey={ownerKey}
-              onClick={() => router.push(`/posts/${post.id}`)}
-            />
-          ))
+          <>
+            {/* 🌸 꽃 핀 씨앗 */}
+            {bloomed.length > 0 && (
+              <Section
+                emoji="🌸"
+                title="꽃이 피었어요"
+                posts={bloomed}
+                ownerKey={ownerKey}
+                router={router}
+                accent="#C17F3C"
+                bg="rgba(193,127,60,0.06)"
+                border="rgba(193,127,60,0.2)"
+              />
+            )}
+
+            {/* 🌱 자라는 씨앗 */}
+            {seeds.length > 0 && (
+              <Section
+                emoji="🌱"
+                title="자라는 씨앗"
+                posts={seeds}
+                ownerKey={ownerKey}
+                router={router}
+                accent="#4A5240"
+                bg="rgba(74,82,64,0.05)"
+                border="rgba(74,82,64,0.15)"
+              />
+            )}
+
+            {/* 📝 일반 이야기 */}
+            {normal.length > 0 && (
+              <Section
+                emoji="📝"
+                title="이야기"
+                posts={normal}
+                ownerKey={ownerKey}
+                router={router}
+                accent="#5C4A35"
+                bg="transparent"
+                border="transparent"
+              />
+            )}
+          </>
         )}
       </div>
     </div>
   )
 }
 
-function PostCard({ post, ownerKey, onClick }: any) {
+function Section({ emoji, title, posts, ownerKey, router, accent, bg, border }: any) {
+  return (
+    <div style={{ marginBottom: 8 }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 6,
+        padding: '10px 4px 8px',
+      }}>
+        <span style={{ fontSize: 16 }}>{emoji}</span>
+        <span style={{ fontSize: 12, fontWeight: 600, color: accent, letterSpacing: '0.5px' }}>{title}</span>
+        <span style={{ fontSize: 11, color: '#9A8470' }}>({posts.length})</span>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {posts.map((post: any) => (
+          <PostCard
+            key={post.id}
+            post={post}
+            ownerKey={ownerKey}
+            onClick={() => router.push(`/posts/${post.id}`)}
+            sectionBg={bg}
+            sectionBorder={border}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function PostCard({ post, ownerKey, onClick, sectionBg, sectionBorder }: any) {
   const [showTranslate, setShowTranslate] = useState(false)
   const [bookmarked, setBookmarked] = useState(false)
   const [commentCount, setCommentCount] = useState(0)
@@ -70,7 +141,6 @@ function PostCard({ post, ownerKey, onClick }: any) {
   const firstMedia = media[0]
   const hasImage = firstMedia?.type === 'image'
   const hasVideo = firstMedia?.type === 'video'
-
   const room = post._room
   const langFlag = room?.house_language ? (LANG_FLAG[room.house_language] || '🏡') : '🏡'
 
@@ -92,28 +162,29 @@ function PostCard({ post, ownerKey, onClick }: any) {
   }
 
   return (
-    <div style={styles.card} onClick={onClick}>
-      {/* 공간 정보 */}
+    <div style={{
+      ...styles.card,
+      background: sectionBg !== 'transparent' ? sectionBg : '#FEFCF8',
+      borderColor: sectionBorder !== 'transparent' ? sectionBorder : 'rgba(92,61,46,0.12)',
+    }} onClick={onClick}>
       <div style={styles.cardHeader}>
         <div style={styles.spaceRow}>
-          <span style={styles.spaceHouse}>
-            {langFlag} {room?.house_title || '집'}
-          </span>
+          <span style={styles.spaceHouse}>{langFlag} {room?.house_title || '집'}</span>
           <span style={styles.spaceSep}>·</span>
-          <span style={styles.spaceRoom}>
-            {room?.room_name || '방'}
-          </span>
+          <span style={styles.spaceRoom}>{room?.room_name || '방'}</span>
+          {room?.seed_mode && (
+            <span style={styles.seedTag}>
+              {isBloomed(room?.bloom_date) ? '🌸' : '🌱'}
+            </span>
+          )}
         </div>
         <div style={styles.authorRow}>
           <div style={styles.avatar}>🌿</div>
           <span style={styles.authorName}>작성자</span>
-          <span style={styles.postTime}>
-            {new Date(post.created_at).toLocaleDateString('ko-KR')}
-          </span>
+          <span style={styles.postTime}>{new Date(post.created_at).toLocaleDateString('ko-KR')}</span>
         </div>
       </div>
 
-      {/* 미디어 */}
       {hasImage && (
         <div style={styles.mediaImage}>
           <img src={firstMedia.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -126,33 +197,20 @@ function PostCard({ post, ownerKey, onClick }: any) {
         </div>
       )}
 
-      {/* 본문 */}
       <div style={styles.cardBody}>
         <div style={styles.postText}>{post.content}</div>
-
-        {/* 번역 토글 */}
         {post.translated_ko && (
           <div>
-            <div
-              style={styles.translateToggle}
-              onClick={e => { e.stopPropagation(); setShowTranslate(!showTranslate) }}
-            >
+            <div style={styles.translateToggle} onClick={e => { e.stopPropagation(); setShowTranslate(!showTranslate) }}>
               <span>🇰🇷</span>
-              <span style={styles.translateLabel}>
-                {showTranslate ? '번역 닫기' : '번역 보기'}
-              </span>
-              <span style={{ fontSize: 10, color: '#C17F3C' }}>
-                {showTranslate ? '▴' : '▾'}
-              </span>
+              <span style={styles.translateLabel}>{showTranslate ? '번역 닫기' : '번역 보기'}</span>
+              <span style={{ fontSize: 10, color: '#C17F3C' }}>{showTranslate ? '▴' : '▾'}</span>
             </div>
-            {showTranslate && (
-              <div style={styles.translateResult}>{post.translated_ko}</div>
-            )}
+            {showTranslate && <div style={styles.translateResult}>{post.translated_ko}</div>}
           </div>
         )}
       </div>
 
-      {/* 푸터 */}
       <div style={styles.cardFooter}>
         <button style={styles.footerAction} onClick={e => e.stopPropagation()}>
           💬 {commentCount}
@@ -170,10 +228,7 @@ function PostCard({ post, ownerKey, onClick }: any) {
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  loading: {
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    height: '50vh', fontSize: 40,
-  },
+  loading: { display: 'flex', alignItems: 'center', justifyContent: 'center', height: '50vh', fontSize: 40 },
   header: {
     position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)',
     width: '100%', maxWidth: '430px', height: 56,
@@ -181,16 +236,12 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex', alignItems: 'center', padding: '0 20px',
     zIndex: 100, backdropFilter: 'blur(12px)',
   },
-  headerTitle: {
-    fontFamily: "'Noto Serif KR', serif", fontSize: 18, fontWeight: 600, color: '#2C1810',
-  },
-  feed: { padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 12 },
+  headerTitle: { fontFamily: "'Noto Serif KR', serif", fontSize: 18, fontWeight: 600, color: '#2C1810' },
+  feed: { padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 4 },
   empty: { textAlign: 'center', padding: '48px 24px', color: '#9A8470' },
   card: {
-    background: '#FEFCF8', borderRadius: 18,
-    border: '1px solid rgba(92,61,46,0.12)',
-    overflow: 'hidden', boxShadow: '0 2px 20px rgba(44,24,16,0.08)',
-    cursor: 'pointer',
+    borderRadius: 18, border: '1px solid',
+    overflow: 'hidden', boxShadow: '0 2px 20px rgba(44,24,16,0.08)', cursor: 'pointer',
   },
   cardHeader: { padding: '14px 16px 10px' },
   spaceRow: { display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 },
@@ -200,6 +251,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   spaceSep: { fontSize: 11, color: '#9A8470' },
   spaceRoom: { fontSize: 12, color: '#5C4A35' },
+  seedTag: { fontSize: 12 },
   authorRow: { display: 'flex', alignItems: 'center', gap: 8 },
   avatar: {
     width: 28, height: 28, borderRadius: '50%',
@@ -235,9 +287,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   translateLabel: { fontSize: 12, color: '#C17F3C', fontWeight: 500 },
   translateResult: { marginTop: 8, fontSize: 13, lineHeight: 1.65, color: '#5C4A35' },
-  cardFooter: {
-    padding: '10px 16px 14px', display: 'flex', alignItems: 'center', gap: 16,
-  },
+  cardFooter: { padding: '10px 16px 14px', display: 'flex', alignItems: 'center', gap: 16 },
   footerAction: {
     display: 'flex', alignItems: 'center', gap: 5,
     fontSize: 13, color: '#9A8470', border: 'none', background: 'none', cursor: 'pointer',
