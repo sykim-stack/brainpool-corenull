@@ -116,6 +116,7 @@ const handlePost = async (req, traceId) => {
     .from('messages')
     .insert({
       room_id,
+      owner_key,          // ← 추가
       type: type || 'post',
       content,
       meta: meta || {},

@@ -43,11 +43,12 @@ const handleGet = async (req, traceId) => {
       .eq('owner_key', owner_key)
       .order('created_at', { ascending: false }),
 
-    // 3. 내가 쓴 포스트
+    // 3. 내가 쓴 포스트 — owner_key 필터 추가
     supabase
       .from('messages')
       .select('*')
-      .eq('type', 'post')
+      .eq('owner_key', owner_key)   // ← 추가
+      .in('type', ['post', 'seed']) // ← seed 타입도 포함
       .order('created_at', { ascending: false })
       .limit(50),
   ])
