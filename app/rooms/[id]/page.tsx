@@ -3,13 +3,14 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { getDeviceId } from '@/lib/deviceId'
 
-// ─── Types ───────────────────────────────────────────────
 type Room = {
   id: string
   room_name: string
   visibility: 'public' | 'private'
   seed_mode: boolean
+  bloom_date: string | null
   slug: string | null
   house_id: string
   created_at: string
@@ -31,28 +32,31 @@ type Post = {
     video_url?: string
     archived?: boolean
     language?: string
+    media?: { type: string; url: string }[]
   }
-  relations: {
-    room_id?: string
-    house_id?: string
-  }
+  relations: Record<string, unknown>
   created_at: string
   owner_key: string
 }
 
-// ─── Constants ───────────────────────────────────────────
-import { getDeviceId } from '@/lib/deviceId'
 const OWNER_KEY = getDeviceId()
 
 const LANG_FLAG: Record<string, string> = {
-  ko: '🇰🇷',
-  vi: '🇻🇳',
-  en: '🇺🇸',
-  ja: '🇯🇵',
-  zh: '🇨🇳',
+  ko: '🇰🇷', vi: '🇻🇳', en: '🇺🇸', ja: '🇯🇵', zh: '🇨🇳',
 }
 
-// ─── Component ───────────────────────────────────────────
+// ─── 카운트다운 계산 ──────────────────────────────────────
+function getCountdown(bloomDate: string): { label: string; bloomed: boolean } {
+  const now = new Date()
+  const bloom = new Date(bloomDate)
+  bloom.setHours(0, 0, 0, 0)
+  now.setHours(0, 0, 0, 0)
+  const diff = Math.ceil((bloom.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+  if (diff <= 0) return { label: '🌸 꽃이 피었어요!', bloomed: true }
+  if (diff === 1) return { label: '🌱 내일 꽃이 피어요', bloomed: false }
+  return { label: `🌱 꽃까지 ${diff}일`, bloomed: false }
+}
+
 export default function RoomPage() {
   const params = useParams()
   const router = useRouter()
@@ -68,7 +72,6 @@ export default function RoomPage() {
   const isOwner = house?.owner_key === OWNER_KEY
   const canWrite = isOwner || isMember
 
-  // ─── Fetch ─────────────────────────────────────────────
   useEffect(() => {
     if (!roomId) return
     fetchRoom()
@@ -77,9 +80,7 @@ export default function RoomPage() {
   async function fetchRoom() {
     setLoading(true)
     setError(null)
-
     try {
-      // 방 정보
       const rRes = await fetch(`/api/corenull/rooms?room_id=${roomId}`)
       const rData = await rRes.json()
       if (rData._error || !rData.room) {
@@ -89,19 +90,15 @@ export default function RoomPage() {
       }
       setRoom(rData.room)
 
-      // 집 정보
       const hRes = await fetch(`/api/corenull/houses?house_id=${rData.room.house_id}`)
       const hData = await hRes.json()
       if (!hData._error && hData.house) {
         setHouse(hData.house)
-
-        // 멤버 확인
         const mRes = await fetch(`/api/corenull/members?house_id=${rData.room.house_id}&device_id=${OWNER_KEY}`)
         const mData = await mRes.json()
         setIsMember(!mData._error && mData.is_member === true)
       }
 
-      // 포스트 목록 + 방문 기록 (owner_key 전달)
       const pRes = await fetch(`/api/corenull/posts?room_id=${roomId}&owner_key=${OWNER_KEY}`)
       const pData = await pRes.json()
       if (!pData._error && pData.data) {
@@ -114,59 +111,78 @@ export default function RoomPage() {
     }
   }
 
-  // ─── Render states ─────────────────────────────────────
   if (loading) {
     return (
-      <div style={{ minHeight: '100vh', background: 'var(--cream)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <p style={{ color: 'var(--bark)', fontSize: '14px' }}>불러오는 중...</p>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '50vh' }}>
+        <p style={{ color: '#9A8470', fontSize: '14px' }}>불러오는 중...</p>
       </div>
     )
   }
 
   if (error || !room) {
     return (
-      <div style={{ minHeight: '100vh', background: 'var(--cream)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
-        <p style={{ color: 'var(--bark)', fontSize: '14px' }}>{error || '방을 찾을 수 없어요.'}</p>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '50vh', gap: '12px' }}>
+        <p style={{ color: '#5C3D2E', fontSize: '14px' }}>{error || '방을 찾을 수 없어요.'}</p>
         <button onClick={() => router.back()} style={btnSecondary}>← 돌아가기</button>
       </div>
     )
   }
 
+  const countdown = room.seed_mode && room.bloom_date ? getCountdown(room.bloom_date) : null
+
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--cream)' }}>
+    <div style={{ minHeight: '100vh', background: '#FBF8F2' }}>
       {/* ── Header ── */}
       <header style={headerStyle}>
-        <button onClick={() => router.back()} style={backBtn}>←</button>
+        <button onClick={() => router.back()} style={backBtnStyle}>←</button>
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <h1 style={{ fontSize: '16px', fontWeight: '700', color: 'var(--soil)', margin: 0 }}>
+            <h1 style={{ fontSize: '16px', fontWeight: 700, color: '#2C1810', margin: 0 }}>
               {room.room_name}
             </h1>
             <span style={visibilityBadge(room.visibility)}>
               {room.visibility === 'public' ? '공개' : '비공개'}
             </span>
-            {room.seed_mode && (
-              <span style={eventBadge}>🌱 씨앗</span>
-            )}
+            {room.seed_mode && <span style={seedBadge}>🌱 씨앗</span>}
           </div>
           {house && (
-            <p style={{ fontSize: '12px', color: 'var(--bark)', margin: '2px 0 0' }}>
+            <p style={{ fontSize: '12px', color: '#9A8470', margin: '2px 0 0' }}>
               {LANG_FLAG[house.primary_language] || '🏡'} {house.title}
             </p>
           )}
         </div>
         {canWrite && (
-          <Link
-            href={`/write?room_id=${roomId}`}
-            style={writeBtn}
-          >
+          <Link href={`/write?room_id=${roomId}`} style={writeBtnStyle}>
             + 글쓰기
           </Link>
         )}
       </header>
 
+      {/* ── 카운트다운 배너 ── */}
+      {countdown && (
+        <div style={{
+          ...countdownBanner,
+          background: countdown.bloomed
+            ? 'linear-gradient(135deg, rgba(193,127,60,0.15), rgba(200,213,185,0.3))'
+            : 'linear-gradient(135deg, rgba(74,82,64,0.08), rgba(193,127,60,0.08))',
+          borderColor: countdown.bloomed ? 'rgba(193,127,60,0.4)' : 'rgba(74,82,64,0.15)',
+        }}>
+          <span style={{ fontSize: 20 }}>{countdown.bloomed ? '🌸' : '🌱'}</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: countdown.bloomed ? '#C17F3C' : '#4A5240' }}>
+              {countdown.label}
+            </div>
+            {room.bloom_date && (
+              <div style={{ fontSize: 11, color: '#9A8470', marginTop: 2 }}>
+                {new Date(room.bloom_date).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ── 포스트 목록 ── */}
-      <main style={{ maxWidth: '640px', margin: '0 auto', padding: '16px' }}>
+      <main style={{ padding: '16px' }}>
         {posts.length === 0 ? (
           <EmptyState isOwner={canWrite} roomId={roomId} />
         ) : (
@@ -181,48 +197,30 @@ export default function RoomPage() {
   )
 }
 
-// ─── PostCard ─────────────────────────────────────────────
 function PostCard({ post }: { post: Post }) {
   const preview = post.content?.slice(0, 120) || ''
   const hasMore = (post.content?.length || 0) > 120
+  const firstMedia = post.meta?.media?.[0]
 
   return (
     <Link href={`/posts/${post.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
       <div style={cardStyle}>
-        {/* 이미지 */}
-        {post.meta?.image_url && (
-          <div style={imagWrap}>
-            <img
-              src={post.meta.image_url}
-              alt=""
-              style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px' }}
-            />
+        {firstMedia?.type === 'image' && (
+          <div style={imgWrap}>
+            <img src={firstMedia.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px' }} />
           </div>
         )}
-
-        {/* 영상 썸네일 */}
-        {!post.meta?.image_url && post.meta?.video_url && (
-          <div style={{ ...imagWrap, background: 'var(--bark)', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px' }}>
+        {firstMedia?.type === 'video' && (
+          <div style={{ ...imgWrap, background: '#2d4a3e', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px' }}>
             <span style={{ fontSize: '28px' }}>▶</span>
           </div>
         )}
-
-        {/* 제목 */}
-        {post.meta?.title && (
-          <h2 style={{ fontSize: '15px', fontWeight: '700', color: 'var(--soil)', margin: '0 0 6px' }}>
-            {post.meta.title}
-          </h2>
-        )}
-
-        {/* 본문 미리보기 */}
         {preview && (
-          <p style={{ fontSize: '14px', color: 'var(--bark)', margin: '0 0 8px', lineHeight: '1.6' }}>
+          <p style={{ fontSize: '14px', color: '#5C3D2E', margin: '0 0 8px', lineHeight: '1.6' }}>
             {preview}{hasMore && '…'}
           </p>
         )}
-
-        {/* 날짜 */}
-        <p style={{ fontSize: '11px', color: '#aaa', margin: 0 }}>
+        <p style={{ fontSize: '11px', color: '#9A8470', margin: 0 }}>
           {formatDate(post.created_at)}
         </p>
       </div>
@@ -230,24 +228,18 @@ function PostCard({ post }: { post: Post }) {
   )
 }
 
-// ─── EmptyState ───────────────────────────────────────────
 function EmptyState({ isOwner, roomId }: { isOwner: boolean; roomId: string }) {
   return (
     <div style={{ textAlign: 'center', padding: '60px 20px' }}>
       <p style={{ fontSize: '32px', marginBottom: '12px' }}>🌱</p>
-      <p style={{ fontSize: '14px', color: 'var(--bark)', marginBottom: '20px' }}>
-        아직 글이 없어요
-      </p>
+      <p style={{ fontSize: '14px', color: '#9A8470', marginBottom: '20px' }}>아직 글이 없어요</p>
       {isOwner && (
-        <Link href={`/write?room_id=${roomId}`} style={writeBtn}>
-          첫 글 쓰기
-        </Link>
+        <Link href={`/write?room_id=${roomId}`} style={writeBtnStyle}>첫 글 쓰기</Link>
       )}
     </div>
   )
 }
 
-// ─── Utils ────────────────────────────────────────────────
 function formatDate(iso: string) {
   const d = new Date(iso)
   const now = new Date()
@@ -258,81 +250,48 @@ function formatDate(iso: string) {
   return d.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })
 }
 
-// ─── Styles ───────────────────────────────────────────────
 const headerStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: '12px',
+  display: 'flex', alignItems: 'center', gap: '12px',
   padding: '14px 16px',
-  background: 'var(--warm-white)',
-  borderBottom: '1px solid #e8e0d5',
-  position: 'sticky',
-  top: 0,
-  zIndex: 10,
+  background: 'rgba(254,252,248,0.95)', borderBottom: '1px solid rgba(92,61,46,0.12)',
+  position: 'sticky', top: 0, zIndex: 10, backdropFilter: 'blur(12px)',
 }
-
-const backBtn: React.CSSProperties = {
-  background: 'none',
-  border: 'none',
-  fontSize: '18px',
-  cursor: 'pointer',
-  color: 'var(--soil)',
-  padding: '4px',
+const backBtnStyle: React.CSSProperties = {
+  background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: '#2C1810', padding: '4px',
 }
-
-const writeBtn: React.CSSProperties = {
-  background: 'var(--soil)',
-  color: 'var(--cream)',
-  border: 'none',
-  borderRadius: '20px',
-  padding: '7px 14px',
-  fontSize: '13px',
-  cursor: 'pointer',
-  textDecoration: 'none',
-  whiteSpace: 'nowrap',
+const writeBtnStyle: React.CSSProperties = {
+  background: '#2C1810', color: '#FBF8F2', border: 'none',
+  borderRadius: '20px', padding: '7px 14px', fontSize: '13px',
+  cursor: 'pointer', textDecoration: 'none', whiteSpace: 'nowrap',
 }
-
 const btnSecondary: React.CSSProperties = {
-  background: 'none',
-  border: '1px solid var(--bark)',
-  color: 'var(--bark)',
-  borderRadius: '8px',
-  padding: '8px 16px',
-  fontSize: '13px',
-  cursor: 'pointer',
+  background: 'none', border: '1px solid #5C3D2E', color: '#5C3D2E',
+  borderRadius: '8px', padding: '8px 16px', fontSize: '13px', cursor: 'pointer',
 }
-
+const countdownBanner: React.CSSProperties = {
+  margin: '12px 16px 0',
+  padding: '14px 16px',
+  borderRadius: '14px',
+  border: '1px solid',
+  display: 'flex', alignItems: 'center', gap: '12px',
+}
 const cardStyle: React.CSSProperties = {
-  background: 'var(--warm-white)',
-  borderRadius: '12px',
-  padding: '16px',
-  cursor: 'pointer',
-  transition: 'transform 0.1s',
+  background: '#FEFCF8', borderRadius: '12px',
+  border: '1px solid rgba(92,61,46,0.12)',
+  padding: '16px', cursor: 'pointer',
+  boxShadow: '0 2px 12px rgba(44,24,16,0.06)',
 }
-
-const imagWrap: React.CSSProperties = {
-  width: '100%',
-  height: '180px',
-  marginBottom: '12px',
-  overflow: 'hidden',
+const imgWrap: React.CSSProperties = {
+  width: '100%', height: '180px', marginBottom: '12px', overflow: 'hidden',
 }
-
 function visibilityBadge(v: string): React.CSSProperties {
   return {
-    fontSize: '10px',
-    padding: '2px 7px',
-    borderRadius: '10px',
+    fontSize: '10px', padding: '2px 7px', borderRadius: '10px',
     background: v === 'public' ? '#e8f0e4' : '#f0ece8',
-    color: v === 'public' ? 'var(--moss)' : 'var(--bark)',
-    fontWeight: '600',
+    color: v === 'public' ? '#4A5240' : '#5C3D2E', fontWeight: 600,
   }
 }
-
-const eventBadge: React.CSSProperties = {
-  fontSize: '10px',
-  padding: '2px 7px',
-  borderRadius: '10px',
-  background: '#fef3e2',
-  color: 'var(--accent)',
-  fontWeight: '600',
+const seedBadge: React.CSSProperties = {
+  fontSize: '10px', padding: '2px 7px', borderRadius: '10px',
+  background: '#fef3e2', color: '#C17F3C', fontWeight: 600,
 }
