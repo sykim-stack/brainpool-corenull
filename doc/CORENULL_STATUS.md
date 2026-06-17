@@ -1,153 +1,62 @@
 # CORENULL STATUS
-> 마지막 업데이트: 2026-06-10
+> 기준일: 2026-06-17
 
----
+## 완료
+✅ /                홈 (집 목록 + 최근 방문)
 
-## 배포 현황
+✅ /yard            마당 (씨앗/꽃/일반 3섹션)
 
-| 항목 | 상태 |
-|---|---|
-| GitHub | `sykim-stack/brainpool-corenull` ✅ |
-| Vercel | `corenull.vercel.app` ✅ |
-| Supabase | `grlfocvlfatuvphkyivd` ✅ |
+✅ /write           글쓰기 + 방 인라인 생성 + 씨앗 토글
 
----
+✅ /me              나 (프로필 + 메뉴)
 
-## API 완료 현황
+✅ /me/library      서재
 
-```
-✅ GET/POST  /api/corenull/houses
-✅ GET/POST  /api/corenull/rooms
-✅ GET/POST  /api/corenull/posts
-✅ POST      /api/corenull/upload
-✅ GET       /api/corenull/footprints
-✅ GET/POST/DELETE /api/corenull/bookmarks
-✅ GET       /api/corenull/library
-✅ GET/PATCH /api/corenull/archive
-✅ POST      /api/corenull/rebirth
-✅ GET/POST  /api/corenull/comments
-✅ GET       /api/corenull/yard
-```
+✅ /me/posts        내가 쓴 이야기
 
----
+✅ /houses/[id]     집 상세
 
-## UI 화면 완료 현황
+✅ /houses/create   집 만들기
 
-```
-✅ / (홈)               집 목록 + 최근 방문 + 집 만들기
-✅ /yard (마당)          public 피드 + 포스트 카드
-✅ /write (작성)         글쓰기 + 이미지 업로드
-✅ /me (나)             프로필 + 활동 요약 + 메뉴
-✅ /me/library (서재)    발자취 / 저장 / 내 글 탭
-✅ /posts/[id]          포스트 상세 + 댓글 작성
-✅ /houses/[id]         집 상세 + 방 목록
-✅ /houses/create       집 만들기 (언어 선택 포함)
-```
+✅ /rooms/[id]      방 상세 + 포스트 목록
 
----
+✅ /posts/[id]      포스트 상세 + 댓글
 
-## 미완성 화면
+✅ owner_key        실제 device_id 연동 (houses/[id] 페이지 제외 — 별도 이슈로 기록)
 
-```
-⏳ /rooms/[id]                  방 상세 + 포스트 목록
-⏳ /houses/[id]/rooms/create    방 만들기
-⏳ /me/posts                    내 글 목록
-```
+✅ 씨앗 세계관      UI 텍스트 반영
 
----
+✅ 멤버 검증        집주인/멤버만 글쓰기
 
-## DB 완료 현황
+✅ yard API         집/방 이름 join + 3섹션 분리
 
-```
-✅ corenull_houses      (primary_language 포함)
-✅ corenull_rooms       (visibility, event_mode, slug)
-✅ corenull_footprints
-✅ corenull_bookmarks
-✅ corenull_categories  (구 interests)
-✅ corenull_house_members
-✅ corenull_milestones
-```
+✅ footprints API   room_name join + 중복 제거
 
----
+## 미완료
+⏳ messages owner_key 컬럼 추가 (내 글 필터 버그)
 
-## BRAINPOOL 전체 현황
+⏳ comments API → messages API 통합
 
-```
-✅ CoreRing   운영 중 (음성/RLS/온보딩 완료)
-✅ CoreChat   운영 중
-✅ CoreNull   Phase 2 완료 + UI 진행 중
-✅ CoreHub    Phase 0 엔진 완료 + hajun 라우터 연결
-✅ brainpool-os 배포 완료
-```
+⏳ rebirth/archive → messages PATCH 통합
 
----
+⏳ 마당 상단 검은 영역 (CSS 분리 때)
+
+⏳ CSS 분리
+
+⏳ 초대 링크 생성/사용 (Phase 2)
+
+⏳ bloom_date 카운트다운 UI (Phase 2)
+
+## 알려진 이슈
+⚠️ messages owner_key 없음 → 내 글 전체 조회됨 (library API my_posts 필터 무효화)
+
+⚠️ houses/[houseId]/page.tsx 에 OWNER_KEY = 'test-device-001' 하드코딩 잔존 — getDeviceId() 미적용
+
+⚠️ next 보안 패치 14.2.35 적용 (완료 — package.json/package-lock.json 확인)
 
 ## 다음 작업 우선순위
 
-### 즉시
-```
-1. /rooms/[id] 방 상세 페이지
-2. /houses/[id]/rooms/create 방 만들기
-3. /me/posts 내 글 목록
-```
-
-### 이후
-```
-4. CoreNull ↔ CoreRing 연동 (Phase 3-A)
-   - 포스트 자동 번역 (primary_language 기준)
-   - 댓글 번역
-
-5. CoreNull ↔ CoreChat 연동 (Phase 3-B)
-   - 방 안에서 채팅 연결
-
-6. 레이아웃 정리
-   - 상단 검은 영역 수정
-   - 최근 방문 room_id → room_name 표시
-```
-
-### 보류
-```
-- 광장 (마당 확장 / 사용자 증가 후)
-- 재탄생 UI
-- AI 캡션 추천
-- 활동 통계
-```
-
----
-
-## 알려진 이슈
-
-```
-⚠️ 최근 방문 목록 room_id만 표시됨 (room_name 미연결)
-⚠️ 포스트 상세 작성자 정보 미연결 (owner_key → 닉네임)
-⚠️ 마당 포스트 집/방 이름 미연결 (room_id만 표시)
-⚠️ owner_key 현재 하드코딩 (test-device-001)
-```
-
----
-
-## 전달 사항 (타 클로)
-
-### CoreRing 전담 클로
-```
-- /api/corenull → /api/phrase 이름 변경 ✅ 완료
-- CoreNullLayer 정리 ✅ 완료
-- Phase 3-A 연동 준비 필요:
-  messages 테이블 공유
-  type: "comment" + relations.parent_id 구조
-
-오늘 전체 작업 완료 정리:
-✅ /rooms/[id]           방 상세 + 포스트 목록
-✅ /me/posts             내가 쓴 이야기
-✅ /write                방 인라인 생성 (씨앗 토글 포함)
-✅ rooms API             room_id 단건 조회
-✅ houses API            house_id 단건 조회
-✅ yard API              집/방 이름 join
-✅ footprints API        room_name join + 중복 제거
-✅ 씨앗 텍스트           전체 UI 반영
-Phase 2 예정:
-⏳ bloom_date 컬럼 추가  (꽃 피는 날)
-⏳ 마당 씨앗/꽃 섹션 분리
-⏳ 서재 씨앗/꽃 탭
-⏳ CSS 분리 + 마당 상단 검은 영역
-⏳ owner_key 실제 device_id 연동
+houses/[houseId]/page.tsx OWNER_KEY 하드코딩 제거
+messages 테이블 owner_key 컬럼 추가
+posts API owner_key 저장 + library 필터 정상 동작 확인
+comments/archive/rebirth → messages 통합 (API 슬롯 확보 — Phase 3 선행 작업)
