@@ -3,7 +3,9 @@
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 
-const OWNER_KEY = 'test-device-001'
+import { getDeviceId } from '@/lib/deviceId'
+
+const OWNER_KEY = getDeviceId()
 
 export default function HouseDetailPage() {
   const { houseId } = useParams()
