@@ -35,12 +35,12 @@ export default function PostDetailPage() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-      room_id: post.room_id,
-      owner_key: OWNER_KEY,
-      content: newComment.trim(),
-      type: 'comment',
-      relations: { parent_id: postId },
-    }),
+        room_id: post.room_id,
+        owner_key: OWNER_KEY,
+        content: newComment.trim(),
+        type: 'comment',
+        relations: { parent_id: postId },
+      }),
     })
     const data = await res.json()
     if (data.data) {
