@@ -20,7 +20,7 @@ export default function PostDetailPage() {
     if (!postId) return
     Promise.all([
       fetch(`/api/corenull/posts?post_id=${postId}`).then(r => r.json()),
-      fetch(`/api/corenull/comments?post_id=${postId}`).then(r => r.json()),
+      fetch(`/api/corenull/posts?parent_id=${postId}`).then(r => r.json()),
     ]).then(([p, c]) => {
       setPost(p.data || null)
       setComments(c.data || [])
@@ -31,15 +31,16 @@ export default function PostDetailPage() {
   const handleComment = async () => {
     if (!newComment.trim() || !post) return
     setSubmitting(true)
-    const res = await fetch('/api/corenull/comments', {
+    const res = await fetch('/api/corenull/posts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        post_id: postId,
-        room_id: post.room_id,
-        owner_key: OWNER_KEY,
-        content: newComment.trim(),
-      }),
+      room_id: post.room_id,
+      owner_key: OWNER_KEY,
+      content: newComment.trim(),
+      type: 'comment',
+      relations: { parent_id: postId },
+    }),
     })
     const data = await res.json()
     if (data.data) {

@@ -169,7 +169,7 @@ DB and API changes are minimal — meaning is the entire value.
 🌱 Seed    = Room(seed_mode=true, bloom_date)    → 스스로에게 한 약속
 🌿 Growth  = Message(type="post")                → 씨앗방 안의 모든 기록
 🌸 Flower  = Room.bloom_date 도달 (auto-trigger) → 씨앗이 현실이 된 순간
-🍎 Fruit   = Message(type="fruit")               → 경험이 콘텐츠가 됨
+🍎 Fruit   = Message(type="fruit")               → 주인이 직접 생성 (수동, 꽃→열매 진화)
 📚 Library = 수확된 열매 아카이브 (서재)           → 삶의 경험 보관소
 📦 Storage = External System (Section 12)        → 열매와 무관한 독립 시스템
 ```
@@ -177,16 +177,50 @@ DB and API changes are minimal — meaning is the entire value.
 Access type mapping:
 
 ```
-public  → 마당 노출 → 수확 시 서재
-invite  → 거실 노출 → 수확 시 서재
-family  → 방 노출   → 수확 시 서재
+public  → 마당 노출
+invite  → 거실 노출
+family  → 방 노출
 ```
 
-Fruit rules:
-* Fruit is created after Flower
-* Owner decides public/private
-* 수확(harvest) 시 서재(Library)로 이동
+Fruit rules (모두 주인의 수동 결정 — 자동화 없음):
+* Flower 도달은 자동(bloom_date) — Fruit 생성은 수동(주인이 결정)
+* Fruit 생성 후에도 원래 공간(마당/거실/방)에 그대로 머무를 수 있음 — "미수확" 상태도 정상
+* 수확(harvest) 여부와 시점도 주인이 결정 — Fruit ≠ 자동으로 Library 이동
+* 수확 시에만 Library(서재)로 이동
 * Fruit와 Storage는 연결 없음 (보상 심리 차단)
+
+Schema 필요 필드 (messages, type='fruit'):
+```
+is_harvested   boolean   → 서재로 옮겼는지 여부
+harvested_at   timestamp → 옮긴 시점 (nullable)
+```
+
+### 13-1. Fruit/Harvest 보완 사항 (2026-06-18 추가)
+
+**Single Source of Truth 원칙 적용:**
+
+`is_harvested`와 `harvested_at`을 둘 다 두면 모순 상태가 가능함
+(예: `is_harvested=false`인데 `harvested_at`에 값이 있는 경우).
+BRAINPOOL 원칙(중복 제거, 단일 진실)에 따라 **`harvested_at` 하나만 사용**한다.
+
+```
+harvested_at timestamptz null
+
+판정: harvested_at IS NOT NULL → 수확됨
+```
+
+`is_harvested` 컬럼은 생성하지 않는다.
+
+**Fruit/Harvest/Library 관계 명시:**
+
+```
+Fruit는 원본 Message를 이동시키지 않는다.
+Harvest는 Fruit Message를 삭제하거나 이동하는 행위가 아니다.
+Library는 harvested_at IS NOT NULL 인 Fruit를 보여주는 View이다.
+```
+
+즉 "수확 = Fruit를 Library로 move"가 아니라, Fruit는 원래 위치(마당/거실/방)에 그대로 존재하고
+Library는 단지 그중 수확된 것만 필터링해 보여주는 View일 뿐이다.
 
 DB changes (already applied):
 ```

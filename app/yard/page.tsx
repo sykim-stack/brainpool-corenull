@@ -145,7 +145,7 @@ function PostCard({ post, ownerKey, onClick, sectionBg, sectionBorder }: any) {
   const langFlag = room?.house_language ? (LANG_FLAG[room.house_language] || '🏡') : '🏡'
 
   useEffect(() => {
-    fetch(`/api/corenull/comments?post_id=${post.id}`)
+    fetch(`/api/corenull/posts?parent_id=${post.id}`)
       .then(r => r.json())
       .then(d => setCommentCount((d.data || []).length))
   }, [post.id])
