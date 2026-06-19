@@ -1,25 +1,27 @@
-﻿// CoreNull - Posts/Comments API
+﻿// CoreNull - Posts API
 // Message type: post | comment | fruit
-// GET ?post_id=    → 단건 조회
-// GET ?room_id=    → 방 포스트 목록
-// GET ?parent_id=  → 댓글 목록
+// GET  ?post_id=   → 단건 조회
+// GET  ?room_id=   → 방 포스트 목록
+// GET  ?parent_id= → 댓글 목록
 // POST             → 작성 (type 파라미터로 구분)
+// PATCH            → 상태 변경 (action: archive | rebirth | harvest)
 
 export const dynamic = 'force-dynamic'
 
 const handler = async (req) => {
   const traceId = crypto.randomUUID()
 
-  if (req.method === 'GET') return handleGet(req, traceId)
-  if (req.method === 'POST') return handlePost(req, traceId)
+  if (req.method === 'GET')   return handleGet(req, traceId)
+  if (req.method === 'POST')  return handlePost(req, traceId)
+  if (req.method === 'PATCH') return handlePatch(req, traceId)
 
   return Response.json({ _error: 'method_not_allowed', traceId }, { status: 500 })
 }
 
 const handleGet = async (req, traceId) => {
   const { searchParams } = new URL(req.url)
-  const room_id = searchParams.get('room_id')
-  const post_id = searchParams.get('post_id')
+  const room_id   = searchParams.get('room_id')
+  const post_id   = searchParams.get('post_id')
   const parent_id = searchParams.get('parent_id')
   const owner_key = searchParams.get('owner_key')
 
@@ -89,9 +91,8 @@ const handlePost = async (req, traceId) => {
 
   const messageType = type || 'post'
 
-  // comment는 권한 체크 없이 작성 가능 (방문자도 댓글 가능)
+  // comment는 권한 체크 없이 작성 가능
   if (messageType !== 'comment') {
-    // 방 → 집 정보 조회
     const { data: room, error: roomError } = await supabase
       .from('corenull_rooms')
       .select('house_id')
@@ -102,24 +103,20 @@ const handlePost = async (req, traceId) => {
       return Response.json({ _error: 'room_not_found', traceId }, { status: 500 })
     }
 
-    const house_id = room.house_id
-
-    // 집주인 확인
     const { data: house } = await supabase
       .from('corenull_houses')
       .select('owner_key')
-      .eq('id', house_id)
+      .eq('id', room.house_id)
       .single()
 
     const isOwner = house?.owner_key === owner_key
 
-    // 멤버 확인
     let isMember = false
     if (!isOwner) {
       const { data: member } = await supabase
         .from('corenull_house_members')
         .select('device_id')
-        .eq('house_id', house_id)
+        .eq('house_id', room.house_id)
         .eq('device_id', owner_key)
         .single()
 
@@ -148,4 +145,91 @@ const handlePost = async (req, traceId) => {
   return Response.json({ data, traceId })
 }
 
-export { handler as GET, handler as POST }
+const handlePatch = async (req, traceId) => {
+  const body = JSON.parse(await req.text())
+  const { post_id, owner_key, action, content, room_id } = body
+
+  if (!post_id || !owner_key || !action) {
+    return Response.json({ _error: 'post_id_owner_key_action_required', traceId }, { status: 500 })
+  }
+
+  const { getSupabase } = await import('@/lib/supabase')
+  const supabase = getSupabase()
+  if (!supabase) return Response.json({ _error: 'supabase_init_failed', traceId }, { status: 500 })
+
+  // 원본 포스트 조회
+  const { data: original, error: fetchError } = await supabase
+    .from('messages')
+    .select('*')
+    .eq('id', post_id)
+    .single()
+
+  if (fetchError || !original) {
+    return Response.json({ _error: 'post_not_found', traceId }, { status: 500 })
+  }
+
+  // 본인 확인
+  if (original.owner_key !== owner_key) {
+    return Response.json({ _error: 'not_authorized', traceId }, { status: 500 })
+  }
+
+  // archive — meta.archived = true
+  if (action === 'archive') {
+    const { data, error } = await supabase
+      .from('messages')
+      .update({ meta: { ...(original.meta || {}), archived: true } })
+      .eq('id', post_id)
+      .select()
+      .single()
+
+    if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
+    return Response.json({ data, traceId })
+  }
+
+  // rebirth — 원본 유지 + 새 포스트 생성
+  if (action === 'rebirth') {
+    const { data, error } = await supabase
+      .from('messages')
+      .insert({
+        room_id: room_id || original.room_id,
+        owner_key,
+        type: 'post',
+        content: content || original.content,
+        meta: {
+          ...(original.meta || {}),
+          archived: false,              // ← 추가: 원본이 archived였어도 재탄생은 항상 미보관으로 시작
+          reborn_from: post_id,
+          reborn_at: new Date().toISOString(),
+        },
+        relations: {},
+      })
+      .select()
+      .single()
+    if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
+    return Response.json({ data, traceId })
+  }
+
+  // harvest — harvested_at 설정 (fruit 타입만 가능)
+  if (action === 'harvest') {
+    if (original.type !== 'fruit') {
+      return Response.json({ _error: 'only_fruit_can_be_harvested', traceId }, { status: 500 })
+    }
+    if (original.harvested_at) {
+      return Response.json({ _error: 'already_harvested', traceId }, { status: 500 })
+    }
+
+    const { data, error } = await supabase
+      .from('messages')
+      .update({ harvested_at: new Date().toISOString() })
+      .eq('id', post_id)
+      .select()
+      .single()
+
+    if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
+    return Response.json({ data, traceId })
+  }
+
+  return Response.json({ _error: 'invalid_action', traceId }, { status: 500 })
+}
+
+export { handler as GET, handler as POST, handler as PATCH }
