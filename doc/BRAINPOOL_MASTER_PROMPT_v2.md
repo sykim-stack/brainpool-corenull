@@ -256,6 +256,65 @@ HajunAI reads Messages — it does NOT create or modify them.
 
 ---
 
+## 15. SEO SOURCE RULE
+
+검색엔진 노출 및 메타데이터 생성은 `access_type='public'` 데이터만 사용 가능하다.
+
+```
+public  → SEO 대상 ✅
+invite  → SEO 대상 ❌ (village/거실급)
+family  → SEO 대상 ❌
+```
+
+`public`이 아닌 모든 데이터는 다음 SEO 계층 전체에서 제외한다:
+
+```
+- 검색엔진 색인 (indexing / sitemap 포함)
+- 키워드 추출
+- 메타 description 자동 생성
+- 추천/연관 콘텐츠 생성
+```
+
+구현 원칙:
+* House/Room/Post 메타태그 생성 로직은 반드시 `access_type` 체크를 선행한다
+* `invite`/`family` 페이지는 `noindex` 처리 + 사이트맵에서 제외
+* HajunAI가 향후 키워드 자동 추출(Section 14 확장)을 수행하더라도, 이 규칙을 우회할 수 없다
+* 이 규칙 위반(비공개 데이터의 SEO 노출)은 Section 5의 FORBIDDEN ACTIONS와 동급의 critical failure로 취급한다
+
+---
+
+## 16. KAKAO IN-APP BROWSER COMPATIBILITY (공통 규칙)
+
+카카오톡 인앱 브라우저는 일부 Web API를 지원하지 않으며,
+가드 없이 호출 시 throw → 페이지 전체가 죽는 현상이 발생한다 (CoreRing에서 실증됨).
+
+```
+알려진 미지원/제한 API:
+- Notification.requestPermission()  → 호출 시 throw 가능
+- Web Push                          → 미지원
+- MediaRecorder (webm)              → 미지원/제한
+```
+
+**모듈 공통 규칙**: 위 API를 호출하는 모든 코드는 반드시 가드 처리한다.
+
+```javascript
+if (typeof Notification !== 'undefined' && Notification.requestPermission) {
+  Notification.requestPermission().then(...).catch(() => {});
+}
+```
+
+Service Worker 등록은 카카오 인앱에서 스킵할 필요 없음 — 위 가드 처리가
+되어 있다면 정상 등록 가능 (CoreRing에서 확인됨).
+
+**공유 패턴 원칙** (검색 유입이 핵심 자원인 단계이므로):
+```
+1순위 — 링크 공유 (주인공, 사용자에게 가장 익숙한 행위)
+2순위 — 초대 코드 공유 (안전장치, 카카오 인앱 실패 시 대안)
+```
+CoreNull의 House/Room 공유 기능 구현 시 동일 비율로 적용한다.
+
+---
+
 ## FINAL RULE
 
 👉 BRAINPOOL is NOT a collection of features.

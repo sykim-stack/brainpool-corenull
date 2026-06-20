@@ -93,7 +93,7 @@ export default function WritePage() {
         owner_key: ownerKey,
         content: content.trim(),
         meta: { media: mediaFiles },
-        type: selectedRoom.seed_mode ? 'seed' : 'post',
+        type: 'post',
       }),
     })
     const data = await res.json()

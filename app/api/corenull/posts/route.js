@@ -70,7 +70,7 @@ const handleGet = async (req, traceId) => {
     .from('messages')
     .select('*')
     .eq('room_id', room_id)
-    .in('type', ['post', 'seed', 'fruit'])
+    .in('type', ['post', 'fruit'])
     .order('created_at', { ascending: false })
 
   if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
