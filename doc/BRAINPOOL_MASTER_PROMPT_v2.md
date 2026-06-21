@@ -285,33 +285,57 @@ family  → SEO 대상 ❌
 
 ## 16. KAKAO IN-APP BROWSER COMPATIBILITY (공통 규칙)
 
-카카오톡 인앱 브라우저는 일부 Web API를 지원하지 않으며,
-가드 없이 호출 시 throw → 페이지 전체가 죽는 현상이 발생한다 (CoreRing에서 실증됨).
+카카오톡 인앱 브라우저를 통한 링크 공유는 BRAINPOOL의 주요 신규 사용자 유입 경로다.
+네트워크 초기 단계에서는 신규 사용자 한 명의 진입이 안정성보다 우선하는 가치다.
+
+카카오 인앱 브라우저는 일부 Web API를 지원하지 않으며,
+가드 없이 호출 시 throw → 페이지 전체가 죽는 현상이 발생한다 (CoreRing에서 실증/해결됨).
 
 ```
 알려진 미지원/제한 API:
-- Notification.requestPermission()  → 호출 시 throw 가능
+- Notification.requestPermission()  → 호출 시 throw 가능 (CRITICAL, 절대 가드 없이 호출 금지)
 - Web Push                          → 미지원
 - MediaRecorder (webm)              → 미지원/제한
 ```
 
-**모듈 공통 규칙**: 위 API를 호출하는 모든 코드는 반드시 가드 처리한다.
-
+**필수 가드 패턴**:
 ```javascript
 if (typeof Notification !== 'undefined' && Notification.requestPermission) {
-  Notification.requestPermission().then(...).catch(() => {});
+  Notification.requestPermission().then(permission => {
+    if (permission === 'granted') subscribePush(deviceId);
+  }).catch(() => {});
 }
 ```
 
-Service Worker 등록은 카카오 인앱에서 스킵할 필요 없음 — 위 가드 처리가
-되어 있다면 정상 등록 가능 (CoreRing에서 확인됨).
+Service Worker 등록은 카카오 인앱에서 스킵할 필요 없음 — 위 Notification 가드만
+되어 있으면 정상 등록 가능 (CoreRing에서 검증 완료, 별도 스킵 조건 불필요).
 
-**공유 패턴 원칙** (검색 유입이 핵심 자원인 단계이므로):
+**공유 우선순위** (검증 결과 기준):
 ```
-1순위 — 링크 공유 (주인공, 사용자에게 가장 익숙한 행위)
-2순위 — 초대 코드 공유 (안전장치, 카카오 인앱 실패 시 대안)
+1순위 — 링크 공유 (navigator.share) → 주인공, 사용자에게 가장 익숙한 행위
+2순위 — 코드/식별자 복사 → 안전장치
+3순위 — 카카오 인앱 감지 시 수동 안내 텍스트
+         "우측 메뉴 → 다른 브라우저로 열기"
 ```
-CoreNull의 House/Room 공유 기능 구현 시 동일 비율로 적용한다.
+
+```
+❌ 금지: JavaScript 자동 탈출 시도 (kakaotalk://, intent:// 등)
+   → 검증 결과 신뢰할 수 없음. 안내 텍스트로 대체한다.
+```
+
+**공유 UI 구성 (ShareModal 공통 패턴)**:
+```
+[공유하기] ← 메인 버튼 (navigator.share)
+[코드 복사] ← 서브 버튼
+카카오 UA 감지 시 → 안내 텍스트 노출
+```
+
+**적용 범위**:
+```
+CoreRing → 채팅방 초대 (ShareRoomModal)
+CoreNull → 씨앗방/마당/거실 공유 (House/Room 공유 기능 구현 시 동일 패턴)
+향후 모든 BRAINPOOL 모듈 공유 진입점
+```
 
 ---
 

@@ -1,15 +1,12 @@
 // CoreNull - Library API
 // 서재 = 나의 활동 기록관
-// 발자취 + 저장한 방 + 저장한 포스트 + 내가 쓴 포스트
-// 한 번의 호출로 전체 서재 반환
+// 발자취 + 저장한 방 + 저장한 포스트 + 내가 쓴 포스트 + 수확된 열매
 
 export const dynamic = 'force-dynamic'
 
 const handler = async (req) => {
   const traceId = crypto.randomUUID()
-
   if (req.method === 'GET') return handleGet(req, traceId)
-
   return Response.json({ _error: 'method_not_allowed', traceId }, { status: 500 })
 }
 
@@ -25,10 +22,9 @@ const handleGet = async (req, traceId) => {
   const supabase = getSupabase()
   if (!supabase) return Response.json({ _error: 'supabase_init_failed', traceId }, { status: 500 })
 
-  // 병렬 조회
-  const [footprintsRes, bookmarksRes, myPostsRes] = await Promise.all([
+  const [footprintsRes, bookmarksRes, myPostsRes, harvestedFruitsRes] = await Promise.all([
 
-    // 1. 발자취 — 내가 다녀간 방
+    // 1. 발자취
     supabase
       .from('corenull_footprints')
       .select('*')
@@ -36,37 +32,48 @@ const handleGet = async (req, traceId) => {
       .order('visited_at', { ascending: false })
       .limit(50),
 
-    // 2. 북마크 전체 — 저장한 방 + 저장한 포스트
+    // 2. 북마크
     supabase
       .from('corenull_bookmarks')
       .select('*')
       .eq('owner_key', owner_key)
       .order('created_at', { ascending: false }),
 
-    // 3. 내가 쓴 포스트 — owner_key 필터 추가
+    // 3. 내가 쓴 포스트 (post 타입만)
     supabase
       .from('messages')
       .select('*')
-      .eq('owner_key', owner_key)   // ← 추가
-      .in('type', ['post', 'seed']) // ← seed 타입도 포함
+      .eq('owner_key', owner_key)
+      .eq('type', 'post')
       .order('created_at', { ascending: false })
+      .limit(50),
+
+    // 4. 수확된 열매 — harvested_at IS NOT NULL인 fruit
+    supabase
+      .from('messages')
+      .select('*')
+      .eq('owner_key', owner_key)
+      .eq('type', 'fruit')
+      .not('harvested_at', 'is', null)
+      .order('harvested_at', { ascending: false })
       .limit(50),
   ])
 
   if (footprintsRes.error) return Response.json({ _error: footprintsRes.error.message, traceId }, { status: 500 })
   if (bookmarksRes.error) return Response.json({ _error: bookmarksRes.error.message, traceId }, { status: 500 })
   if (myPostsRes.error) return Response.json({ _error: myPostsRes.error.message, traceId }, { status: 500 })
+  if (harvestedFruitsRes.error) return Response.json({ _error: harvestedFruitsRes.error.message, traceId }, { status: 500 })
 
-  // 북마크를 방/포스트로 분리
   const saved_rooms = (bookmarksRes.data || []).filter(b => b.room_id && !b.message_id)
   const saved_posts = (bookmarksRes.data || []).filter(b => b.message_id && !b.room_id)
 
   return Response.json({
     data: {
-      footprints:  footprintsRes.data  || [],
+      footprints:       footprintsRes.data     || [],
       saved_rooms,
       saved_posts,
-      my_posts:    myPostsRes.data     || [],
+      my_posts:         myPostsRes.data        || [],
+      harvested_fruits: harvestedFruitsRes.data || [],
     },
     traceId,
   })

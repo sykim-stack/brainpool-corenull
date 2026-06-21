@@ -4,19 +4,16 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { getDeviceId } from '@/lib/deviceId'
 
-
-type Tab = 'footprints' | 'saved' | 'posts'
+type Tab = 'footprints' | 'saved' | 'posts' | 'fruits'
 
 export default function LibraryPage() {
   const [library, setLibrary] = useState<any>(null)
   const [activeTab, setActiveTab] = useState<Tab>('footprints')
-  const [ownerKey, setOwnerKey] = useState('')
   const [loading, setLoading] = useState(true)
   const router = useRouter()
 
   useEffect(() => {
     const key = getDeviceId()
-    setOwnerKey(key)
     fetch(`/api/corenull/library?owner_key=${key}`)
       .then(r => r.json())
       .then(d => {
@@ -29,20 +26,19 @@ export default function LibraryPage() {
 
   const tabs = [
     { id: 'footprints', label: '👣 발자취', count: library?.footprints?.length || 0 },
-    { id: 'saved', label: '🔖 저장', count: (library?.saved_rooms?.length || 0) + (library?.saved_posts?.length || 0) },
-    { id: 'posts', label: '📝 내 글', count: library?.my_posts?.length || 0 },
+    { id: 'saved',      label: '🔖 저장',   count: (library?.saved_rooms?.length || 0) + (library?.saved_posts?.length || 0) },
+    { id: 'posts',      label: '📝 내 글',  count: library?.my_posts?.length || 0 },
+    { id: 'fruits',     label: '🍎 서재',   count: library?.harvested_fruits?.length || 0 },
   ]
 
   return (
     <div>
-      {/* 헤더 */}
       <div style={styles.header}>
         <button style={styles.backBtn} onClick={() => router.back()}>←</button>
         <span style={styles.headerTitle}>📚 서재</span>
         <div style={{ width: 36 }} />
       </div>
 
-      {/* 탭 */}
       <div style={styles.tabRow}>
         {tabs.map(tab => (
           <button
@@ -57,6 +53,7 @@ export default function LibraryPage() {
       </div>
 
       <div style={styles.body}>
+
         {/* 발자취 탭 */}
         {activeTab === 'footprints' && (
           <div style={styles.list}>
@@ -146,6 +143,36 @@ export default function LibraryPage() {
             )}
           </div>
         )}
+
+        {/* 서재(열매) 탭 */}
+        {activeTab === 'fruits' && (
+          <div style={styles.list}>
+            {(library?.harvested_fruits || []).length === 0 ? (
+              <Empty emoji="🍎" text="아직 수확된 열매가 없어요" />
+            ) : (
+              library.harvested_fruits.map((fruit: any) => (
+                <div key={fruit.id} style={styles.postItem} onClick={() => router.push(`/posts/${fruit.id}`)}>
+                  {fruit.meta?.media?.[0]?.type === 'image' && (
+                    <img src={fruit.meta.media[0].url} alt="" style={styles.postThumb} />
+                  )}
+                  <div style={styles.postInfo}>
+                    <div style={styles.postContent}>
+                      {fruit.content?.slice(0, 60)}{fruit.content?.length > 60 ? '...' : ''}
+                    </div>
+                    <div style={styles.postMeta}>
+                      <span style={styles.fruitBadge}>🍎 열매</span>
+                      <span style={styles.listSub}>
+                        {new Date(fruit.harvested_at).toLocaleDateString('ko-KR')} 수확
+                      </span>
+                    </div>
+                  </div>
+                  <span style={styles.listArrow}>›</span>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
       </div>
     </div>
   )
@@ -172,20 +199,21 @@ const styles: Record<string, React.CSSProperties> = {
   backBtn: { fontSize: 20, color: '#2C1810', background: 'none', border: 'none', cursor: 'pointer' },
   headerTitle: { fontFamily: "'Noto Serif KR', serif", fontSize: 16, fontWeight: 600, color: '#2C1810' },
   tabRow: {
-    position: 'fixed', top: 56, left: 0, width: '100%', maxWidth: '430px',
+    position: 'fixed', top: 56, left: '50%', transform: 'translateX(-50%)',
+    width: '100%', maxWidth: '430px',
     background: 'rgba(254,252,248,0.95)', borderBottom: '1px solid rgba(92,61,46,0.12)',
     display: 'flex', zIndex: 99, backdropFilter: 'blur(12px)',
   },
   tab: {
-    flex: 1, padding: '12px 8px', border: 'none', background: 'none',
-    fontSize: 13, color: '#9A8470', cursor: 'pointer',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+    flex: 1, padding: '12px 4px', border: 'none', background: 'none',
+    fontSize: 12, color: '#9A8470', cursor: 'pointer',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3,
     borderBottom: '2px solid transparent', transition: 'all 0.2s',
   },
   tabActive: { color: '#2C1810', fontWeight: 500, borderBottom: '2px solid #C17F3C' },
   tabCount: {
     fontSize: 11, color: '#C17F3C', fontWeight: 600,
-    background: 'rgba(193,127,60,0.12)', padding: '1px 6px', borderRadius: 10,
+    background: 'rgba(193,127,60,0.12)', padding: '1px 5px', borderRadius: 10,
   },
   body: { padding: '16px', marginTop: '40px' },
   subTitle: { fontSize: 11, color: '#9A8470', letterSpacing: '0.5px', textTransform: 'uppercase', padding: '8px 4px 6px' },
@@ -212,4 +240,5 @@ const styles: Record<string, React.CSSProperties> = {
   postMeta: { display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 },
   archivedBadge: { fontSize: 10, color: '#9A8470', background: 'rgba(92,61,46,0.08)', padding: '2px 6px', borderRadius: 6 },
   rebornBadge: { fontSize: 10, color: '#C17F3C', background: 'rgba(193,127,60,0.1)', padding: '2px 6px', borderRadius: 6 },
+  fruitBadge: { fontSize: 10, color: '#4A7C3F', background: 'rgba(74,124,63,0.1)', padding: '2px 6px', borderRadius: 6 },
 }
