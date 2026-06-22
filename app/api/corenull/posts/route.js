@@ -10,11 +10,9 @@ export const dynamic = 'force-dynamic'
 
 const handler = async (req) => {
   const traceId = crypto.randomUUID()
-
   if (req.method === 'GET')   return handleGet(req, traceId)
   if (req.method === 'POST')  return handlePost(req, traceId)
   if (req.method === 'PATCH') return handlePatch(req, traceId)
-
   return Response.json({ _error: 'method_not_allowed', traceId }, { status: 500 })
 }
 
@@ -29,19 +27,16 @@ const handleGet = async (req, traceId) => {
   const supabase = getSupabase()
   if (!supabase) return Response.json({ _error: 'supabase_init_failed', traceId }, { status: 500 })
 
-  // 단건 조회
   if (post_id) {
     const { data, error } = await supabase
       .from('messages')
       .select('*')
       .eq('id', post_id)
       .single()
-
     if (error || !data) return Response.json({ _error: 'post_not_found', traceId }, { status: 500 })
     return Response.json({ data, traceId })
   }
 
-  // 댓글 목록
   if (parent_id) {
     const { data, error } = await supabase
       .from('messages')
@@ -49,7 +44,6 @@ const handleGet = async (req, traceId) => {
       .eq('type', 'comment')
       .contains('relations', { parent_id })
       .order('created_at', { ascending: true })
-
     if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
     return Response.json({ data, traceId })
   }
@@ -58,21 +52,18 @@ const handleGet = async (req, traceId) => {
     return Response.json({ _error: 'room_id_or_post_id_or_parent_id_required', traceId }, { status: 500 })
   }
 
-  // 방문 시 Footprint 자동 기록
   if (owner_key) {
     await supabase
       .from('corenull_footprints')
       .insert({ owner_key, room_id })
   }
 
-  // 방 포스트 목록
   const { data, error } = await supabase
     .from('messages')
     .select('*')
     .eq('room_id', room_id)
-    .in('type', ['post', 'fruit'])
+    .in('type', ['post', 'seed', 'fruit'])
     .order('created_at', { ascending: false })
-
   if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
   return Response.json({ data, traceId })
 }
@@ -90,27 +81,33 @@ const handlePost = async (req, traceId) => {
   if (!supabase) return Response.json({ _error: 'supabase_init_failed', traceId }, { status: 500 })
 
   const messageType = type || 'post'
+  const insertPayload = {
+    room_id,
+    owner_key,
+    type: messageType,
+    content,
+    meta: meta || {},
+    relations: relations || {},
+  }
 
-  // comment는 권한 체크 없이 작성 가능
+  // comment는 권한 체크 없이 작성 가능, 번역 토글 UI도 없음 → 번역 큐 제외
   if (messageType !== 'comment') {
     const { data: room, error: roomError } = await supabase
       .from('corenull_rooms')
       .select('house_id')
       .eq('id', room_id)
       .single()
-
     if (roomError || !room) {
       return Response.json({ _error: 'room_not_found', traceId }, { status: 500 })
     }
 
     const { data: house } = await supabase
       .from('corenull_houses')
-      .select('owner_key')
+      .select('owner_key, primary_language')
       .eq('id', room.house_id)
       .single()
 
     const isOwner = house?.owner_key === owner_key
-
     let isMember = false
     if (!isOwner) {
       const { data: member } = await supabase
@@ -119,25 +116,22 @@ const handlePost = async (req, traceId) => {
         .eq('house_id', room.house_id)
         .eq('device_id', owner_key)
         .single()
-
       isMember = !!member
     }
-
     if (!isOwner && !isMember) {
       return Response.json({ _error: 'not_authorized', traceId }, { status: 500 })
     }
+
+    // 번역 큐 초기화 — CoreRing Worker가 비동기로 채움
+    const sourceLang = house?.primary_language || 'ko'
+    insertPayload.language = sourceLang
+    insertPayload.translated_ko = null
+    insertPayload.translation_status = sourceLang === 'ko' ? 'completed' : 'pending'
   }
 
   const { data, error } = await supabase
     .from('messages')
-    .insert({
-      room_id,
-      owner_key,
-      type: messageType,
-      content,
-      meta: meta || {},
-      relations: relations || {},
-    })
+    .insert(insertPayload)
     .select()
     .single()
 
@@ -157,23 +151,19 @@ const handlePatch = async (req, traceId) => {
   const supabase = getSupabase()
   if (!supabase) return Response.json({ _error: 'supabase_init_failed', traceId }, { status: 500 })
 
-  // 원본 포스트 조회
   const { data: original, error: fetchError } = await supabase
     .from('messages')
     .select('*')
     .eq('id', post_id)
     .single()
-
   if (fetchError || !original) {
     return Response.json({ _error: 'post_not_found', traceId }, { status: 500 })
   }
 
-  // 본인 확인
   if (original.owner_key !== owner_key) {
     return Response.json({ _error: 'not_authorized', traceId }, { status: 500 })
   }
 
-  // archive — meta.archived = true
   if (action === 'archive') {
     const { data, error } = await supabase
       .from('messages')
@@ -181,27 +171,31 @@ const handlePatch = async (req, traceId) => {
       .eq('id', post_id)
       .select()
       .single()
-
     if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
     return Response.json({ data, traceId })
   }
 
-  // rebirth — 원본 유지 + 새 포스트 생성
   if (action === 'rebirth') {
+    const newContent = content || original.content
+    const sourceLang = original.language || 'ko'
+
     const { data, error } = await supabase
       .from('messages')
       .insert({
         room_id: room_id || original.room_id,
         owner_key,
         type: 'post',
-        content: content || original.content,
+        content: newContent,
         meta: {
           ...(original.meta || {}),
-          archived: false,              // ← 추가: 원본이 archived였어도 재탄생은 항상 미보관으로 시작
+          archived: false,
           reborn_from: post_id,
           reborn_at: new Date().toISOString(),
         },
         relations: {},
+        language: sourceLang,
+        translated_ko: null,
+        translation_status: sourceLang === 'ko' ? 'completed' : 'pending',
       })
       .select()
       .single()
@@ -209,7 +203,6 @@ const handlePatch = async (req, traceId) => {
     return Response.json({ data, traceId })
   }
 
-  // harvest — harvested_at 설정 (fruit 타입만 가능)
   if (action === 'harvest') {
     if (original.type !== 'fruit') {
       return Response.json({ _error: 'only_fruit_can_be_harvested', traceId }, { status: 500 })
@@ -217,14 +210,12 @@ const handlePatch = async (req, traceId) => {
     if (original.harvested_at) {
       return Response.json({ _error: 'already_harvested', traceId }, { status: 500 })
     }
-
     const { data, error } = await supabase
       .from('messages')
       .update({ harvested_at: new Date().toISOString() })
       .eq('id', post_id)
       .select()
       .single()
-
     if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
     return Response.json({ data, traceId })
   }
