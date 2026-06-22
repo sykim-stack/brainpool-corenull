@@ -2,26 +2,36 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+
 import { getDeviceId } from '@/lib/deviceId'
+
+const LANG_FLAG: Record<string, string> = {
+  ko: '🇰🇷', vi: '🇻🇳', en: '🇺🇸', ja: '🇯🇵', zh: '🇨🇳',
+}
 
 export default function WritePage() {
   const [content, setContent] = useState('')
+  const [houses, setHouses] = useState<any[]>([])
+  const [selectedHouse, setSelectedHouse] = useState<any>(null)
   const [rooms, setRooms] = useState<any[]>([])
   const [selectedRoom, setSelectedRoom] = useState<any>(null)
   const [mediaFiles, setMediaFiles] = useState<any[]>([])
   const [uploading, setUploading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  const [houseId, setHouseId] = useState<string | null>(null)
   const [ownerKey, setOwnerKey] = useState('')
+  const [submitError, setSubmitError] = useState('')
 
+  // 새 방 만들기
   const [showNewRoom, setShowNewRoom] = useState(false)
   const [newRoomName, setNewRoomName] = useState('')
   const [isSeed, setIsSeed] = useState(false)
   const [bloomDate, setBloomDate] = useState('')
   const [creatingRoom, setCreatingRoom] = useState(false)
+  const [roomError, setRoomError] = useState('')
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
+  const today = new Date().toISOString().split('T')[0]
 
   useEffect(() => {
     const key = getDeviceId()
@@ -29,26 +39,43 @@ export default function WritePage() {
     fetch(`/api/corenull/houses?owner_key=${key}`)
       .then(r => r.json())
       .then(async d => {
-        const houses = d.data || []
-        if (houses.length === 0) return
-        const house = houses[0]
-        setHouseId(house.id)
-        const r = await fetch(`/api/corenull/rooms?house_id=${house.id}`)
-        const rd = await r.json()
-        const roomList = rd.data || []
-        setRooms(roomList)
-        if (roomList.length > 0) setSelectedRoom(roomList[0])
+        const houseList = d.data || []
+        setHouses(houseList)
+        if (houseList.length === 0) return
+        const house = houseList[0]
+        setSelectedHouse(house)
+        await loadRooms(house.id)
       })
   }, [])
 
+  const loadRooms = async (houseId: string) => {
+    const r = await fetch(`/api/corenull/rooms?house_id=${houseId}`)
+    const rd = await r.json()
+    const roomList = rd.data || []
+    setRooms(roomList)
+    setSelectedRoom(roomList.length > 0 ? roomList[0] : null)
+  }
+
+  // ─── 집 전환 ──────────────────────────────────────────
+  const handleHouseChange = async (houseId: string) => {
+    const house = houses.find((h: any) => h.id === houseId)
+    if (!house) return
+    setSelectedHouse(house)
+    setShowNewRoom(false)
+    await loadRooms(house.id)
+  }
+
+  // ─── 새 방 생성 ───────────────────────────────────────
   const handleCreateRoom = async () => {
-    if (!newRoomName.trim() || !houseId) return
+    if (!newRoomName.trim() || !selectedHouse) return
     setCreatingRoom(true)
+    setRoomError('')
+
     const res = await fetch('/api/corenull/rooms', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        house_id: houseId,
+        house_id: selectedHouse.id,
         owner_key: ownerKey,
         room_name: newRoomName.trim(),
         room_type: isSeed ? 'seed' : 'normal',
@@ -57,6 +84,7 @@ export default function WritePage() {
         bloom_date: isSeed && bloomDate ? bloomDate : null,
       }),
     })
+
     const data = await res.json()
     if (data.data) {
       const created = data.data
@@ -66,10 +94,13 @@ export default function WritePage() {
       setNewRoomName('')
       setIsSeed(false)
       setBloomDate('')
+    } else {
+      setRoomError(data._error || '방 만들기에 실패했어요')
     }
     setCreatingRoom(false)
   }
 
+  // ─── 미디어 업로드 ────────────────────────────────────
   const handleFileSelect = async (e: any) => {
     const files = Array.from(e.target.files || [])
     if (files.length === 0) return
@@ -82,9 +113,11 @@ export default function WritePage() {
     setUploading(false)
   }
 
+  // ─── 포스트 작성 ──────────────────────────────────────
   const handleSubmit = async () => {
     if (!content.trim() || !selectedRoom) return
     setSubmitting(true)
+    setSubmitError('')
     const res = await fetch('/api/corenull/posts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -93,11 +126,15 @@ export default function WritePage() {
         owner_key: ownerKey,
         content: content.trim(),
         meta: { media: mediaFiles },
-        type: 'post',
+        type: 'post',  // Growth = Message(type="post") — 씨앗방이어도 항상 post
       }),
     })
     const data = await res.json()
-    if (data.data) router.push('/yard')
+    if (data.data) {
+      router.push('/yard')
+    } else {
+      setSubmitError(data._error || '올리기에 실패했어요')
+    }
     setSubmitting(false)
   }
 
@@ -105,11 +142,9 @@ export default function WritePage() {
     setMediaFiles(prev => prev.filter((_, i) => i !== index))
   }
 
-  // 오늘 날짜 (min 값용)
-  const today = new Date().toISOString().split('T')[0]
-
   return (
     <div>
+      {/* 헤더 */}
       <div style={styles.header}>
         <button style={styles.backBtn} onClick={() => router.back()}>←</button>
         <span style={styles.headerTitle}>새 이야기</span>
@@ -123,6 +158,27 @@ export default function WritePage() {
       </div>
 
       <div style={styles.body}>
+        {submitError && <div style={styles.errorBox}>⚠️ {submitError}</div>}
+
+        {/* ── 집 선택 (집이 2개 이상일 때만 노출) ── */}
+        {houses.length > 1 && (
+          <div style={styles.houseSelect}>
+            <span style={styles.roomLabel}>어느 집에?</span>
+            <select
+              style={styles.roomDropdown}
+              value={selectedHouse?.id || ''}
+              onChange={e => handleHouseChange(e.target.value)}
+            >
+              {houses.map((h: any) => (
+                <option key={h.id} value={h.id}>
+                  {LANG_FLAG[h.primary_language] || '🏡'} {h.title}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {/* ── 방 선택 ── */}
         {!showNewRoom ? (
           <div style={styles.roomSelect}>
             <span style={styles.roomLabel}>어느 방에?</span>
@@ -130,7 +186,10 @@ export default function WritePage() {
               style={styles.roomDropdown}
               value={selectedRoom?.id || ''}
               onChange={e => {
-                if (e.target.value === '__new__') { setShowNewRoom(true); return }
+                if (e.target.value === '__new__') {
+                  setShowNewRoom(true)
+                  return
+                }
                 const r = rooms.find((r: any) => r.id === e.target.value)
                 setSelectedRoom(r)
               }}
@@ -144,11 +203,19 @@ export default function WritePage() {
             </select>
           </div>
         ) : (
+          /* ── 새 방 만들기 폼 ── */
           <div style={styles.newRoomBox}>
             <div style={styles.newRoomHeader}>
               <span style={styles.roomLabel}>새 방 만들기</span>
-              <button style={styles.cancelBtn} onClick={() => { setShowNewRoom(false); setNewRoomName(''); setIsSeed(false); setBloomDate('') }}>취소</button>
+              <button
+                style={styles.cancelBtn}
+                onClick={() => { setShowNewRoom(false); setNewRoomName(''); setIsSeed(false); setBloomDate(''); setRoomError('') }}
+              >
+                취소
+              </button>
             </div>
+
+            {roomError && <div style={styles.errorBox}>⚠️ {roomError}</div>}
 
             <input
               style={styles.newRoomInput}
@@ -198,6 +265,7 @@ export default function WritePage() {
           </div>
         )}
 
+        {/* ── 텍스트 입력 ── */}
         <textarea
           style={styles.textarea}
           placeholder="오늘 어떤 순간을 남기고 싶으세요?"
@@ -206,6 +274,7 @@ export default function WritePage() {
           autoFocus={!showNewRoom}
         />
 
+        {/* ── 미디어 미리보기 ── */}
         {mediaFiles.length > 0 && (
           <div style={styles.mediaPreview}>
             {mediaFiles.map((m, i) => (
@@ -221,13 +290,25 @@ export default function WritePage() {
           </div>
         )}
 
+        {/* ── 미디어 추가 ── */}
         <div style={styles.mediaRow}>
-          <button style={styles.mediaBtn} onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+          <button
+            style={styles.mediaBtn}
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+          >
             {uploading ? '⏳' : '📷'} {uploading ? '업로드 중...' : '사진/영상'}
           </button>
         </div>
 
-        <input ref={fileInputRef} type="file" accept="image/*,video/*" multiple style={{ display: 'none' }} onChange={handleFileSelect} />
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*,video/*"
+          multiple
+          style={{ display: 'none' }}
+          onChange={handleFileSelect}
+        />
       </div>
     </div>
   )
@@ -248,6 +329,16 @@ const styles: Record<string, React.CSSProperties> = {
     border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 500, cursor: 'pointer',
   },
   body: { padding: '16px' },
+  errorBox: {
+    background: 'rgba(200,60,40,0.08)', border: '1px solid rgba(200,60,40,0.25)',
+    borderRadius: 10, padding: '10px 12px', marginBottom: 12,
+    fontSize: 13, color: '#A33',
+  },
+  houseSelect: {
+    display: 'flex', alignItems: 'center', gap: 10,
+    background: '#FEFCF8', border: '1px solid rgba(92,61,46,0.12)',
+    borderRadius: 12, padding: '10px 14px', marginBottom: 10,
+  },
   roomSelect: {
     display: 'flex', alignItems: 'center', gap: 10,
     background: '#FEFCF8', border: '1px solid rgba(92,61,46,0.12)',
