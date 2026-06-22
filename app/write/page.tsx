@@ -2,28 +2,22 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-
 import { getDeviceId } from '@/lib/deviceId'
-
-const LANG_FLAG: Record<string, string> = {
-  ko: '🇰🇷', vi: '🇻🇳', en: '🇺🇸', ja: '🇯🇵', zh: '🇨🇳',
-}
 
 export default function WritePage() {
   const [content, setContent] = useState('')
-  const [houses, setHouses] = useState<any[]>([])
-  const [selectedHouse, setSelectedHouse] = useState<any>(null)
   const [rooms, setRooms] = useState<any[]>([])
   const [selectedRoom, setSelectedRoom] = useState<any>(null)
   const [mediaFiles, setMediaFiles] = useState<any[]>([])
   const [uploading, setUploading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [houseId, setHouseId] = useState<string | null>(null)
   const [ownerKey, setOwnerKey] = useState('')
 
-  // 새 방 만들기
   const [showNewRoom, setShowNewRoom] = useState(false)
   const [newRoomName, setNewRoomName] = useState('')
   const [isSeed, setIsSeed] = useState(false)
+  const [bloomDate, setBloomDate] = useState('')
   const [creatingRoom, setCreatingRoom] = useState(false)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -35,50 +29,34 @@ export default function WritePage() {
     fetch(`/api/corenull/houses?owner_key=${key}`)
       .then(r => r.json())
       .then(async d => {
-        const houseList = d.data || []
-        setHouses(houseList)
-        if (houseList.length === 0) return
-        const house = houseList[0]
-        setSelectedHouse(house)
-        await loadRooms(house.id)
+        const houses = d.data || []
+        if (houses.length === 0) return
+        const house = houses[0]
+        setHouseId(house.id)
+        const r = await fetch(`/api/corenull/rooms?house_id=${house.id}`)
+        const rd = await r.json()
+        const roomList = rd.data || []
+        setRooms(roomList)
+        if (roomList.length > 0) setSelectedRoom(roomList[0])
       })
   }, [])
 
-  const loadRooms = async (houseId: string) => {
-    const r = await fetch(`/api/corenull/rooms?house_id=${houseId}`)
-    const rd = await r.json()
-    const roomList = rd.data || []
-    setRooms(roomList)
-    setSelectedRoom(roomList.length > 0 ? roomList[0] : null)
-  }
-
-  // ─── 집 전환 ──────────────────────────────────────────
-  const handleHouseChange = async (houseId: string) => {
-    const house = houses.find((h: any) => h.id === houseId)
-    if (!house) return
-    setSelectedHouse(house)
-    setShowNewRoom(false)
-    await loadRooms(house.id)
-  }
-
-  // ─── 새 방 생성 ───────────────────────────────────────
   const handleCreateRoom = async () => {
-    if (!newRoomName.trim() || !selectedHouse) return
+    if (!newRoomName.trim() || !houseId) return
     setCreatingRoom(true)
-
     const res = await fetch('/api/corenull/rooms', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        house_id: selectedHouse.id,
+        house_id: houseId,
         owner_key: ownerKey,
         room_name: newRoomName.trim(),
         room_type: isSeed ? 'seed' : 'normal',
         visibility: 'public',
         seed_mode: isSeed,
+        bloom_date: isSeed && bloomDate ? bloomDate : null,
       }),
     })
-
     const data = await res.json()
     if (data.data) {
       const created = data.data
@@ -87,11 +65,11 @@ export default function WritePage() {
       setShowNewRoom(false)
       setNewRoomName('')
       setIsSeed(false)
+      setBloomDate('')
     }
     setCreatingRoom(false)
   }
 
-  // ─── 미디어 업로드 ────────────────────────────────────
   const handleFileSelect = async (e: any) => {
     const files = Array.from(e.target.files || [])
     if (files.length === 0) return
@@ -104,7 +82,6 @@ export default function WritePage() {
     setUploading(false)
   }
 
-  // ─── 포스트 작성 ──────────────────────────────────────
   const handleSubmit = async () => {
     if (!content.trim() || !selectedRoom) return
     setSubmitting(true)
@@ -116,7 +93,7 @@ export default function WritePage() {
         owner_key: ownerKey,
         content: content.trim(),
         meta: { media: mediaFiles },
-        type: selectedRoom.seed_mode ? 'seed' : 'post',
+        type: 'post',
       }),
     })
     const data = await res.json()
@@ -128,9 +105,11 @@ export default function WritePage() {
     setMediaFiles(prev => prev.filter((_, i) => i !== index))
   }
 
+  // 오늘 날짜 (min 값용)
+  const today = new Date().toISOString().split('T')[0]
+
   return (
     <div>
-      {/* 헤더 */}
       <div style={styles.header}>
         <button style={styles.backBtn} onClick={() => router.back()}>←</button>
         <span style={styles.headerTitle}>새 이야기</span>
@@ -144,25 +123,6 @@ export default function WritePage() {
       </div>
 
       <div style={styles.body}>
-        {/* ── 집 선택 (집이 2개 이상일 때만 노출) ── */}
-        {houses.length > 1 && (
-          <div style={styles.houseSelect}>
-            <span style={styles.roomLabel}>어느 집에?</span>
-            <select
-              style={styles.roomDropdown}
-              value={selectedHouse?.id || ''}
-              onChange={e => handleHouseChange(e.target.value)}
-            >
-              {houses.map((h: any) => (
-                <option key={h.id} value={h.id}>
-                  {LANG_FLAG[h.primary_language] || '🏡'} {h.title}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-
-        {/* ── 방 선택 ── */}
         {!showNewRoom ? (
           <div style={styles.roomSelect}>
             <span style={styles.roomLabel}>어느 방에?</span>
@@ -170,10 +130,7 @@ export default function WritePage() {
               style={styles.roomDropdown}
               value={selectedRoom?.id || ''}
               onChange={e => {
-                if (e.target.value === '__new__') {
-                  setShowNewRoom(true)
-                  return
-                }
+                if (e.target.value === '__new__') { setShowNewRoom(true); return }
                 const r = rooms.find((r: any) => r.id === e.target.value)
                 setSelectedRoom(r)
               }}
@@ -187,16 +144,10 @@ export default function WritePage() {
             </select>
           </div>
         ) : (
-          /* ── 새 방 만들기 폼 ── */
           <div style={styles.newRoomBox}>
             <div style={styles.newRoomHeader}>
               <span style={styles.roomLabel}>새 방 만들기</span>
-              <button
-                style={styles.cancelBtn}
-                onClick={() => { setShowNewRoom(false); setNewRoomName(''); setIsSeed(false) }}
-              >
-                취소
-              </button>
+              <button style={styles.cancelBtn} onClick={() => { setShowNewRoom(false); setNewRoomName(''); setIsSeed(false); setBloomDate('') }}>취소</button>
             </div>
 
             <input
@@ -208,6 +159,7 @@ export default function WritePage() {
               autoFocus
             />
 
+            {/* 씨앗 토글 */}
             <div style={styles.toggleRow} onClick={() => setIsSeed(v => !v)}>
               <div style={styles.toggleLeft}>
                 <span style={{ fontSize: 18 }}>🌱</span>
@@ -221,6 +173,21 @@ export default function WritePage() {
               </div>
             </div>
 
+            {/* bloom_date — 씨앗일 때만 표시 */}
+            {isSeed && (
+              <div style={styles.bloomBox}>
+                <div style={styles.bloomLabel}>🌸 꽃 피는 날 (선택)</div>
+                <div style={styles.bloomDesc}>이 날이 되면 씨앗이 꽃으로 변해요</div>
+                <input
+                  type="date"
+                  style={styles.dateInput}
+                  value={bloomDate}
+                  min={today}
+                  onChange={e => setBloomDate(e.target.value)}
+                />
+              </div>
+            )}
+
             <button
               style={{ ...styles.createRoomBtn, opacity: (!newRoomName.trim() || creatingRoom) ? 0.4 : 1 }}
               onClick={handleCreateRoom}
@@ -231,7 +198,6 @@ export default function WritePage() {
           </div>
         )}
 
-        {/* ── 텍스트 입력 ── */}
         <textarea
           style={styles.textarea}
           placeholder="오늘 어떤 순간을 남기고 싶으세요?"
@@ -240,7 +206,6 @@ export default function WritePage() {
           autoFocus={!showNewRoom}
         />
 
-        {/* ── 미디어 미리보기 ── */}
         {mediaFiles.length > 0 && (
           <div style={styles.mediaPreview}>
             {mediaFiles.map((m, i) => (
@@ -256,25 +221,13 @@ export default function WritePage() {
           </div>
         )}
 
-        {/* ── 미디어 추가 ── */}
         <div style={styles.mediaRow}>
-          <button
-            style={styles.mediaBtn}
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
-          >
+          <button style={styles.mediaBtn} onClick={() => fileInputRef.current?.click()} disabled={uploading}>
             {uploading ? '⏳' : '📷'} {uploading ? '업로드 중...' : '사진/영상'}
           </button>
         </div>
 
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*,video/*"
-          multiple
-          style={{ display: 'none' }}
-          onChange={handleFileSelect}
-        />
+        <input ref={fileInputRef} type="file" accept="image/*,video/*" multiple style={{ display: 'none' }} onChange={handleFileSelect} />
       </div>
     </div>
   )
@@ -288,22 +241,13 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
     padding: '0 16px', zIndex: 100, backdropFilter: 'blur(12px)',
   },
-  backBtn: {
-    fontSize: 20, color: '#2C1810', background: 'none', border: 'none', cursor: 'pointer',
-  },
-  headerTitle: {
-    fontFamily: "'Noto Serif KR', serif", fontSize: 16, fontWeight: 600, color: '#2C1810',
-  },
+  backBtn: { fontSize: 20, color: '#2C1810', background: 'none', border: 'none', cursor: 'pointer' },
+  headerTitle: { fontFamily: "'Noto Serif KR', serif", fontSize: 16, fontWeight: 600, color: '#2C1810' },
   submitBtn: {
     padding: '8px 16px', background: '#2C1810', color: 'white',
     border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 500, cursor: 'pointer',
   },
   body: { padding: '16px' },
-  houseSelect: {
-    display: 'flex', alignItems: 'center', gap: 10,
-    background: '#FEFCF8', border: '1px solid rgba(92,61,46,0.12)',
-    borderRadius: 12, padding: '10px 14px', marginBottom: 10,
-  },
   roomSelect: {
     display: 'flex', alignItems: 'center', gap: 10,
     background: '#FEFCF8', border: '1px solid rgba(92,61,46,0.12)',
@@ -320,12 +264,8 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 12, padding: '14px', marginBottom: 12,
     display: 'flex', flexDirection: 'column', gap: 10,
   },
-  newRoomHeader: {
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-  },
-  cancelBtn: {
-    fontSize: 13, color: '#9A8470', background: 'none', border: 'none', cursor: 'pointer',
-  },
+  newRoomHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
+  cancelBtn: { fontSize: 13, color: '#9A8470', background: 'none', border: 'none', cursor: 'pointer' },
   newRoomInput: {
     width: '100%', height: 44,
     background: '#F5F0E8', border: '1px solid rgba(92,61,46,0.12)',
@@ -349,9 +289,21 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: '50%', background: 'white',
     transition: 'transform 0.2s', boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
   },
+  bloomBox: {
+    background: 'rgba(193,127,60,0.06)', border: '1px solid rgba(193,127,60,0.2)',
+    borderRadius: 10, padding: '12px',
+    display: 'flex', flexDirection: 'column', gap: 4,
+  },
+  bloomLabel: { fontSize: 13, fontWeight: 500, color: '#C17F3C' },
+  bloomDesc: { fontSize: 11, color: '#9A8470', marginBottom: 6 },
+  dateInput: {
+    width: '100%', height: 40,
+    background: '#FEFCF8', border: '1px solid rgba(92,61,46,0.12)',
+    borderRadius: 8, padding: '0 12px',
+    fontSize: 14, color: '#1C1208', outline: 'none', boxSizing: 'border-box',
+  },
   createRoomBtn: {
-    width: '100%', padding: '12px',
-    background: '#2C1810', color: 'white',
+    width: '100%', padding: '12px', background: '#2C1810', color: 'white',
     border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 500, cursor: 'pointer',
   },
   textarea: {
@@ -362,15 +314,12 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#1C1208', resize: 'none', outline: 'none', marginBottom: 12,
     boxSizing: 'border-box',
   },
-  mediaPreview: {
-    display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12,
-  },
+  mediaPreview: { display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 },
   mediaItem: { position: 'relative' },
   mediaThumb: { width: 80, height: 80, borderRadius: 10, objectFit: 'cover' },
   videoThumb: {
     width: 80, height: 80, borderRadius: 10,
-    background: '#2d4a3e', display: 'flex', alignItems: 'center',
-    justifyContent: 'center', fontSize: 28,
+    background: '#2d4a3e', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28,
   },
   removeBtn: {
     position: 'absolute', top: -6, right: -6,
