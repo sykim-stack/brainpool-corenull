@@ -4,29 +4,98 @@ import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { getDeviceId } from '@/lib/deviceId'
 
-const OWNER_KEY = getDeviceId()
-
 export default function PostDetailPage() {
   const { postId } = useParams()
   const router = useRouter()
+
+  const [ownerKey, setOwnerKey] = useState('')
   const [post, setPost] = useState<any>(null)
+  const [room, setRoom] = useState<any>(null)
+  const [house, setHouse] = useState<any>(null)
   const [comments, setComments] = useState<any[]>([])
+  const [fruit, setFruit] = useState<any>(null)       // 연결된 fruit Message
   const [newComment, setNewComment] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [fruitLoading, setFruitLoading] = useState(false)
   const [showTranslate, setShowTranslate] = useState(false)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    const key = getDeviceId()
+    setOwnerKey(key)
     if (!postId) return
+
     Promise.all([
       fetch(`/api/corenull/posts?post_id=${postId}`).then(r => r.json()),
       fetch(`/api/corenull/posts?parent_id=${postId}`).then(r => r.json()),
-    ]).then(([p, c]) => {
-      setPost(p.data || null)
-      setComments(c.data || [])
+    ]).then(async ([p, c]) => {
+      const postData = p.data || null
+      setPost(postData)
+      setComments(c.data?.filter((m: any) => m.type === 'comment') || [])
+
+      // fruit 조회 — relations.parent_id = postId 인 fruit
+      const fruitList = c.data?.filter((m: any) => m.type === 'fruit') || []
+      setFruit(fruitList[0] || null)
+
+      if (postData?.room_id) {
+        const [rRes, ] = await Promise.all([
+          fetch(`/api/corenull/rooms?room_id=${postData.room_id}`).then(r => r.json()),
+        ])
+        const roomData = rRes.room || null
+        setRoom(roomData)
+
+        if (roomData?.house_id) {
+          const hRes = await fetch(`/api/corenull/houses?house_id=${roomData.house_id}`).then(r => r.json())
+          setHouse(hRes.house || null)
+        }
+      }
+
       setLoading(false)
     })
   }, [postId])
+
+  const isOwner = house?.owner_key === ownerKey
+  const isSeedRoom = room?.seed_mode === true
+  const showFruitActions = isOwner && isSeedRoom && post?.type === 'post'
+
+  // 🍎 열매로 만들기
+  const handleMakeFruit = async () => {
+    if (!post || fruitLoading) return
+    setFruitLoading(true)
+    const res = await fetch('/api/corenull/posts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        room_id: post.room_id,
+        owner_key: ownerKey,
+        type: 'fruit',
+        content: post.content,
+        meta: post.meta || {},
+        relations: { parent_id: postId },
+      }),
+    })
+    const data = await res.json()
+    if (data.data) setFruit(data.data)
+    setFruitLoading(false)
+  }
+
+  // 📚 서재에 수확하기
+  const handleHarvest = async () => {
+    if (!fruit || fruitLoading) return
+    setFruitLoading(true)
+    const res = await fetch('/api/corenull/posts', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        post_id: fruit.id,
+        owner_key: ownerKey,
+        action: 'harvest',
+      }),
+    })
+    const data = await res.json()
+    if (data.data) setFruit(data.data)
+    setFruitLoading(false)
+  }
 
   const handleComment = async () => {
     if (!newComment.trim() || !post) return
@@ -36,7 +105,7 @@ export default function PostDetailPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         room_id: post.room_id,
-        owner_key: OWNER_KEY,
+        owner_key: ownerKey,
         content: newComment.trim(),
         type: 'comment',
         relations: { parent_id: postId },
@@ -55,6 +124,7 @@ export default function PostDetailPage() {
 
   const media = post.meta?.media || []
   const firstMedia = media[0]
+  const isHarvested = !!fruit?.harvested_at
 
   return (
     <div>
@@ -92,6 +162,35 @@ export default function PostDetailPage() {
               <span style={{ fontSize: 10, color: '#C17F3C' }}>{showTranslate ? '▴' : '▾'}</span>
             </div>
             {showTranslate && <div style={styles.translateResult}>{post.translated_ko}</div>}
+          </div>
+        )}
+
+        {/* Fruit / Harvest 액션 */}
+        {showFruitActions && (
+          <div style={styles.fruitSection}>
+            {!fruit && (
+              <button
+                style={{ ...styles.fruitBtn, opacity: fruitLoading ? 0.5 : 1 }}
+                onClick={handleMakeFruit}
+                disabled={fruitLoading}
+              >
+                🍎 열매로 만들기
+              </button>
+            )}
+            {fruit && !isHarvested && (
+              <button
+                style={{ ...styles.harvestBtn, opacity: fruitLoading ? 0.5 : 1 }}
+                onClick={handleHarvest}
+                disabled={fruitLoading}
+              >
+                📚 서재에 수확하기
+              </button>
+            )}
+            {fruit && isHarvested && (
+              <div style={styles.harvestedBadge}>
+                ✅ 서재에 보관됨 · {new Date(fruit.harvested_at).toLocaleDateString('ko-KR')}
+              </div>
+            )}
           </div>
         )}
 
@@ -173,6 +272,27 @@ const styles: Record<string, React.CSSProperties> = {
   },
   translateLabel: { fontSize: 12, color: '#C17F3C', fontWeight: 500 },
   translateResult: { fontSize: 14, lineHeight: 1.7, color: '#5C4A35', marginBottom: 16 },
+  fruitSection: {
+    marginTop: 16, paddingTop: 16,
+    borderTop: '1px solid rgba(92,61,46,0.1)',
+  },
+  fruitBtn: {
+    width: '100%', padding: '12px',
+    background: 'linear-gradient(135deg, #4A7C3F, #7AB648)',
+    color: 'white', border: 'none', borderRadius: 12,
+    fontSize: 14, fontWeight: 600, cursor: 'pointer',
+  },
+  harvestBtn: {
+    width: '100%', padding: '12px',
+    background: 'linear-gradient(135deg, #C17F3C, #E8A857)',
+    color: 'white', border: 'none', borderRadius: 12,
+    fontSize: 14, fontWeight: 600, cursor: 'pointer',
+  },
+  harvestedBadge: {
+    textAlign: 'center', padding: '10px',
+    fontSize: 13, color: '#4A7C3F',
+    background: 'rgba(74,124,63,0.08)', borderRadius: 10,
+  },
   divider: { height: 1, background: 'rgba(92,61,46,0.1)', margin: '16px 0' },
   commentCount: { fontSize: 13, fontWeight: 500, color: '#5C4A35', marginBottom: 12 },
   emptyComment: { fontSize: 13, color: '#9A8470', textAlign: 'center', padding: '24px 0' },
