@@ -13,7 +13,7 @@ export default function PostDetailPage() {
   const [room, setRoom] = useState<any>(null)
   const [house, setHouse] = useState<any>(null)
   const [comments, setComments] = useState<any[]>([])
-  const [fruit, setFruit] = useState<any>(null)       // 연결된 fruit Message
+  const [fruit, setFruit] = useState<any>(null)
   const [newComment, setNewComment] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [fruitLoading, setFruitLoading] = useState(false)
@@ -32,24 +32,17 @@ export default function PostDetailPage() {
       const postData = p.data || null
       setPost(postData)
       setComments(c.data?.filter((m: any) => m.type === 'comment') || [])
-
-      // fruit 조회 — relations.parent_id = postId 인 fruit
-      const fruitList = c.data?.filter((m: any) => m.type === 'fruit') || []
-      setFruit(fruitList[0] || null)
+      setFruit(c.data?.filter((m: any) => m.type === 'fruit')[0] || null)
 
       if (postData?.room_id) {
-        const [rRes, ] = await Promise.all([
-          fetch(`/api/corenull/rooms?room_id=${postData.room_id}`).then(r => r.json()),
-        ])
+        const rRes = await fetch(`/api/corenull/rooms?room_id=${postData.room_id}`).then(r => r.json())
         const roomData = rRes.room || null
         setRoom(roomData)
-
         if (roomData?.house_id) {
           const hRes = await fetch(`/api/corenull/houses?house_id=${roomData.house_id}`).then(r => r.json())
           setHouse(hRes.house || null)
         }
       }
-
       setLoading(false)
     })
   }, [postId])
@@ -57,8 +50,8 @@ export default function PostDetailPage() {
   const isOwner = house?.owner_key === ownerKey
   const isSeedRoom = room?.seed_mode === true
   const showFruitActions = isOwner && isSeedRoom && post?.type === 'post'
+  const isHarvested = !!fruit?.harvested_at
 
-  // 🍎 열매로 만들기
   const handleMakeFruit = async () => {
     if (!post || fruitLoading) return
     setFruitLoading(true)
@@ -79,7 +72,6 @@ export default function PostDetailPage() {
     setFruitLoading(false)
   }
 
-  // 📚 서재에 수확하기
   const handleHarvest = async () => {
     if (!fruit || fruitLoading) return
     setFruitLoading(true)
@@ -124,7 +116,6 @@ export default function PostDetailPage() {
 
   const media = post.meta?.media || []
   const firstMedia = media[0]
-  const isHarvested = !!fruit?.harvested_at
 
   return (
     <div>
@@ -165,7 +156,6 @@ export default function PostDetailPage() {
           </div>
         )}
 
-        {/* Fruit / Harvest 액션 */}
         {showFruitActions && (
           <div style={styles.fruitSection}>
             {!fruit && (
