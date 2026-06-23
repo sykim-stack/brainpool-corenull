@@ -41,7 +41,7 @@ const handleGet = async (req, traceId) => {
     const { data, error } = await supabase
       .from('messages')
       .select('*')
-      .eq('type', 'comment')
+      .in('type', ['comment', 'fruit'])
       .contains('relations', { parent_id })
       .order('created_at', { ascending: true })
     if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
