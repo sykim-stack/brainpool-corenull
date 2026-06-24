@@ -41,7 +41,7 @@ type Post = {
 }
 
 const LANG_FLAG: Record<string, string> = {
-  ko: '?눖?눟', vi: '?눤?눛', en: '?눣?눡', ja: '?눓?눝', zh: '?눊?눛',
+  ko: '?????, vi: '?????, en: '?????, ja: '?????, zh: '?????,
 }
 
 function getCountdown(bloomDate: string): { label: string; bloomed: boolean } {
@@ -50,9 +50,9 @@ function getCountdown(bloomDate: string): { label: string; bloomed: boolean } {
   bloom.setHours(0, 0, 0, 0)
   now.setHours(0, 0, 0, 0)
   const diff = Math.ceil((bloom.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-  if (diff <= 0) return { label: '?뙵 苑껋씠 ?쇱뿀?댁슂!', bloomed: true }
-  if (diff === 1) return { label: '?뙮 ?댁씪 苑껋씠 ?쇱뼱??, bloomed: false }
-  return { label: `?뙮 苑껉퉴吏 ${diff}??, bloomed: false }
+  if (diff <= 0) return { label: '?????얜“?????繹????⑤챶萸?', bloomed: true }
+  if (diff === 1) return { label: '??????⑤챶????얜“?????繹먮굞苑??, bloomed: false }
+  return { label: `?????얜“???癒?? ${diff}??, bloomed: false }
 }
 
 export default function RoomPage() {
@@ -73,7 +73,7 @@ const isOwner = house?.owner_key === ownerKey
 const canWrite = isOwner || isMember
 
 useEffect(() => {
-  setOwnerKey(getDeviceId())  // ???닿쾶 諛섎뱶???덉뼱????  if (!roomId) return
+  setOwnerKey(getDeviceId())  // ?????怨쀫쿊 ?袁⑸즵?쀫쓧??????怨쀪퐨????  if (!roomId) return
   fetchRoom()
 }, [roomId])
 
@@ -84,7 +84,7 @@ useEffect(() => {
       const rRes = await fetch(`/api/corenull/rooms?room_id=${roomId}`)
       const rData = await rRes.json()
       if (rData._error || !rData.room) {
-        setError('諛⑹쓣 李얠쓣 ???놁뼱??')
+        setError('?袁⑸젻泳??癲ル슓??젆???????⑤９苑??')
         setLoading(false)
         return
       }
@@ -106,7 +106,7 @@ useEffect(() => {
         setPosts(pData.data.filter((p: Post) => !p.meta?.archived))
       }
     } catch {
-      setError('遺덈윭?ㅻ뒗 以?臾몄젣媛 ?앷꼈?댁슂.')
+      setError('??됰씭??????몄툗 濚????뽮덫?影?놁씀? ???룰퀬????⑤챶萸?')
     } finally {
       setLoading(false)
     }
@@ -115,7 +115,7 @@ useEffect(() => {
   if (loading) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '50vh' }}>
-        <p style={{ color: '#9A8470', fontSize: '14px' }}>遺덈윭?ㅻ뒗 以?..</p>
+        <p style={{ color: '#9A8470', fontSize: '14px' }}>??됰씭??????몄툗 濚?..</p>
       </div>
     )
   }
@@ -123,8 +123,8 @@ useEffect(() => {
   if (error || !room) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '50vh', gap: '12px' }}>
-        <p style={{ color: '#5C3D2E', fontSize: '14px' }}>{error || '諛⑹쓣 李얠쓣 ???놁뼱??'}</p>
-        <button onClick={() => router.back()} style={btnSecondary}>???뚯븘媛湲?/button>
+        <p style={{ color: '#5C3D2E', fontSize: '14px' }}>{error || '?袁⑸젻泳??癲ル슓??젆???????⑤９苑??'}</p>
+        <button onClick={() => router.back()} style={btnSecondary}>???????믩쨬??쎛??/button>
       </div>
     )
   }
@@ -141,20 +141,20 @@ useEffect(() => {
               {room.room_name}
             </h1>
             <span style={visibilityBadge(room.visibility)}>
-              {room.visibility === 'public' ? '怨듦컻' : '鍮꾧났媛?}
+              {room.visibility === 'public' ? '?????? : '?????筌?}
             </span>
-            {room.seed_mode && <span style={seedBadge}>?뙮 ?⑥븮</span>}
+            {room.seed_mode && <span style={seedBadge}>?????縕ョ뵳?/span>}
           </div>
           {house && (
             <p style={{ fontSize: '12px', color: '#9A8470', margin: '2px 0 0' }}>
-              {LANG_FLAG[house.primary_language] || '?룪'} {house.title}
+              {LANG_FLAG[house.primary_language] || '???} {house.title}
             </p>
           )}
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <button style={shareBtnStyle} onClick={() => setShowShare(true)}>?뵕</button>
+          <button style={shareBtnStyle} onClick={() => setShowShare(true)}>???/button>
           {canWrite && (
-            <Link href={`/write?room_id=${roomId}`} style={writeBtnStyle}>+ 湲?곌린</Link>
+            <Link href={`/write?room_id=${roomId}`} style={writeBtnStyle}>+ ??れ꽔????ㅼ뒧??/Link>
           )}
         </div>
       </header>
@@ -167,7 +167,7 @@ useEffect(() => {
             : 'linear-gradient(135deg, rgba(74,82,64,0.08), rgba(193,127,60,0.08))',
           borderColor: countdown.bloomed ? 'rgba(193,127,60,0.4)' : 'rgba(74,82,64,0.15)',
         }}>
-          <span style={{ fontSize: 20 }}>{countdown.bloomed ? '?뙵' : '?뙮'}</span>
+          <span style={{ fontSize: 20 }}>{countdown.bloomed ? '??? : '???}</span>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 14, fontWeight: 600, color: countdown.bloomed ? '#C17F3C' : '#4A5240' }}>
               {countdown.label}
@@ -238,10 +238,10 @@ function PostCard({ post }: { post: Post }) {
 function EmptyState({ isOwner, roomId }: { isOwner: boolean; roomId: string }) {
   return (
     <div style={{ textAlign: 'center', padding: '60px 20px' }}>
-      <p style={{ fontSize: '32px', marginBottom: '12px' }}>?뙮</p>
-      <p style={{ fontSize: '14px', color: '#9A8470', marginBottom: '20px' }}>?꾩쭅 湲???놁뼱??/p>
+      <p style={{ fontSize: '32px', marginBottom: '12px' }}>???/p>
+      <p style={{ fontSize: '14px', color: '#9A8470', marginBottom: '20px' }}>??ш끽維쀧빊???れ꽔??????⑤９苑??/p>
       {isOwner && (
-        <Link href={`/write?room_id=${roomId}`} style={writeBtnStyle}>泥?湲 ?곌린</Link>
+        <Link href={`/write?room_id=${roomId}`} style={writeBtnStyle}>癲???れ꽔? ???ㅼ뒧??/Link>
       )}
     </div>
   )
@@ -251,9 +251,9 @@ function formatDate(iso: string) {
   const d = new Date(iso)
   const now = new Date()
   const diff = Math.floor((now.getTime() - d.getTime()) / 1000)
-  if (diff < 60) return '諛⑷툑 ??
-  if (diff < 3600) return `${Math.floor(diff / 60)}遺???
-  if (diff < 86400) return `${Math.floor(diff / 3600)}?쒓컙 ??
+  if (diff < 60) return '?袁⑸젻泳????
+  if (diff < 3600) return `${Math.floor(diff / 60)}????
+  if (diff < 86400) return `${Math.floor(diff / 3600)}??癰?????
   return d.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })
 }
 
