@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { getDeviceId } from '@/lib/deviceId'
+import ShareModal from '@/components/corenull/ShareModal'
 
 type Room = {
   id: string
@@ -39,13 +40,10 @@ type Post = {
   owner_key: string
 }
 
-const OWNER_KEY = getDeviceId()
-
 const LANG_FLAG: Record<string, string> = {
   ko: '🇰🇷', vi: '🇻🇳', en: '🇺🇸', ja: '🇯🇵', zh: '🇨🇳',
 }
 
-// ─── 카운트다운 계산 ──────────────────────────────────────
 function getCountdown(bloomDate: string): { label: string; bloomed: boolean } {
   const now = new Date()
   const bloom = new Date(bloomDate)
@@ -68,8 +66,10 @@ export default function RoomPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isMember, setIsMember] = useState(false)
+  const [showShare, setShowShare] = useState(false)
+  const [ownerKey] = useState(() => getDeviceId())
 
-  const isOwner = house?.owner_key === OWNER_KEY
+  const isOwner = house?.owner_key === ownerKey
   const canWrite = isOwner || isMember
 
   useEffect(() => {
@@ -94,12 +94,12 @@ export default function RoomPage() {
       const hData = await hRes.json()
       if (!hData._error && hData.house) {
         setHouse(hData.house)
-        const mRes = await fetch(`/api/corenull/members?house_id=${rData.room.house_id}&device_id=${OWNER_KEY}`)
+        const mRes = await fetch(`/api/corenull/members?house_id=${rData.room.house_id}&device_id=${ownerKey}`)
         const mData = await mRes.json()
         setIsMember(!mData._error && mData.is_member === true)
       }
 
-      const pRes = await fetch(`/api/corenull/posts?room_id=${roomId}&owner_key=${OWNER_KEY}`)
+      const pRes = await fetch(`/api/corenull/posts?room_id=${roomId}&owner_key=${ownerKey}`)
       const pData = await pRes.json()
       if (!pData._error && pData.data) {
         setPosts(pData.data.filter((p: Post) => !p.meta?.archived))
@@ -132,7 +132,6 @@ export default function RoomPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#FBF8F2' }}>
-      {/* ── Header ── */}
       <header style={headerStyle}>
         <button onClick={() => router.back()} style={backBtnStyle}>←</button>
         <div style={{ flex: 1 }}>
@@ -151,14 +150,14 @@ export default function RoomPage() {
             </p>
           )}
         </div>
-        {canWrite && (
-          <Link href={`/write?room_id=${roomId}`} style={writeBtnStyle}>
-            + 글쓰기
-          </Link>
-        )}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button style={shareBtnStyle} onClick={() => setShowShare(true)}>🔗</button>
+          {canWrite && (
+            <Link href={`/write?room_id=${roomId}`} style={writeBtnStyle}>+ 글쓰기</Link>
+          )}
+        </div>
       </header>
 
-      {/* ── 카운트다운 배너 ── */}
       {countdown && (
         <div style={{
           ...countdownBanner,
@@ -181,7 +180,6 @@ export default function RoomPage() {
         </div>
       )}
 
-      {/* ── 포스트 목록 ── */}
       <main style={{ padding: '16px' }}>
         {posts.length === 0 ? (
           <EmptyState isOwner={canWrite} roomId={roomId} />
@@ -193,6 +191,14 @@ export default function RoomPage() {
           </div>
         )}
       </main>
+
+      {showShare && (
+        <ShareModal
+          url={`https://corenull.vercel.app/rooms/${roomId}`}
+          title={room.room_name}
+          onClose={() => setShowShare(false)}
+        />
+      )}
     </div>
   )
 }
@@ -264,21 +270,22 @@ const writeBtnStyle: React.CSSProperties = {
   borderRadius: '20px', padding: '7px 14px', fontSize: '13px',
   cursor: 'pointer', textDecoration: 'none', whiteSpace: 'nowrap',
 }
+const shareBtnStyle: React.CSSProperties = {
+  width: 34, height: 34, borderRadius: '50%',
+  background: '#F5F0E8', border: 'none',
+  fontSize: 15, cursor: 'pointer',
+}
 const btnSecondary: React.CSSProperties = {
   background: 'none', border: '1px solid #5C3D2E', color: '#5C3D2E',
   borderRadius: '8px', padding: '8px 16px', fontSize: '13px', cursor: 'pointer',
 }
 const countdownBanner: React.CSSProperties = {
-  margin: '12px 16px 0',
-  padding: '14px 16px',
-  borderRadius: '14px',
-  border: '1px solid',
-  display: 'flex', alignItems: 'center', gap: '12px',
+  margin: '12px 16px 0', padding: '14px 16px', borderRadius: '14px',
+  border: '1px solid', display: 'flex', alignItems: 'center', gap: '12px',
 }
 const cardStyle: React.CSSProperties = {
   background: '#FEFCF8', borderRadius: '12px',
-  border: '1px solid rgba(92,61,46,0.12)',
-  padding: '16px', cursor: 'pointer',
+  border: '1px solid rgba(92,61,46,0.12)', padding: '16px', cursor: 'pointer',
   boxShadow: '0 2px 12px rgba(44,24,16,0.06)',
 }
 const imgWrap: React.CSSProperties = {

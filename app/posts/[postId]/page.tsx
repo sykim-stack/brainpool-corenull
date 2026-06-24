@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { getDeviceId } from '@/lib/deviceId'
+import ShareModal from '@/components/corenull/ShareModal'
 
 export default function PostDetailPage() {
   const { postId } = useParams()
@@ -18,6 +19,7 @@ export default function PostDetailPage() {
   const [submitting, setSubmitting] = useState(false)
   const [fruitLoading, setFruitLoading] = useState(false)
   const [showTranslate, setShowTranslate] = useState(false)
+  const [showShare, setShowShare] = useState(false)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -122,7 +124,7 @@ export default function PostDetailPage() {
       <div style={styles.header}>
         <button style={styles.backBtn} onClick={() => router.back()}>←</button>
         <span style={styles.headerTitle}>이야기</span>
-        <div style={{ width: 36 }} />
+        <button style={styles.shareBtn} onClick={() => setShowShare(true)}>🔗</button>
       </div>
 
       <div style={styles.body}>
@@ -218,6 +220,14 @@ export default function PostDetailPage() {
           disabled={!newComment.trim() || submitting}
         >↑</button>
       </div>
+
+      {showShare && post && (
+        <ShareModal
+          url={`https://corenull.vercel.app/posts/${postId}`}
+          title={post.content?.slice(0, 30) || '이야기'}
+          onClose={() => setShowShare(false)}
+        />
+      )}
     </div>
   )
 }
@@ -233,6 +243,10 @@ const styles: Record<string, React.CSSProperties> = {
   },
   backBtn: { fontSize: 20, color: '#2C1810', background: 'none', border: 'none', cursor: 'pointer' },
   headerTitle: { fontFamily: "'Noto Serif KR', serif", fontSize: 16, fontWeight: 600, color: '#2C1810' },
+  shareBtn: {
+    width: 36, height: 36, borderRadius: '50%',
+    background: '#F5F0E8', border: 'none', fontSize: 16, cursor: 'pointer',
+  },
   body: { padding: '16px 16px 80px' },
   authorRow: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 },
   avatar: {
@@ -262,25 +276,19 @@ const styles: Record<string, React.CSSProperties> = {
   },
   translateLabel: { fontSize: 12, color: '#C17F3C', fontWeight: 500 },
   translateResult: { fontSize: 14, lineHeight: 1.7, color: '#5C4A35', marginBottom: 16 },
-  fruitSection: {
-    marginTop: 16, paddingTop: 16,
-    borderTop: '1px solid rgba(92,61,46,0.1)',
-  },
+  fruitSection: { marginTop: 16, paddingTop: 16, borderTop: '1px solid rgba(92,61,46,0.1)' },
   fruitBtn: {
     width: '100%', padding: '12px',
     background: 'linear-gradient(135deg, #4A7C3F, #7AB648)',
-    color: 'white', border: 'none', borderRadius: 12,
-    fontSize: 14, fontWeight: 600, cursor: 'pointer',
+    color: 'white', border: 'none', borderRadius: 12, fontSize: 14, fontWeight: 600, cursor: 'pointer',
   },
   harvestBtn: {
     width: '100%', padding: '12px',
     background: 'linear-gradient(135deg, #C17F3C, #E8A857)',
-    color: 'white', border: 'none', borderRadius: 12,
-    fontSize: 14, fontWeight: 600, cursor: 'pointer',
+    color: 'white', border: 'none', borderRadius: 12, fontSize: 14, fontWeight: 600, cursor: 'pointer',
   },
   harvestedBadge: {
-    textAlign: 'center', padding: '10px',
-    fontSize: 13, color: '#4A7C3F',
+    textAlign: 'center', padding: '10px', fontSize: 13, color: '#4A7C3F',
     background: 'rgba(74,124,63,0.08)', borderRadius: 10,
   },
   divider: { height: 1, background: 'rgba(92,61,46,0.1)', margin: '16px 0' },
