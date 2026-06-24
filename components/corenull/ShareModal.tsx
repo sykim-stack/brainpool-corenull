@@ -17,7 +17,7 @@ export default function ShareModal({ url, title, onClose }: ShareModalProps) {
   }, [])
 
   const handleShare = async () => {
-    if (typeof navigator !== 'undefined' && navigator.share) {
+    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
       try {
         await navigator.share({ title, url })
         onClose()
@@ -54,7 +54,7 @@ export default function ShareModal({ url, title, onClose }: ShareModalProps) {
         <div style={styles.url}>{url}</div>
 
         {/* 1순위: navigator.share */}
-        {typeof navigator !== 'undefined' && navigator.share && (
+        {typeof navigator !== 'undefined' && typeof navigator.share === 'function' && (
           <button style={styles.primaryBtn} onClick={handleShare}>
             🔗 공유하기
           </button>
