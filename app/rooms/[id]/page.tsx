@@ -67,14 +67,18 @@ export default function RoomPage() {
   const [error, setError] = useState<string | null>(null)
   const [isMember, setIsMember] = useState(false)
   const [showShare, setShowShare] = useState(false)
-  const [ownerKey] = useState(() => getDeviceId())
+  // 수정 후
+  const [ownerKey, setOwnerKey] = useState('')
+  // useEffect 안에 추가
+  setOwnerKey(getDeviceId())
 
   const isOwner = house?.owner_key === ownerKey
   const canWrite = isOwner || isMember
 
   useEffect(() => {
-    if (!roomId) return
-    fetchRoom()
+  setOwnerKey(getDeviceId())  // ← 추가
+  if (!roomId) return
+  fetchRoom()
   }, [roomId])
 
   async function fetchRoom() {
