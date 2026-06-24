@@ -41,7 +41,7 @@ type Post = {
 }
 
 const LANG_FLAG: Record<string, string> = {
-  ko: '?????, vi: '?????, en: '?????, ja: '?????, zh: '?????,
+  ko: '🇰🇷', vi: '🇻🇳', en: '🇺🇸', ja: '🇯🇵', zh: '🇨🇳',
 }
 
 function getCountdown(bloomDate: string): { label: string; bloomed: boolean } {
@@ -50,9 +50,9 @@ function getCountdown(bloomDate: string): { label: string; bloomed: boolean } {
   bloom.setHours(0, 0, 0, 0)
   now.setHours(0, 0, 0, 0)
   const diff = Math.ceil((bloom.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-  if (diff <= 0) return { label: '??????쒋?????濚?????ㅼ굡??', bloomed: true }
-  if (diff === 1) return { label: '???????ㅼ굡?????쒋?????濚밸Ŧ援욆땻??, bloomed: false }
-  return { label: `??????쒋?????? ${diff}??, bloomed: false }
+  if (diff <= 0) return { label: '🌸 꽃이 피었어요!', bloomed: true }
+  if (diff === 1) return { label: '🌱 내일 꽃이 피어요', bloomed: false }
+  return { label: `🌱 꽃까지 ${diff}일`, bloomed: false }
 }
 
 export default function RoomPage() {
@@ -61,30 +61,32 @@ export default function RoomPage() {
   const roomId = params.id as string
 
   const [room, setRoom] = useState<Room | null>(null)
-const [house, setHouse] = useState<House | null>(null)
-const [posts, setPosts] = useState<Post[]>([])
-const [loading, setLoading] = useState(true)
-const [error, setError] = useState<string | null>(null)
-const [isMember, setIsMember] = useState(false)
-const [showShare, setShowShare] = useState(false)
-const [ownerKey, setOwnerKey] = useState('')
+  const [house, setHouse] = useState<House | null>(null)
+  const [posts, setPosts] = useState<Post[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [isMember, setIsMember] = useState(false)
+  const [showShare, setShowShare] = useState(false)
+  const [ownerKey, setOwnerKey] = useState('')
 
-const isOwner = house?.owner_key === ownerKey
-const canWrite = isOwner || isMember
+  const isOwner = house?.owner_key === ownerKey
+  const canWrite = isOwner || isMember
 
-useEffect(() => {
-  setOwnerKey(getDeviceId())  // ??????⑥レ퓡 ?熬곣뫖利??レ벁???????⑥ろ맖????  if (!roomId) return
-  fetchRoom()
-}, [roomId])
+  useEffect(() => {
+    const key = getDeviceId()
+    setOwnerKey(key)
+    if (!roomId) return
+    fetchRoom(key)
+  }, [roomId])
 
-  async function fetchRoom() {
+  async function fetchRoom(key: string) {
     setLoading(true)
     setError(null)
     try {
       const rRes = await fetch(`/api/corenull/rooms?room_id=${roomId}`)
       const rData = await rRes.json()
       if (rData._error || !rData.room) {
-        setError('?熬곣뫖?삥납???꿔꺂????????????ㅿ폎???')
+        setError('방을 찾을 수 없어요.')
         setLoading(false)
         return
       }
@@ -94,7 +96,6 @@ useEffect(() => {
       const hData = await hRes.json()
       if (!hData._error && hData.house) {
         setHouse(hData.house)
-        const key = getDeviceId()
         const mRes = await fetch(`/api/corenull/members?house_id=${rData.room.house_id}&device_id=${key}`)
         const mData = await mRes.json()
         setIsMember(!mData._error && mData.is_member === true)
@@ -106,7 +107,7 @@ useEffect(() => {
         setPosts(pData.data.filter((p: Post) => !p.meta?.archived))
       }
     } catch {
-      setError('???곗뵯??????紐꾪닓 嚥????戮?뜪?壤굿??곸?? ???猷고?????ㅼ굡??')
+      setError('불러오는 중 문제가 생겼어요.')
     } finally {
       setLoading(false)
     }
@@ -115,7 +116,7 @@ useEffect(() => {
   if (loading) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '50vh' }}>
-        <p style={{ color: '#9A8470', fontSize: '14px' }}>???곗뵯??????紐꾪닓 嚥?..</p>
+        <p style={{ color: '#9A8470', fontSize: '14px' }}>불러오는 중...</p>
       </div>
     )
   }
@@ -123,8 +124,8 @@ useEffect(() => {
   if (error || !room) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '50vh', gap: '12px' }}>
-        <p style={{ color: '#5C3D2E', fontSize: '14px' }}>{error || '?熬곣뫖?삥납???꿔꺂????????????ㅿ폎???'}</p>
-        <button onClick={() => router.back()} style={btnSecondary}>???????誘⑹º???쎛??/button>
+        <p style={{ color: '#5C3D2E', fontSize: '14px' }}>{error || '방을 찾을 수 없어요.'}</p>
+        <button onClick={() => router.back()} style={btnSecondary}>← 돌아가기</button>
       </div>
     )
   }
@@ -134,27 +135,27 @@ useEffect(() => {
   return (
     <div style={{ minHeight: '100vh', background: '#FBF8F2' }}>
       <header style={headerStyle}>
-        <button onClick={() => router.back()} style={backBtnStyle}>??/button>
+        <button onClick={() => router.back()} style={backBtnStyle}>←</button>
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <h1 style={{ fontSize: '16px', fontWeight: 700, color: '#2C1810', margin: 0 }}>
               {room.room_name}
             </h1>
             <span style={visibilityBadge(room.visibility)}>
-              {room.visibility === 'public' ? '?????? : '?????嶺?}
+              {room.visibility === 'public' ? '공개' : '비공개'}
             </span>
-            {room.seed_mode && <span style={seedBadge}>?????潁뺛깾逾?/span>}
+            {room.seed_mode && <span style={seedBadge}>🌱 씨앗</span>}
           </div>
           {house && (
             <p style={{ fontSize: '12px', color: '#9A8470', margin: '2px 0 0' }}>
-              {LANG_FLAG[house.primary_language] || '???} {house.title}
+              {LANG_FLAG[house.primary_language] || '🏡'} {house.title}
             </p>
           )}
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <button style={shareBtnStyle} onClick={() => setShowShare(true)}>???/button>
+          <button style={shareBtnStyle} onClick={() => setShowShare(true)}>🔗</button>
           {canWrite && (
-            <Link href={`/write?room_id=${roomId}`} style={writeBtnStyle}>+ ???뚭퐫?????쇰뮛??/Link>
+            <Link href={`/write?room_id=${roomId}`} style={writeBtnStyle}>+ 글쓰기</Link>
           )}
         </div>
       </header>
@@ -167,7 +168,7 @@ useEffect(() => {
             : 'linear-gradient(135deg, rgba(74,82,64,0.08), rgba(193,127,60,0.08))',
           borderColor: countdown.bloomed ? 'rgba(193,127,60,0.4)' : 'rgba(74,82,64,0.15)',
         }}>
-          <span style={{ fontSize: 20 }}>{countdown.bloomed ? '??? : '???}</span>
+          <span style={{ fontSize: 20 }}>{countdown.bloomed ? '🌸' : '🌱'}</span>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 14, fontWeight: 600, color: countdown.bloomed ? '#C17F3C' : '#4A5240' }}>
               {countdown.label}
@@ -219,12 +220,12 @@ function PostCard({ post }: { post: Post }) {
         )}
         {firstMedia?.type === 'video' && (
           <div style={{ ...imgWrap, background: '#2d4a3e', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px' }}>
-            <span style={{ fontSize: '28px' }}>??/span>
+            <span style={{ fontSize: '28px' }}>▶</span>
           </div>
         )}
         {preview && (
           <p style={{ fontSize: '14px', color: '#5C3D2E', margin: '0 0 8px', lineHeight: '1.6' }}>
-            {preview}{hasMore && '??}
+            {preview}{hasMore && '…'}
           </p>
         )}
         <p style={{ fontSize: '11px', color: '#9A8470', margin: 0 }}>
@@ -238,10 +239,10 @@ function PostCard({ post }: { post: Post }) {
 function EmptyState({ isOwner, roomId }: { isOwner: boolean; roomId: string }) {
   return (
     <div style={{ textAlign: 'center', padding: '60px 20px' }}>
-      <p style={{ fontSize: '32px', marginBottom: '12px' }}>???/p>
-      <p style={{ fontSize: '14px', color: '#9A8470', marginBottom: '20px' }}>????썹땟?㏓퉲????뚭퐫???????ㅿ폎???/p>
+      <p style={{ fontSize: '32px', marginBottom: '12px' }}>🌱</p>
+      <p style={{ fontSize: '14px', color: '#9A8470', marginBottom: '20px' }}>아직 글이 없어요</p>
       {isOwner && (
-        <Link href={`/write?room_id=${roomId}`} style={writeBtnStyle}>?????뚭퐫? ????쇰뮛??/Link>
+        <Link href={`/write?room_id=${roomId}`} style={writeBtnStyle}>첫 글 쓰기</Link>
       )}
     </div>
   )
@@ -251,9 +252,9 @@ function formatDate(iso: string) {
   const d = new Date(iso)
   const now = new Date()
   const diff = Math.floor((now.getTime() - d.getTime()) / 1000)
-  if (diff < 60) return '?熬곣뫖?삥납????
-  if (diff < 3600) return `${Math.floor(diff / 60)}????
-  if (diff < 86400) return `${Math.floor(diff / 3600)}????????
+  if (diff < 60) return '방금 전'
+  if (diff < 3600) return `${Math.floor(diff / 60)}분 전`
+  if (diff < 86400) return `${Math.floor(diff / 3600)}시간 전`
   return d.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })
 }
 
