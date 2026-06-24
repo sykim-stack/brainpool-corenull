@@ -61,25 +61,22 @@ export default function RoomPage() {
   const roomId = params.id as string
 
   const [room, setRoom] = useState<Room | null>(null)
-  const [house, setHouse] = useState<House | null>(null)
-  const [posts, setPosts] = useState<Post[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [isMember, setIsMember] = useState(false)
-  const [showShare, setShowShare] = useState(false)
-  // 수정 후
-  const [ownerKey, setOwnerKey] = useState('')
-  // useEffect 안에 추가
-  setOwnerKey(getDeviceId())
+const [house, setHouse] = useState<House | null>(null)
+const [posts, setPosts] = useState<Post[]>([])
+const [loading, setLoading] = useState(true)
+const [error, setError] = useState<string | null>(null)
+const [isMember, setIsMember] = useState(false)
+const [showShare, setShowShare] = useState(false)
+const [ownerKey, setOwnerKey] = useState('')
 
-  const isOwner = house?.owner_key === ownerKey
-  const canWrite = isOwner || isMember
+const isOwner = house?.owner_key === ownerKey
+const canWrite = isOwner || isMember
 
-  useEffect(() => {
-  setOwnerKey(getDeviceId())  // ← 추가
+useEffect(() => {
+  setOwnerKey(getDeviceId())  // ← 이게 반드시 있어야 함
   if (!roomId) return
   fetchRoom()
-  }, [roomId])
+}, [roomId])
 
   async function fetchRoom() {
     setLoading(true)
