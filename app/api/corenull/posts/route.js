@@ -65,6 +65,19 @@ const handleGet = async (req, traceId) => {
     .in('type', ['post', 'seed', 'fruit'])
     .order('created_at', { ascending: false })
   if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
+
+  // CoreRing 번역 트리거 — pending 상태인 경우만, 비동기 (응답 속도 영향 없음)
+  if (insertPayload.translation_status === 'pending') {
+    const coreringUrl = process.env.CORERING_API_URL
+    if (coreringUrl) {
+      fetch(`${coreringUrl}/api/translate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message_id: data.id }),
+      }).catch(() => {})
+    }
+  }
+
   return Response.json({ data, traceId })
 }
 
