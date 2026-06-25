@@ -65,19 +65,6 @@ const handleGet = async (req, traceId) => {
     .in('type', ['post', 'seed', 'fruit'])
     .order('created_at', { ascending: false })
   if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
-
-  // CoreRing 번역 트리거 — pending 상태인 경우만, 비동기 (응답 속도 영향 없음)
-  if (insertPayload.translation_status === 'pending') {
-    const coreringUrl = process.env.CORERING_API_URL
-    if (coreringUrl) {
-      fetch(`${coreringUrl}/api/translate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message_id: data.id }),
-      }).catch(() => {})
-    }
-  }
-
   return Response.json({ data, traceId })
 }
 
@@ -103,7 +90,6 @@ const handlePost = async (req, traceId) => {
     relations: relations || {},
   }
 
-  // comment는 권한 체크 없이 작성 가능, 번역 토글 UI도 없음 → 번역 큐 제외
   if (messageType !== 'comment') {
     const { data: room, error: roomError } = await supabase
       .from('corenull_rooms')
@@ -135,7 +121,6 @@ const handlePost = async (req, traceId) => {
       return Response.json({ _error: 'not_authorized', traceId }, { status: 500 })
     }
 
-    // 번역 큐 초기화 — CoreRing Worker가 비동기로 채움
     const sourceLang = house?.primary_language || 'ko'
     insertPayload.language = sourceLang
     insertPayload.translated_ko = null
@@ -147,8 +132,20 @@ const handlePost = async (req, traceId) => {
     .insert(insertPayload)
     .select()
     .single()
-
   if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
+
+  // CoreRing 번역 트리거 — pending 상태인 경우만, 비동기
+  if (insertPayload.translation_status === 'pending') {
+    const coreringUrl = process.env.CORERING_API_URL
+    if (coreringUrl) {
+      fetch(`${coreringUrl}/api/translate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message_id: data.id }),
+      }).catch(() => {})
+    }
+  }
+
   return Response.json({ data, traceId })
 }
 
@@ -191,7 +188,6 @@ const handlePatch = async (req, traceId) => {
   if (action === 'rebirth') {
     const newContent = content || original.content
     const sourceLang = original.language || 'ko'
-
     const { data, error } = await supabase
       .from('messages')
       .insert({
