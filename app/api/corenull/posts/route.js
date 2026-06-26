@@ -62,7 +62,7 @@ const handleGet = async (req, traceId) => {
     .from('messages')
     .select('*')
     .eq('room_id', room_id)
-    .in('type', ['post', 'seed', 'fruit'])
+    .in('type', ['post', 'fruit'])
     .order('created_at', { ascending: false })
   if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
   return Response.json({ data, traceId })
@@ -134,15 +134,41 @@ const handlePost = async (req, traceId) => {
     .single()
   if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
 
+  const coreringUrl = process.env.CORERING_API_URL
+
   // CoreRing 번역 트리거 — pending 상태인 경우만, 비동기
-  if (insertPayload.translation_status === 'pending') {
-    const coreringUrl = process.env.CORERING_API_URL
-    if (coreringUrl) {
-      fetch(`${coreringUrl}/api/translate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message_id: data.id }),
-      }).catch(() => {})
+  if (insertPayload.translation_status === 'pending' && coreringUrl) {
+    fetch(`${coreringUrl}/api/translate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message_id: data.id }),
+    }).catch(() => {})
+  }
+
+  // CoreRing Push 알림 — 댓글 작성 시 원글 작성자에게 알림
+  if (messageType === 'comment' && coreringUrl) {
+    const parentId = relations?.parent_id
+    if (parentId) {
+      // 원글 작성자 조회
+      const { data: parentPost } = await supabase
+        .from('messages')
+        .select('owner_key, content')
+        .eq('id', parentId)
+        .single()
+
+      // 원글 작성자 ≠ 댓글 작성자인 경우만 알림
+      if (parentPost?.owner_key && parentPost.owner_key !== owner_key) {
+        fetch(`${coreringUrl}/api/push/send`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user_id: parentPost.owner_key,
+            title: '💬 새 댓글',
+            body: content.slice(0, 50),
+            url: `/posts/${parentId}`,
+          }),
+        }).catch(() => {})
+      }
     }
   }
 
