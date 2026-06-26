@@ -2,19 +2,24 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-
 import { getDeviceId } from '@/lib/deviceId'
-
-const OWNER_KEY = getDeviceId()
+import ShareModal from '@/components/corenull/ShareModal'
 
 export default function HouseDetailPage() {
   const { houseId } = useParams()
   const router = useRouter()
+
+  const [ownerKey, setOwnerKey] = useState('')
   const [house, setHouse] = useState<any>(null)
   const [rooms, setRooms] = useState([])
   const [loading, setLoading] = useState(true)
+  const [showShare, setShowShare] = useState(false)
+  const [inviteUrl, setInviteUrl] = useState('')
+  const [inviteLoading, setInviteLoading] = useState(false)
 
   useEffect(() => {
+    const key = getDeviceId()
+    setOwnerKey(key)
     if (!houseId) return
     Promise.all([
       fetch(`/api/corenull/houses?house_id=${houseId}`).then(r => r.json()),
@@ -25,6 +30,24 @@ export default function HouseDetailPage() {
       setLoading(false)
     })
   }, [houseId])
+
+  const isOwner = house?.owner_key === ownerKey
+
+  const handleInvite = async () => {
+    if (inviteLoading) return
+    setInviteLoading(true)
+    const res = await fetch('/api/corenull/invite', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ house_id: houseId, owner_key: ownerKey }),
+    })
+    const data = await res.json()
+    if (data.data?.invite_token) {
+      setInviteUrl(`https://corenull.vercel.app/invite/${data.data.invite_token}`)
+      setShowShare(true)
+    }
+    setInviteLoading(false)
+  }
 
   if (loading) return <div style={styles.loading}>🏡</div>
   if (!house) return <div style={styles.loading}>집을 찾을 수 없어요</div>
@@ -41,7 +64,18 @@ export default function HouseDetailPage() {
       <div style={styles.header}>
         <button style={styles.backBtn} onClick={() => router.back()}>←</button>
         <span style={styles.headerTitle}>{house.title}</span>
-        <button style={styles.iconBtn}>⚙️</button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {isOwner && (
+            <button
+              style={styles.iconBtn}
+              onClick={handleInvite}
+              disabled={inviteLoading}
+            >
+              {inviteLoading ? '⏳' : '🔗'}
+            </button>
+          )}
+          <button style={styles.iconBtn}>⚙️</button>
+        </div>
       </div>
 
       {/* 집 커버 */}
@@ -57,7 +91,6 @@ export default function HouseDetailPage() {
       </div>
 
       <div style={styles.body}>
-        {/* 방 목록 */}
         <div style={styles.sectionTitle}>방</div>
 
         {rooms.length === 0 ? (
@@ -89,14 +122,32 @@ export default function HouseDetailPage() {
           </div>
         )}
 
-        {/* 방 만들기 버튼 */}
         <button
           style={styles.addRoomBtn}
           onClick={() => router.push('/write')}
         >
           + 방 만들기
         </button>
+
+        {/* 집주인만 보이는 초대 버튼 */}
+        {isOwner && (
+          <button
+            style={styles.inviteBtn}
+            onClick={handleInvite}
+            disabled={inviteLoading}
+          >
+            {inviteLoading ? '⏳ 링크 생성 중...' : '🔗 이웃 초대하기'}
+          </button>
+        )}
       </div>
+
+      {showShare && inviteUrl && (
+        <ShareModal
+          url={inviteUrl}
+          title={`${house.title} 초대`}
+          onClose={() => setShowShare(false)}
+        />
+      )}
     </div>
   )
 }
@@ -162,5 +213,12 @@ const styles: Record<string, React.CSSProperties> = {
     width: '100%', padding: '14px',
     background: '#FEFCF8', border: '1px dashed rgba(92,61,46,0.2)',
     borderRadius: 14, fontSize: 14, color: '#9A8470', cursor: 'pointer',
+    marginBottom: 8,
+  },
+  inviteBtn: {
+    width: '100%', padding: '14px',
+    background: 'rgba(74,82,64,0.08)', border: '1px solid rgba(74,82,64,0.2)',
+    borderRadius: 14, fontSize: 14, color: '#4A5240',
+    fontWeight: 500, cursor: 'pointer',
   },
 }
