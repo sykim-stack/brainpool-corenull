@@ -49,20 +49,20 @@ export default function HouseDetailPage() {
     setInviteLoading(false)
   }
 
-  if (loading) return <div style={styles.loading}>?猷?/div>
-  if (!house) return <div style={styles.loading}>筌욌쵐??筌≪뼚??????곷선??/div>
+  if (loading) return <div style={styles.loading}>🏡</div>
+  if (!house) return <div style={styles.loading}>집을 찾을 수 없어요</div>
 
-  const langFlag = house.primary_language === 'ko' ? '?????
-    : house.primary_language === 'vi' ? '?????
-    : house.primary_language === 'en' ? '?????
-    : house.primary_language === 'ja' ? '?????
-    : house.primary_language === 'zh' ? '????? : '???
+  const langFlag = house.primary_language === 'ko' ? '🇰🇷'
+    : house.primary_language === 'vi' ? '🇻🇳'
+    : house.primary_language === 'en' ? '🇺🇸'
+    : house.primary_language === 'ja' ? '🇯🇵'
+    : house.primary_language === 'zh' ? '🇨🇳' : '🌐'
 
   return (
     <div>
-      {/* ??삳쐭 */}
+      {/* 헤더 */}
       <div style={styles.header}>
-        <button style={styles.backBtn} onClick={() => router.back()}>??/button>
+        <button style={styles.backBtn} onClick={() => router.back()}>←</button>
         <span style={styles.headerTitle}>{house.title}</span>
         <div style={{ display: 'flex', gap: 8 }}>
           {isOwner && (
@@ -71,16 +71,16 @@ export default function HouseDetailPage() {
               onClick={handleInvite}
               disabled={inviteLoading}
             >
-              {inviteLoading ? '?? : '?逾?}
+              {inviteLoading ? '...' : '🔗'}
             </button>
           )}
-          <button style={styles.iconBtn}>??뗮닔</button>
+          <button style={styles.iconBtn}>⚙️</button>
         </div>
       </div>
 
-      {/* 筌??뚣끇苡?*/}
+      {/* 집 커버 */}
       <div style={styles.cover}>
-        <div style={styles.coverEmoji}>?猷?/div>
+        <div style={styles.coverEmoji}>🏡</div>
         <div>
           <div style={styles.coverTitle}>{house.title}</div>
           <div style={styles.coverLang}>{langFlag} {house.primary_language}</div>
@@ -91,12 +91,12 @@ export default function HouseDetailPage() {
       </div>
 
       <div style={styles.body}>
-        <div style={styles.sectionTitle}>獄?/div>
+        <div style={styles.sectionTitle}>방</div>
 
         {rooms.length === 0 ? (
           <div style={styles.emptyCard}>
-            <div style={{ fontSize: 32, marginBottom: 8 }}>???/div>
-            <div style={styles.emptyText}>?袁⑹춦 獄쎻뫗????곷선??/div>
+            <div style={{ fontSize: 32, marginBottom: 8 }}>🚪</div>
+            <div style={styles.emptyText}>아직 방이 없어요</div>
           </div>
         ) : (
           <div style={styles.roomList}>
@@ -107,16 +107,16 @@ export default function HouseDetailPage() {
                 onClick={() => router.push(`/rooms/${room.id}`)}
               >
                 <div style={styles.roomIcon}>
-                  {room.seed_mode ? '??? : '???}
+                  {room.seed_mode ? '🌱' : '🚪'}
                 </div>
                 <div style={styles.roomInfo}>
                   <div style={styles.roomName}>{room.room_name}</div>
                   <div style={styles.roomMeta}>
-                    {room.visibility === 'public' ? '????⑤벀而? : room.visibility === 'friend' ? '?維?燁살뮄?? : '?維??낆쐣?굿?낆쐣?揶쎛鈺?}
-                    {room.seed_mode && ' 夷??????λ리'}
+                    {room.visibility === 'public' ? '🌍 공개' : room.visibility === 'friend' ? '👥 친구' : '👨‍👩‍👧 가족'}
+                    {room.seed_mode && ' · 🌱 씨앗'}
                   </div>
                 </div>
-                <span style={styles.roomArrow}>??/span>
+                <span style={styles.roomArrow}>›</span>
               </div>
             ))}
           </div>
@@ -126,16 +126,16 @@ export default function HouseDetailPage() {
           style={styles.addRoomBtn}
           onClick={() => router.push('/write')}
         >
-          + 獄?筌띾슢諭얏묾?        </button>
+          + 방 만들기
+        </button>
 
-        {/* 筌욌쵐竊?紐껋춸 癰귣똻????λ뜄? 甕곌쑵??*/}
         {isOwner && (
           <button
             style={styles.inviteBtn}
             onClick={handleInvite}
             disabled={inviteLoading}
           >
-            {inviteLoading ? '??筌띻낱寃???밴쉐 餓?..' : '?逾???곸뜍 ?λ뜄???띾┛'}
+            {inviteLoading ? '초대 링크 생성 중...' : '🔗 이웃 초대하기'}
           </button>
         )}
       </div>
@@ -143,7 +143,7 @@ export default function HouseDetailPage() {
       {showShare && inviteUrl && (
         <ShareModal
           url={inviteUrl}
-          title={`${house.title} ?λ뜄?`}
+          title={`${house.title} 초대`}
           onClose={() => setShowShare(false)}
         />
       )}
