@@ -1,4 +1,5 @@
 'use client'
+'use client'
 
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
@@ -49,18 +50,18 @@ export default function HouseDetailPage() {
     setInviteLoading(false)
   }
 
-  if (loading) return <div style={styles.loading}>?룪</div>
-  if (!house) return <div style={styles.loading}>吏묒쓣 李얠쓣 ???놁뼱??/div>
+  if (loading) return <div style={styles.loading}>?猷?/div>
+  if (!house) return <div style={styles.loading}>筌욌쵐??筌≪뼚??????곷선??/div>
 
-  const langFlag = house.primary_language === 'ko' ? '?눖?눟'
-    : house.primary_language === 'vi' ? '?눤?눛'
-    : house.primary_language === 'en' ? '?눣?눡'
-    : house.primary_language === 'ja' ? '?눓?눝'
-    : house.primary_language === 'zh' ? '?눊?눛' : '?뙋'
+  const langFlag = house.primary_language === 'ko' ? '?????
+    : house.primary_language === 'vi' ? '?????
+    : house.primary_language === 'en' ? '?????
+    : house.primary_language === 'ja' ? '?????
+    : house.primary_language === 'zh' ? '????? : '???
 
   return (
     <div>
-      {/* ?ㅻ뜑 */}
+      {/* ??삳쐭 */}
       <div style={styles.header}>
         <button style={styles.backBtn} onClick={() => router.back()}>??/button>
         <span style={styles.headerTitle}>{house.title}</span>
@@ -71,16 +72,16 @@ export default function HouseDetailPage() {
               onClick={handleInvite}
               disabled={inviteLoading}
             >
-              {inviteLoading ? '?? : '?뵕'}
+              {inviteLoading ? '?? : '?逾?}
             </button>
           )}
-          <button style={styles.iconBtn}>?숋툘</button>
+          <button style={styles.iconBtn}>??뗮닔</button>
         </div>
       </div>
 
-      {/* 吏?而ㅻ쾭 */}
+      {/* 筌??뚣끇苡?*/}
       <div style={styles.cover}>
-        <div style={styles.coverEmoji}>?룪</div>
+        <div style={styles.coverEmoji}>?猷?/div>
         <div>
           <div style={styles.coverTitle}>{house.title}</div>
           <div style={styles.coverLang}>{langFlag} {house.primary_language}</div>
@@ -91,12 +92,12 @@ export default function HouseDetailPage() {
       </div>
 
       <div style={styles.body}>
-        <div style={styles.sectionTitle}>諛?/div>
+        <div style={styles.sectionTitle}>獄?/div>
 
         {rooms.length === 0 ? (
           <div style={styles.emptyCard}>
-            <div style={{ fontSize: 32, marginBottom: 8 }}>?슞</div>
-            <div style={styles.emptyText}>?꾩쭅 諛⑹씠 ?놁뼱??/div>
+            <div style={{ fontSize: 32, marginBottom: 8 }}>???/div>
+            <div style={styles.emptyText}>?袁⑹춦 獄쎻뫗????곷선??/div>
           </div>
         ) : (
           <div style={styles.roomList}>
@@ -107,13 +108,13 @@ export default function HouseDetailPage() {
                 onClick={() => router.push(`/rooms/${room.id}`)}
               >
                 <div style={styles.roomIcon}>
-                  {room.seed_mode ? '?뙮' : '?슞'}
+                  {room.seed_mode ? '??? : '???}
                 </div>
                 <div style={styles.roomInfo}>
                   <div style={styles.roomName}>{room.room_name}</div>
                   <div style={styles.roomMeta}>
-                    {room.visibility === 'public' ? '?뙇 怨듦컻' : room.visibility === 'friend' ? '?뫁 移쒓뎄' : '?뫅?랅윉⒱랅윉?媛議?}
-                    {room.seed_mode && ' 쨌 ?뙮 ?⑥븮'}
+                    {room.visibility === 'public' ? '????⑤벀而? : room.visibility === 'friend' ? '?維?燁살뮄?? : '?維??낆쐣?굿?낆쐣?揶쎛鈺?}
+                    {room.seed_mode && ' 夷??????λ리'}
                   </div>
                 </div>
                 <span style={styles.roomArrow}>??/span>
@@ -126,16 +127,16 @@ export default function HouseDetailPage() {
           style={styles.addRoomBtn}
           onClick={() => router.push('/write')}
         >
-          + 諛?留뚮뱾湲?        </button>
+          + 獄?筌띾슢諭얏묾?        </button>
 
-        {/* 吏묒＜?몃쭔 蹂댁씠??珥덈? 踰꾪듉 */}
+        {/* 筌욌쵐竊?紐껋춸 癰귣똻????λ뜄? 甕곌쑵??*/}
         {isOwner && (
           <button
             style={styles.inviteBtn}
             onClick={handleInvite}
             disabled={inviteLoading}
           >
-            {inviteLoading ? '??留곹겕 ?앹꽦 以?..' : '?뵕 ?댁썐 珥덈??섍린'}
+            {inviteLoading ? '??筌띻낱寃???밴쉐 餓?..' : '?逾???곸뜍 ?λ뜄???띾┛'}
           </button>
         )}
       </div>
@@ -143,7 +144,7 @@ export default function HouseDetailPage() {
       {showShare && inviteUrl && (
         <ShareModal
           url={inviteUrl}
-          title={`${house.title} 珥덈?`}
+          title={`${house.title} ?λ뜄?`}
           onClose={() => setShowShare(false)}
         />
       )}
