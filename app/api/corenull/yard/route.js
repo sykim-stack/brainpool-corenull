@@ -3,6 +3,8 @@
 // visibility = 'public' 인 방들의 포스트 전체 조회
 // room + house + seed 정보 join 포함
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
+export const revalidate = 0
 
 const handler = async (req) => {
   const traceId = crypto.randomUUID()
