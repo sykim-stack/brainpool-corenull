@@ -2,7 +2,6 @@
 // 마당 = public 방들의 포스트 피드
 // visibility = 'public' 인 방들의 포스트 전체 조회
 // room + house + seed 정보 join 포함
-
 export const dynamic = 'force-dynamic'
 
 const handler = async (req) => {
@@ -20,7 +19,6 @@ const handleGet = async (req, traceId) => {
   const supabase = getSupabase()
   if (!supabase) return Response.json({ _error: 'supabase_init_failed', traceId }, { status: 500 })
 
-  // public 방 + 집 정보 + seed 정보 함께 조회
   const { data: rooms, error: roomError } = await supabase
     .from('corenull_rooms')
     .select('id, room_name, house_id, seed_mode, bloom_date, corenull_houses(id, title, primary_language)')
@@ -59,7 +57,11 @@ const handleGet = async (req, traceId) => {
     _room: roomMap[post.room_id] || null,
   }))
 
-  return Response.json({ data, traceId })
+  return Response.json({ data, traceId }, {
+    headers: {
+      'Cache-Control': 'no-store, no-cache, must-revalidate',
+    }
+  })
 }
 
 export { handler as GET }
