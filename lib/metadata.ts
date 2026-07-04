@@ -1,53 +1,25 @@
 // lib/metadata.ts
-// CoreNull SEO 공통 메타데이터 생성
-// Section 15: public 데이터만 SEO 대상
-
 import type { Metadata } from 'next'
+import { getSupabase } from '@/lib/supabase'
 
 const BASE_URL = 'https://corenull.vercel.app'
 
-// ─── 공통 noindex ────────────────────────────────────────
 export const noindexMetadata: Metadata = {
   robots: { index: false, follow: false },
 }
 
-// ─── House ───────────────────────────────────────────────
-export async function getHouseMetadata(houseId: string): Promise<Metadata> {
-  try {
-    const res = await fetch(`${BASE_URL}/api/corenull/houses?house_id=${houseId}`, {
-      next: { revalidate: 3600 },
-    })
-    const data = await res.json()
-    const house = data.house
-    if (!house) return noindexMetadata
-
-    return {
-      title: house.title,
-      description: house.description || `${house.title} — CoreNull`,
-      openGraph: {
-        title: house.title,
-        description: house.description || `${house.title} — CoreNull`,
-        url: `${BASE_URL}/houses/${houseId}`,
-        type: 'website',
-      },
-    }
-  } catch {
-    return noindexMetadata
-  }
-}
-
-// ─── Room ────────────────────────────────────────────────
 export async function getRoomMetadata(roomId: string): Promise<Metadata> {
   try {
-    const res = await fetch(`${BASE_URL}/api/corenull/rooms?room_id=${roomId}`, {
-      next: { revalidate: 3600 },
-    })
-    const data = await res.json()
-    const room = data.room
-    if (!room) return noindexMetadata
+    const supabase = getSupabase()
+    if (!supabase) return noindexMetadata
 
-    // Section 15: public 아니면 noindex
-    if (room.visibility !== 'public') return noindexMetadata
+    const { data: room } = await supabase
+      .from('corenull_rooms')
+      .select('*')
+      .eq('id', roomId)
+      .single()
+
+    if (!room || room.visibility !== 'public') return noindexMetadata
 
     return {
       title: room.room_name,
@@ -64,24 +36,25 @@ export async function getRoomMetadata(roomId: string): Promise<Metadata> {
   }
 }
 
-// ─── Post ────────────────────────────────────────────────
 export async function getPostMetadata(postId: string): Promise<Metadata> {
   try {
-    const res = await fetch(`${BASE_URL}/api/corenull/posts?post_id=${postId}`, {
-      next: { revalidate: 3600 },
-    })
-    const data = await res.json()
-    const post = data.data
+    const supabase = getSupabase()
+    if (!supabase) return noindexMetadata
+
+    const { data: post } = await supabase
+      .from('messages')
+      .select('*')
+      .eq('id', postId)
+      .single()
+
     if (!post) return noindexMetadata
 
-    // 방 visibility 확인
-    const rRes = await fetch(`${BASE_URL}/api/corenull/rooms?room_id=${post.room_id}`, {
-      next: { revalidate: 3600 },
-    })
-    const rData = await rRes.json()
-    const room = rData.room
+    const { data: room } = await supabase
+      .from('corenull_rooms')
+      .select('visibility')
+      .eq('id', post.room_id)
+      .single()
 
-    // Section 15: public 방 아니면 noindex
     if (!room || room.visibility !== 'public') return noindexMetadata
 
     const preview = post.content?.slice(0, 100) || ''
@@ -96,6 +69,34 @@ export async function getPostMetadata(postId: string): Promise<Metadata> {
         url: `${BASE_URL}/posts/${postId}`,
         type: 'article',
         ...(firstImage ? { images: [{ url: firstImage.url }] } : {}),
+      },
+    }
+  } catch {
+    return noindexMetadata
+  }
+}
+
+export async function getHouseMetadata(houseId: string): Promise<Metadata> {
+  try {
+    const supabase = getSupabase()
+    if (!supabase) return noindexMetadata
+
+    const { data: house } = await supabase
+      .from('corenull_houses')
+      .select('*')
+      .eq('id', houseId)
+      .single()
+
+    if (!house) return noindexMetadata
+
+    return {
+      title: house.title,
+      description: house.description || `${house.title} — CoreNull`,
+      openGraph: {
+        title: house.title,
+        description: house.description || `${house.title} — CoreNull`,
+        url: `${BASE_URL}/houses/${houseId}`,
+        type: 'website',
       },
     }
   } catch {
