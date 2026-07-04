@@ -1,4 +1,4 @@
-﻿// CoreNull - Posts API
+// CoreNull - Posts API
 // Message type: post | comment | fruit
 // GET  ?post_id=   → 단건 조회
 // GET  ?room_id=   → 방 포스트 목록
@@ -122,6 +122,8 @@ const handlePost = async (req, traceId) => {
     }
 
     const sourceLang = house?.primary_language || 'ko'
+    insertPayload.house_id = room.house_id
+    insertPayload.house_id = room.house_id
     insertPayload.language = sourceLang
     insertPayload.translated_ko = null
     insertPayload.translation_status = sourceLang === 'ko' ? 'completed' : 'pending'
