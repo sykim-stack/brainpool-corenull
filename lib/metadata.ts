@@ -1,6 +1,7 @@
 // lib/metadata.ts
 import type { Metadata } from 'next'
 import { getSupabase } from '@/lib/supabase'
+import type { Tables } from './database.types'
 
 const BASE_URL = 'https://corenull.vercel.app'
 
@@ -17,18 +18,17 @@ export async function getRoomMetadata(roomId: string): Promise<Metadata> {
       .from('corenull_rooms')
       .select('*')
       .eq('id', roomId)
+      .returns<Tables<'corenull_rooms'>>()
       .single()
 
-    if (!room || (room as any).visibility !== 'public') return noindexMetadata
-
-    const roomName = (room as any).room_name || ''
+    if (!room || room.visibility !== 'public') return noindexMetadata
 
     return {
-      title: roomName,
-      description: `${roomName} — CoreNull`,
+      title: room.room_name ?? 'CoreNull',
+      description: `${room.room_name} — CoreNull`,
       openGraph: {
-        title: roomName,
-        description: `${roomName} — CoreNull`,
+        title: room.room_name ?? 'CoreNull',
+        description: `${room.room_name} — CoreNull`,
         url: `${BASE_URL}/rooms/${roomId}`,
         type: 'website',
       },
@@ -47,6 +47,7 @@ export async function getPostMetadata(postId: string): Promise<Metadata> {
       .from('messages')
       .select('*')
       .eq('id', postId)
+      .returns<Tables<'messages'>>()
       .single()
 
     if (!post) return noindexMetadata
@@ -54,16 +55,15 @@ export async function getPostMetadata(postId: string): Promise<Metadata> {
     const { data: room } = await supabase
       .from('corenull_rooms')
       .select('visibility')
-      .eq('id', (post as any).room_id)
+      .eq('id', post.room_id ?? '')
+      .returns<Pick<Tables<'corenull_rooms'>, 'visibility'>>()
       .single()
 
-    if (!room || (room as any).visibility !== 'public') return noindexMetadata
+    if (!room || room.visibility !== 'public') return noindexMetadata
 
-    const meta = (post as any).meta as any
-    const preview = ((post as any).content as string)?.slice(0, 100) || ''
-    const firstImage = Array.isArray(meta?.media)
-      ? meta.media.find((m: any) => m.type === 'image')
-      : null
+    const preview = post.content?.slice(0, 100) || ''
+    const meta = post.meta as { media?: { type: string; url: string }[] }
+    const firstImage = meta?.media?.find((m) => m.type === 'image')
 
     return {
       title: preview || 'CoreNull 이야기',
@@ -90,19 +90,17 @@ export async function getHouseMetadata(houseId: string): Promise<Metadata> {
       .from('corenull_houses')
       .select('*')
       .eq('id', houseId)
+      .returns<Tables<'corenull_houses'>>()
       .single()
 
     if (!house) return noindexMetadata
 
-    const title = (house as any).title || ''
-    const description = (house as any).description || `${title} — CoreNull`
-
     return {
-      title,
-      description,
+      title: house.title ?? 'CoreNull',
+      description: house.description || `${house.title} — CoreNull`,
       openGraph: {
-        title,
-        description,
+        title: house.title ?? 'CoreNull',
+        description: house.description || `${house.title} — CoreNull`,
         url: `${BASE_URL}/houses/${houseId}`,
         type: 'website',
       },
