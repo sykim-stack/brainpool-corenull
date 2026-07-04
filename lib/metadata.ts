@@ -19,14 +19,16 @@ export async function getRoomMetadata(roomId: string): Promise<Metadata> {
       .eq('id', roomId)
       .single()
 
-    if (!room || room.visibility !== 'public') return noindexMetadata
+    if (!room || (room as any).visibility !== 'public') return noindexMetadata
+
+    const roomName = (room as any).room_name || ''
 
     return {
-      title: room.room_name,
-      description: `${room.room_name} — CoreNull`,
+      title: roomName,
+      description: `${roomName} — CoreNull`,
       openGraph: {
-        title: room.room_name,
-        description: `${room.room_name} — CoreNull`,
+        title: roomName,
+        description: `${roomName} — CoreNull`,
         url: `${BASE_URL}/rooms/${roomId}`,
         type: 'website',
       },
@@ -52,13 +54,16 @@ export async function getPostMetadata(postId: string): Promise<Metadata> {
     const { data: room } = await supabase
       .from('corenull_rooms')
       .select('visibility')
-      .eq('id', post.room_id)
+      .eq('id', (post as any).room_id)
       .single()
 
-    if (!room || room.visibility !== 'public') return noindexMetadata
+    if (!room || (room as any).visibility !== 'public') return noindexMetadata
 
-    const preview = post.content?.slice(0, 100) || ''
-    const firstImage = post.meta?.media?.find((m: any) => m.type === 'image')
+    const meta = (post as any).meta as any
+    const preview = ((post as any).content as string)?.slice(0, 100) || ''
+    const firstImage = Array.isArray(meta?.media)
+      ? meta.media.find((m: any) => m.type === 'image')
+      : null
 
     return {
       title: preview || 'CoreNull 이야기',
@@ -89,12 +94,15 @@ export async function getHouseMetadata(houseId: string): Promise<Metadata> {
 
     if (!house) return noindexMetadata
 
+    const title = (house as any).title || ''
+    const description = (house as any).description || `${title} — CoreNull`
+
     return {
-      title: house.title,
-      description: house.description || `${house.title} — CoreNull`,
+      title,
+      description,
       openGraph: {
-        title: house.title,
-        description: house.description || `${house.title} — CoreNull`,
+        title,
+        description,
         url: `${BASE_URL}/houses/${houseId}`,
         type: 'website',
       },
