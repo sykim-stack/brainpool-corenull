@@ -1,7 +1,6 @@
 // lib/metadata.ts
 import type { Metadata } from 'next'
 import { getSupabase } from '@/lib/supabase'
-import type { Tables } from './database.types'
 
 const BASE_URL = 'https://corenull.vercel.app'
 
@@ -14,13 +13,13 @@ export async function getRoomMetadata(roomId: string): Promise<Metadata> {
     const supabase = getSupabase()
     if (!supabase) return noindexMetadata
 
-    const { data: room } = await supabase
+    const { data } = await supabase
       .from('corenull_rooms')
-      .select('*')
+      .select('room_name, visibility')
       .eq('id', roomId)
-      .returns<Tables<'corenull_rooms'>>()
       .single()
 
+    const room = data as { room_name: string | null; visibility: string } | null
     if (!room || room.visibility !== 'public') return noindexMetadata
 
     return {
@@ -43,27 +42,31 @@ export async function getPostMetadata(postId: string): Promise<Metadata> {
     const supabase = getSupabase()
     if (!supabase) return noindexMetadata
 
-    const { data: post } = await supabase
+    const { data: postData } = await supabase
       .from('messages')
-      .select('*')
+      .select('content, room_id, meta')
       .eq('id', postId)
-      .returns<Tables<'messages'>>()
       .single()
+
+    const post = postData as {
+      content: string
+      room_id: string | null
+      meta: { media?: { type: string; url: string }[] }
+    } | null
 
     if (!post) return noindexMetadata
 
-    const { data: room } = await supabase
+    const { data: roomData } = await supabase
       .from('corenull_rooms')
       .select('visibility')
       .eq('id', post.room_id ?? '')
-      .returns<Pick<Tables<'corenull_rooms'>, 'visibility'>>()
       .single()
 
+    const room = roomData as { visibility: string } | null
     if (!room || room.visibility !== 'public') return noindexMetadata
 
     const preview = post.content?.slice(0, 100) || ''
-    const meta = post.meta as { media?: { type: string; url: string }[] }
-    const firstImage = meta?.media?.find((m) => m.type === 'image')
+    const firstImage = post.meta?.media?.find((m) => m.type === 'image')
 
     return {
       title: preview || 'CoreNull 이야기',
@@ -86,13 +89,13 @@ export async function getHouseMetadata(houseId: string): Promise<Metadata> {
     const supabase = getSupabase()
     if (!supabase) return noindexMetadata
 
-    const { data: house } = await supabase
+    const { data } = await supabase
       .from('corenull_houses')
-      .select('*')
+      .select('title, description')
       .eq('id', houseId)
-      .returns<Tables<'corenull_houses'>>()
       .single()
 
+    const house = data as { title: string | null; description: string | null } | null
     if (!house) return noindexMetadata
 
     return {
