@@ -34,6 +34,15 @@ export async function getRoomMetadata(roomId: string): Promise<Metadata> {
 }
 
 export async function getPostMetadata(postId: string): Promise<Metadata> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY
+  
+  // 임시 디버그
+  if (!url || !key) {
+    return { title: 'ENV 없음', description: `url:${!!url} key:${!!key}` }
+  }
+  return { title: 'ENV 있음', description: postId }
+}
   try {
     const supabase = getSupabase()
     if (!supabase) return noindexMetadata
