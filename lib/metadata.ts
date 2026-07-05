@@ -38,6 +38,12 @@ export async function getRoomMetadata(roomId: string): Promise<Metadata> {
 }
 
 export async function getPostMetadata(postId: string): Promise<Metadata> {
+  // 임시 테스트
+  return {
+    title: '테스트 SEO',
+    description: '테스트 중',
+  }
+  
   try {
     const supabase = getSupabase()
     if (!supabase) return noindexMetadata
