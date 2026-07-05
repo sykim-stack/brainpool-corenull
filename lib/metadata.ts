@@ -38,6 +38,11 @@ export async function getRoomMetadata(roomId: string): Promise<Metadata> {
 }
 
 export async function getPostMetadata(postId: string): Promise<Metadata> {
+  return {
+    title: `포스트 ${postId.slice(0, 8)}`,
+    description: 'SEO 테스트 중',
+  }
+}
   try {
     const supabase = getSupabase()
     if (!supabase) return noindexMetadata
