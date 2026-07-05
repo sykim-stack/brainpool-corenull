@@ -1,6 +1,8 @@
 import { getPostMetadata } from '@/lib/metadata'
 import PostClient from './PostClient'
 
+export const revalidate = 3600
+
 export async function generateMetadata({ params }: { params: { postId: string } }) {
   return getPostMetadata(params.postId)
 }
