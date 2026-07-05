@@ -38,17 +38,13 @@ export async function getRoomMetadata(roomId: string): Promise<Metadata> {
 }
 
 export async function getPostMetadata(postId: string): Promise<Metadata> {
-  // 임시 테스트
-  return {
-    title: '테스트 SEO',
-    description: '테스트 중',
-  }
-  
   try {
     const supabase = getSupabase()
     if (!supabase) return noindexMetadata
 
-    const { data: postData } = await supabase
+    const supabaseClient = supabase  // narrowing 용
+
+    const { data: postData } = await supabaseClient
       .from('messages')
       .select('content, room_id, meta')
       .eq('id', postId)
@@ -62,7 +58,7 @@ export async function getPostMetadata(postId: string): Promise<Metadata> {
 
     if (!post) return noindexMetadata
 
-    const { data: roomData } = await supabase
+    const { data: roomData } = await supabaseClient
       .from('corenull_rooms')
       .select('visibility')
       .eq('id', post.room_id ?? '')
@@ -85,7 +81,8 @@ export async function getPostMetadata(postId: string): Promise<Metadata> {
         ...(firstImage ? { images: [{ url: firstImage.url }] } : {}),
       },
     }
-  } catch {
+  } catch (e) {
+    console.error('getPostMetadata error:', e)
     return noindexMetadata
   }
 }
@@ -114,8 +111,7 @@ export async function getHouseMetadata(houseId: string): Promise<Metadata> {
         type: 'website',
       },
     }
-  } catch (e) {
-    console.error('getPostMetadata error:', e)
+  } catch {
     return noindexMetadata
   }
 }
