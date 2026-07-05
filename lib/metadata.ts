@@ -108,7 +108,8 @@ export async function getHouseMetadata(houseId: string): Promise<Metadata> {
         type: 'website',
       },
     }
-  } catch {
+  } catch (e) {
+    console.error('getPostMetadata error:', e)
     return noindexMetadata
   }
 }
