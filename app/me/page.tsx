@@ -4,11 +4,15 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { getDeviceId } from '@/lib/deviceId'
 
-
 export default function MePage() {
   const [library, setLibrary] = useState<any>(null)
   const [ownerKey, setOwnerKey] = useState('')
   const [loading, setLoading] = useState(true)
+  const [syncCode, setSyncCode] = useState('')
+  const [syncExpiry, setSyncExpiry] = useState<Date | null>(null)
+  const [inputCode, setInputCode] = useState('')
+  const [syncMode, setSyncMode] = useState<'none' | 'show' | 'input'>('none')
+  const [syncMsg, setSyncMsg] = useState('')
   const router = useRouter()
 
   useEffect(() => {
@@ -21,6 +25,37 @@ export default function MePage() {
         setLoading(false)
       })
   }, [])
+
+  const handleGenerateCode = async () => {
+    if (!ownerKey) return
+    const res = await fetch('/api/identity?action=link-code', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ owner_key: ownerKey }),
+    })
+    const data = await res.json()
+    if (data.data?.code) {
+      setSyncCode(data.data.code)
+      setSyncExpiry(new Date(data.data.expires_at))
+      setSyncMode('show')
+    }
+  }
+
+  const handleConfirmCode = async () => {
+    if (!inputCode.trim()) return
+    const res = await fetch('/api/identity?action=link-confirm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: inputCode.trim() }),
+    })
+    const data = await res.json()
+    if (data.data?.owner_key) {
+      localStorage.setItem('corenull_device_id', data.data.owner_key)
+      setSyncMsg('✅ 동기화 완료! 페이지를 새로고침 해주세요.')
+    } else {
+      setSyncMsg('❌ ' + (data._error || '코드가 올바르지 않아요'))
+    }
+  }
 
   if (loading) return <div style={styles.loading}>👤</div>
 
@@ -104,6 +139,58 @@ export default function MePage() {
             <span style={styles.menuArrow}>›</span>
           </div>
         </div>
+
+        {/* 기기 동기화 */}
+        <div style={styles.menuSection}>
+          <div style={styles.syncHeader}>
+            <span style={styles.syncTitle}>📱 기기 동기화</span>
+            <span style={styles.syncDesc}>다른 기기에서 같은 계정으로 이어가기</span>
+          </div>
+
+          <div style={{ display: 'flex', gap: 8, padding: '0 16px 16px' }}>
+            <button
+              style={{ ...styles.syncBtn, ...(syncMode === 'show' ? styles.syncBtnActive : {}) }}
+              onClick={() => { setSyncMode('show'); handleGenerateCode() }}
+            >
+              코드 발급
+            </button>
+            <button
+              style={{ ...styles.syncBtn, ...(syncMode === 'input' ? styles.syncBtnActive : {}) }}
+              onClick={() => { setSyncMode('input'); setSyncCode(''); setSyncMsg('') }}
+            >
+              코드 입력
+            </button>
+          </div>
+
+          {/* 코드 표시 */}
+          {syncMode === 'show' && syncCode && (
+            <div style={styles.syncBox}>
+              <div style={styles.syncCode}>{syncCode}</div>
+              <div style={styles.syncExpiry}>
+                {syncExpiry ? `${syncExpiry.toLocaleTimeString('ko-KR')} 까지` : ''}
+              </div>
+              <div style={styles.syncHint}>새 기기에서 이 코드를 입력하세요 (5분 유효)</div>
+            </div>
+          )}
+
+          {/* 코드 입력 */}
+          {syncMode === 'input' && (
+            <div style={styles.syncBox}>
+              <input
+                style={styles.syncInput}
+                placeholder="6자리 코드 입력"
+                value={inputCode}
+                onChange={e => setInputCode(e.target.value)}
+                maxLength={6}
+                inputMode="numeric"
+              />
+              <button style={styles.syncConfirmBtn} onClick={handleConfirmCode}>
+                확인
+              </button>
+              {syncMsg && <div style={styles.syncMsg}>{syncMsg}</div>}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -173,4 +260,53 @@ const styles: Record<string, React.CSSProperties> = {
   menuLabel: { flex: 1, fontSize: 14, color: '#1C1208' },
   menuBadge: { fontSize: 12, color: '#9A8470', fontWeight: 500 },
   menuArrow: { fontSize: 16, color: '#9A8470' },
+  syncHeader: {
+    padding: '16px 16px 8px',
+    borderBottom: '1px solid rgba(92,61,46,0.08)',
+  },
+  syncTitle: {
+    display: 'block', fontSize: 14, fontWeight: 600, color: '#1C1208', marginBottom: 2,
+  },
+  syncDesc: {
+    display: 'block', fontSize: 11, color: '#9A8470',
+  },
+  syncBtn: {
+    flex: 1, padding: '10px', borderRadius: 10,
+    background: '#F5F0E8', border: '1px solid rgba(92,61,46,0.12)',
+    fontSize: 13, color: '#5C4A35', cursor: 'pointer',
+  },
+  syncBtnActive: {
+    background: '#2C1810', color: 'white', border: '1px solid #2C1810',
+  },
+  syncBox: {
+    padding: '0 16px 16px',
+    display: 'flex', flexDirection: 'column', gap: 8,
+  },
+  syncCode: {
+    fontSize: 36, fontWeight: 700, color: '#2C1810',
+    letterSpacing: 8, textAlign: 'center',
+    padding: '16px', background: '#F5F0E8', borderRadius: 12,
+  },
+  syncExpiry: {
+    fontSize: 11, color: '#9A8470', textAlign: 'center',
+  },
+  syncHint: {
+    fontSize: 12, color: '#5C4A35', textAlign: 'center',
+  },
+  syncInput: {
+    width: '100%', height: 48, textAlign: 'center',
+    background: '#F5F0E8', border: '1px solid rgba(92,61,46,0.12)',
+    borderRadius: 12, fontSize: 24, fontWeight: 700,
+    letterSpacing: 8, color: '#2C1810', outline: 'none',
+    boxSizing: 'border-box',
+  },
+  syncConfirmBtn: {
+    width: '100%', padding: '12px',
+    background: '#2C1810', color: 'white',
+    border: 'none', borderRadius: 12,
+    fontSize: 14, fontWeight: 600, cursor: 'pointer',
+  },
+  syncMsg: {
+    fontSize: 13, color: '#5C4A35', textAlign: 'center',
+  },
 }
