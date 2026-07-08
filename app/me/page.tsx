@@ -113,7 +113,7 @@ export default function MePage() {
             <span style={styles.menuBadge}>{library?.my_posts?.length || 0}</span>
             <span style={styles.menuArrow}>›</span>
           </div>
-          <div style={styles.menuItem}>
+          <div style={styles.menuItem} onClick={() => router.push('/me/footprints')}>
             <div style={{ ...styles.menuIcon, background: 'rgba(200,213,185,0.4)' }}>👣</div>
             <span style={styles.menuLabel}>발자취</span>
             <span style={styles.menuBadge}>{library?.footprints?.length || 0}</span>
