@@ -1,9 +1,7 @@
 'use client'
 
-import { useRouter, useSearchParams } from 'next/navigation'
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-
 import { getDeviceId } from '@/lib/deviceId'
 
 const LANG_FLAG: Record<string, string> = {
