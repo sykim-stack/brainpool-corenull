@@ -34,42 +34,39 @@ export default function WritePage() {
   const router = useRouter()
   const today = new Date().toISOString().split('T')[0]
 
-  useEffect(() => {
-  const key = getDeviceId()
-  setOwnerKey(key)
-  
-  const searchParams = new URLSearchParams(window.location.search)
-  const preselectedRoomId = searchParams.get('room_id')
+ useEffect(() => {
+    const key = getDeviceId()
+    setOwnerKey(key)
 
-  fetch(`/api/corenull/houses?owner_key=${key}`)
-    .then(r => r.json())
-    .then(async d => {
-      const houseList = d.data || []
-      setHouses(houseList)
-      if (houseList.length === 0) return
+    const preselectedRoomId = new URLSearchParams(window.location.search).get('room_id')
 
-      if (preselectedRoomId) {
-        // room_id 파라미터 있으면 해당 방 속한 집 찾기
-        for (const house of houseList) {
-          const r = await fetch(`/api/corenull/rooms?house_id=${house.id}`)
-          const rd = await r.json()
-          const roomList = rd.data || []
-          const found = roomList.find((rm: any) => rm.id === preselectedRoomId)
-          if (found) {
-            setSelectedHouse(house)
-            setRooms(roomList)
-            setSelectedRoom(found)
-            return
+    fetch(`/api/corenull/houses?owner_key=${key}`)
+      .then(r => r.json())
+      .then(async d => {
+        const houseList = d.data || []
+        setHouses(houseList)
+        if (houseList.length === 0) return
+
+        if (preselectedRoomId) {
+          for (const house of houseList) {
+            const r = await fetch(`/api/corenull/rooms?house_id=${house.id}`)
+            const rd = await r.json()
+            const roomList = rd.data || []
+            const found = roomList.find((rm: any) => rm.id === preselectedRoomId)
+            if (found) {
+              setSelectedHouse(house)
+              setRooms(roomList)
+              setSelectedRoom(found)
+              return
+            }
           }
         }
-      }
 
-      // 기본: 첫 번째 집
-      const house = houseList[0]
-      setSelectedHouse(house)
-      await loadRooms(house.id)
-    })
-}, [])
+        const house = houseList[0]
+        setSelectedHouse(house)
+        await loadRooms(house.id)
+      })
+  }, [])
 
   const loadRooms = async (houseId: string) => {
     const r = await fetch(`/api/corenull/rooms?house_id=${houseId}`)
