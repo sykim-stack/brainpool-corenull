@@ -128,6 +128,20 @@ export default function PostDetailPage() {
       </div>
 
       <div style={styles.body}>
+        {(house || room) && (
+          <div style={styles.spaceRow}>
+            {house && (
+              <span style={styles.spaceHouse}>🏡 {house.title}</span>
+            )}
+            {house && room && <span style={styles.spaceSep}>·</span>}
+            {room && (
+              <span style={styles.spaceRoom}>{room.room_name}</span>
+            )}
+            {room?.seed_mode && (
+              <span style={styles.seedTag}>🌱 씨앗</span>
+            )}
+          </div>
+        )}
         <div style={styles.authorRow}>
           <div style={styles.avatar}>🌿</div>
           <span style={styles.authorName}>작성자</span>
@@ -317,5 +331,18 @@ const styles: Record<string, React.CSSProperties> = {
   commentSubmit: {
     width: 40, height: 40, borderRadius: '50%',
     background: '#2C1810', color: 'white', border: 'none', fontSize: 18, cursor: 'pointer',
+  },
+  spaceRow: {
+  display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10,
+  },
+  spaceHouse: {
+    fontSize: 12, fontWeight: 500, color: '#4A5240',
+    background: 'rgba(74,82,64,0.1)', padding: '3px 8px', borderRadius: 20,
+  },
+  spaceSep: { fontSize: 11, color: '#9A8470' },
+  spaceRoom: { fontSize: 12, color: '#5C4A35' },
+  seedTag: {
+    fontSize: 11, color: '#C17F3C',
+    background: 'rgba(193,127,60,0.1)', padding: '2px 6px', borderRadius: 10,
   },
 }
