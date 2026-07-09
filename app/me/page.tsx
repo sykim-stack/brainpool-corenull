@@ -8,6 +8,7 @@ export default function MePage() {
   const [library, setLibrary] = useState<any>(null)
   const [ownerKey, setOwnerKey] = useState('')
   const [loading, setLoading] = useState(true)
+  const [myHouses, setMyHouses] = useState<any[]>([])
   const [syncCode, setSyncCode] = useState('')
   const [syncExpiry, setSyncExpiry] = useState<Date | null>(null)
   const [inputCode, setInputCode] = useState('')
@@ -15,21 +16,18 @@ export default function MePage() {
   const [syncMsg, setSyncMsg] = useState('')
   const router = useRouter()
 
-  const [myHouses, setMyHouses] = useState<any[]>([])
-
-    useEffect(() => {
-      const key = getDeviceId()
-      setOwnerKey(key)
-      
-      Promise.all([
-        fetch(`/api/corenull/library?owner_key=${key}`).then(r => r.json()),
-        fetch(`/api/corenull/houses?owner_key=${key}`).then(r => r.json()),
-      ]).then(([lib, h]) => {
-        setLibrary(lib.data)
-        setMyHouses(h.data || [])
-        setLoading(false)
-      })
-      }, [])
+  useEffect(() => {
+    const key = getDeviceId()
+    setOwnerKey(key)
+    Promise.all([
+      fetch(`/api/corenull/library?owner_key=${key}`).then(r => r.json()),
+      fetch(`/api/corenull/houses?owner_key=${key}`).then(r => r.json()),
+    ]).then(([lib, h]) => {
+      setLibrary(lib.data)
+      setMyHouses(h.data || [])
+      setLoading(false)
+    })
+  }, [])
 
   const handleGenerateCode = async () => {
     if (!ownerKey) return
@@ -62,11 +60,16 @@ export default function MePage() {
     }
   }
 
+  const handleHouseManage = () => {
+    if (myHouses.length === 1) router.push(`/houses/${myHouses[0].id}`)
+    else if (myHouses.length > 1) router.push('/')
+    else router.push('/houses/create')
+  }
+
   if (loading) return <div style={styles.loading}>👤</div>
 
   return (
     <div>
-      {/* 헤더 */}
       <div style={styles.header}>
         <span style={styles.headerTitle}>나</span>
         <button style={styles.iconBtn}>⚙️</button>
@@ -100,7 +103,7 @@ export default function MePage() {
           </div>
         </div>
 
-        {/* 메뉴 */}
+        {/* 메뉴 1 */}
         <div style={styles.menuSection}>
           <div style={styles.menuItem} onClick={() => router.push('/me/library')}>
             <div style={{ ...styles.menuIcon, background: 'rgba(74,82,64,0.12)' }}>📚</div>
@@ -132,12 +135,14 @@ export default function MePage() {
           </div>
         </div>
 
-        <div style={styles.menuItem} onClick={() => {
-            // 집이 1개면 바로 이동, 여러 개면 첫 번째 집으로
-            const firstHouse = library?.my_houses?.[0]
-            if (firstHouse) router.push(`/houses/${firstHouse.id}`)
-            else router.push('/houses/create')
-          }}>
+        {/* 메뉴 2 */}
+        <div style={styles.menuSection}>
+          <div style={styles.menuItem} onClick={handleHouseManage}>
+            <div style={{ ...styles.menuIcon, background: 'rgba(193,127,60,0.12)' }}>🏡</div>
+            <span style={styles.menuLabel}>내 집 관리</span>
+            <span style={styles.menuBadge}>{myHouses.length > 0 ? myHouses.length : ''}</span>
+            <span style={styles.menuArrow}>›</span>
+          </div>
           <div style={styles.menuItem}>
             <div style={{ ...styles.menuIcon, background: 'rgba(200,213,185,0.4)' }}>⚙️</div>
             <span style={styles.menuLabel}>설정</span>
@@ -151,34 +156,23 @@ export default function MePage() {
             <span style={styles.syncTitle}>📱 기기 동기화</span>
             <span style={styles.syncDesc}>다른 기기에서 같은 계정으로 이어가기</span>
           </div>
-
           <div style={{ display: 'flex', gap: 8, padding: '0 16px 16px' }}>
             <button
               style={{ ...styles.syncBtn, ...(syncMode === 'show' ? styles.syncBtnActive : {}) }}
               onClick={() => { setSyncMode('show'); handleGenerateCode() }}
-            >
-              코드 발급
-            </button>
+            >코드 발급</button>
             <button
               style={{ ...styles.syncBtn, ...(syncMode === 'input' ? styles.syncBtnActive : {}) }}
               onClick={() => { setSyncMode('input'); setSyncCode(''); setSyncMsg('') }}
-            >
-              코드 입력
-            </button>
+            >코드 입력</button>
           </div>
-
-          {/* 코드 표시 */}
           {syncMode === 'show' && syncCode && (
             <div style={styles.syncBox}>
               <div style={styles.syncCode}>{syncCode}</div>
-              <div style={styles.syncExpiry}>
-                {syncExpiry ? `${syncExpiry.toLocaleTimeString('ko-KR')} 까지` : ''}
-              </div>
+              <div style={styles.syncExpiry}>{syncExpiry ? `${syncExpiry.toLocaleTimeString('ko-KR')} 까지` : ''}</div>
               <div style={styles.syncHint}>새 기기에서 이 코드를 입력하세요 (5분 유효)</div>
             </div>
           )}
-
-          {/* 코드 입력 */}
           {syncMode === 'input' && (
             <div style={styles.syncBox}>
               <input
@@ -189,9 +183,7 @@ export default function MePage() {
                 maxLength={6}
                 inputMode="numeric"
               />
-              <button style={styles.syncConfirmBtn} onClick={handleConfirmCode}>
-                확인
-              </button>
+              <button style={styles.syncConfirmBtn} onClick={handleConfirmCode}>확인</button>
               {syncMsg && <div style={styles.syncMsg}>{syncMsg}</div>}
             </div>
           )}
@@ -202,10 +194,7 @@ export default function MePage() {
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  loading: {
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    height: '50vh', fontSize: 40,
-  },
+  loading: { display: 'flex', alignItems: 'center', justifyContent: 'center', height: '50vh', fontSize: 40 },
   header: {
     position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)',
     width: '100%', maxWidth: '430px', height: 56,
@@ -213,17 +202,11 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
     padding: '0 20px', zIndex: 100, backdropFilter: 'blur(12px)',
   },
-  headerTitle: {
-    fontFamily: "'Noto Serif KR', serif", fontSize: 18, fontWeight: 600, color: '#2C1810',
-  },
-  iconBtn: {
-    width: 36, height: 36, borderRadius: '50%', background: '#F5F0E8',
-    border: 'none', fontSize: 16, cursor: 'pointer',
-  },
+  headerTitle: { fontFamily: "'Noto Serif KR', serif", fontSize: 18, fontWeight: 600, color: '#2C1810' },
+  iconBtn: { width: 36, height: 36, borderRadius: '50%', background: '#F5F0E8', border: 'none', fontSize: 16, cursor: 'pointer' },
   body: { padding: '16px' },
   profileCard: {
-    background: '#FEFCF8', borderRadius: 20,
-    border: '1px solid rgba(92,61,46,0.12)',
+    background: '#FEFCF8', borderRadius: 20, border: '1px solid rgba(92,61,46,0.12)',
     padding: '20px', display: 'flex', alignItems: 'center', gap: 16,
     marginBottom: 12, boxShadow: '0 2px 20px rgba(44,24,16,0.08)',
   },
@@ -232,86 +215,54 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'linear-gradient(135deg, #4A5240, #C17F3C)',
     display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28,
   },
-  profileName: {
-    fontFamily: "'Noto Serif KR', serif", fontSize: 18, fontWeight: 600, color: '#2C1810',
-  },
+  profileName: { fontFamily: "'Noto Serif KR', serif", fontSize: 18, fontWeight: 600, color: '#2C1810' },
   profileDevice: { fontSize: 11, color: '#9A8470', marginTop: 4 },
   statsRow: {
-    background: '#FEFCF8', borderRadius: 16,
-    border: '1px solid rgba(92,61,46,0.12)',
+    background: '#FEFCF8', borderRadius: 16, border: '1px solid rgba(92,61,46,0.12)',
     padding: '16px', display: 'flex', alignItems: 'center',
     marginBottom: 12, boxShadow: '0 2px 20px rgba(44,24,16,0.08)',
   },
-  statItem: {
-    flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-  },
+  statItem: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 },
   statNum: { fontSize: 22, fontWeight: 600, color: '#2C1810' },
   statLabel: { fontSize: 11, color: '#9A8470' },
   statDivider: { width: 1, height: 32, background: 'rgba(92,61,46,0.12)' },
   menuSection: {
-    background: '#FEFCF8', borderRadius: 16,
-    border: '1px solid rgba(92,61,46,0.12)',
+    background: '#FEFCF8', borderRadius: 16, border: '1px solid rgba(92,61,46,0.12)',
     overflow: 'hidden', marginBottom: 12,
   },
   menuItem: {
     display: 'flex', alignItems: 'center', gap: 14,
-    padding: '14px 16px', borderBottom: '1px solid rgba(92,61,46,0.08)',
-    cursor: 'pointer',
+    padding: '14px 16px', borderBottom: '1px solid rgba(92,61,46,0.08)', cursor: 'pointer',
   },
-  menuIcon: {
-    width: 36, height: 36, borderRadius: 10,
-    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
-  },
+  menuIcon: { width: 36, height: 36, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 },
   menuLabel: { flex: 1, fontSize: 14, color: '#1C1208' },
   menuBadge: { fontSize: 12, color: '#9A8470', fontWeight: 500 },
   menuArrow: { fontSize: 16, color: '#9A8470' },
-  syncHeader: {
-    padding: '16px 16px 8px',
-    borderBottom: '1px solid rgba(92,61,46,0.08)',
-  },
-  syncTitle: {
-    display: 'block', fontSize: 14, fontWeight: 600, color: '#1C1208', marginBottom: 2,
-  },
-  syncDesc: {
-    display: 'block', fontSize: 11, color: '#9A8470',
-  },
+  syncHeader: { padding: '16px 16px 8px', borderBottom: '1px solid rgba(92,61,46,0.08)' },
+  syncTitle: { display: 'block', fontSize: 14, fontWeight: 600, color: '#1C1208', marginBottom: 2 },
+  syncDesc: { display: 'block', fontSize: 11, color: '#9A8470' },
   syncBtn: {
     flex: 1, padding: '10px', borderRadius: 10,
     background: '#F5F0E8', border: '1px solid rgba(92,61,46,0.12)',
     fontSize: 13, color: '#5C4A35', cursor: 'pointer',
   },
-  syncBtnActive: {
-    background: '#2C1810', color: 'white', border: '1px solid #2C1810',
-  },
-  syncBox: {
-    padding: '0 16px 16px',
-    display: 'flex', flexDirection: 'column', gap: 8,
-  },
+  syncBtnActive: { background: '#2C1810', color: 'white', border: '1px solid #2C1810' },
+  syncBox: { padding: '0 16px 16px', display: 'flex', flexDirection: 'column', gap: 8 },
   syncCode: {
     fontSize: 36, fontWeight: 700, color: '#2C1810',
-    letterSpacing: 8, textAlign: 'center',
-    padding: '16px', background: '#F5F0E8', borderRadius: 12,
+    letterSpacing: 8, textAlign: 'center', padding: '16px', background: '#F5F0E8', borderRadius: 12,
   },
-  syncExpiry: {
-    fontSize: 11, color: '#9A8470', textAlign: 'center',
-  },
-  syncHint: {
-    fontSize: 12, color: '#5C4A35', textAlign: 'center',
-  },
+  syncExpiry: { fontSize: 11, color: '#9A8470', textAlign: 'center' },
+  syncHint: { fontSize: 12, color: '#5C4A35', textAlign: 'center' },
   syncInput: {
     width: '100%', height: 48, textAlign: 'center',
     background: '#F5F0E8', border: '1px solid rgba(92,61,46,0.12)',
     borderRadius: 12, fontSize: 24, fontWeight: 700,
-    letterSpacing: 8, color: '#2C1810', outline: 'none',
-    boxSizing: 'border-box',
+    letterSpacing: 8, color: '#2C1810', outline: 'none', boxSizing: 'border-box',
   },
   syncConfirmBtn: {
-    width: '100%', padding: '12px',
-    background: '#2C1810', color: 'white',
-    border: 'none', borderRadius: 12,
-    fontSize: 14, fontWeight: 600, cursor: 'pointer',
+    width: '100%', padding: '12px', background: '#2C1810', color: 'white',
+    border: 'none', borderRadius: 12, fontSize: 14, fontWeight: 600, cursor: 'pointer',
   },
-  syncMsg: {
-    fontSize: 13, color: '#5C4A35', textAlign: 'center',
-  },
+  syncMsg: { fontSize: 13, color: '#5C4A35', textAlign: 'center' },
 }
