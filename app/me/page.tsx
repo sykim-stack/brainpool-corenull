@@ -15,16 +15,21 @@ export default function MePage() {
   const [syncMsg, setSyncMsg] = useState('')
   const router = useRouter()
 
-  useEffect(() => {
-    const key = getDeviceId()
-    setOwnerKey(key)
-    fetch(`/api/corenull/library?owner_key=${key}`)
-      .then(r => r.json())
-      .then(d => {
-        setLibrary(d.data)
+  const [myHouses, setMyHouses] = useState<any[]>([])
+
+    useEffect(() => {
+      const key = getDeviceId()
+      setOwnerKey(key)
+      
+      Promise.all([
+        fetch(`/api/corenull/library?owner_key=${key}`).then(r => r.json()),
+        fetch(`/api/corenull/houses?owner_key=${key}`).then(r => r.json()),
+      ]).then(([lib, h]) => {
+        setLibrary(lib.data)
+        setMyHouses(h.data || [])
         setLoading(false)
       })
-  }, [])
+      }, [])
 
   const handleGenerateCode = async () => {
     if (!ownerKey) return
@@ -127,12 +132,11 @@ export default function MePage() {
           </div>
         </div>
 
-        <div style={styles.menuSection}>
-          <div style={styles.menuItem}>
-            <div style={{ ...styles.menuIcon, background: 'rgba(193,127,60,0.12)' }}>🏡</div>
-            <span style={styles.menuLabel}>내 집 관리</span>
-            <span style={styles.menuArrow}>›</span>
-          </div>
+        <div style={styles.menuItem} onClick={() => {
+            if (myHouses.length === 1) router.push(`/houses/${myHouses[0].id}`)
+            else if (myHouses.length > 1) router.push('/')
+            else router.push('/houses/create')
+          }}>
           <div style={styles.menuItem}>
             <div style={{ ...styles.menuIcon, background: 'rgba(200,213,185,0.4)' }}>⚙️</div>
             <span style={styles.menuLabel}>설정</span>
