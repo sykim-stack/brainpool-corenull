@@ -4,17 +4,21 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { getDeviceId } from '@/lib/deviceId'
 
+const LANG_FLAG: Record<string, string> = {
+  ko: '🇰🇷', vi: '🇻🇳', en: '🇺🇸', ja: '🇯🇵', zh: '🇨🇳',
+}
+
 export default function HomePage() {
   const router = useRouter()
-  const [houses, setHouses] = useState([])
-  const [footprints, setFootprints] = useState([])
+  const [houses, setHouses] = useState<any[]>([])
+  const [footprints, setFootprints] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const OWNER_KEY = getDeviceId()
+    const ownerKey = getDeviceId()
     Promise.all([
-      fetch(`/api/corenull/houses?owner_key=${OWNER_KEY}`).then(r => r.json()),
-      fetch(`/api/corenull/footprints?owner_key=${OWNER_KEY}`).then(r => r.json()),
+      fetch(`/api/corenull/houses?owner_key=${ownerKey}`).then(r => r.json()),
+      fetch(`/api/corenull/footprints?owner_key=${ownerKey}`).then(r => r.json()),
     ]).then(([h, f]) => {
       setHouses(h.data || [])
       setFootprints(f.data || [])
@@ -45,24 +49,29 @@ export default function HomePage() {
         </div>
       ) : (
         <>
-          {houses.map((house: any) => (
-            <div key={house.id} style={styles.houseCard} onClick={() => router.push(`/houses/${house.id}`)}>
-              <div style={styles.houseCover}>
-                <span style={{ fontSize: 32 }}>🏡</span>
-                <div>
-                  <div style={styles.houseName}>{house.title}</div>
-                  <div style={styles.houseLang}>
-                    {house.primary_language === 'ko' ? '🇰🇷'
-                      : house.primary_language === 'vi' ? '🇻🇳'
-                      : house.primary_language === 'en' ? '🇺🇸'
-                      : house.primary_language === 'ja' ? '🇯🇵'
-                      : house.primary_language === 'zh' ? '🇨🇳' : '🌐'
-                    } {house.primary_language}
+          {houses.map((house: any) => {
+            const rooms = house.corenull_rooms || []
+            return (
+              <div
+                key={house.id}
+                style={styles.houseCard}
+                onClick={() => router.push(`/houses/${house.id}`)}
+              >
+                <div style={styles.houseCover}>
+                  <span style={{ fontSize: 32 }}>🏡</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={styles.houseName}>{house.title}</div>
+                    <div style={styles.houseLang}>
+                      {LANG_FLAG[house.primary_language] || '🌐'} {house.primary_language}
+                    </div>
                   </div>
+                  {rooms.length > 0 && (
+                    <div style={styles.roomCount}>{rooms.length}개의 방</div>
+                  )}
                 </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
 
           <div style={{ padding: '0 16px', marginTop: 4, marginBottom: 8 }}>
             <button style={styles.addHouseBtn} onClick={() => router.push('/houses/create')}>
@@ -76,7 +85,7 @@ export default function HomePage() {
       {footprints.length > 0 && (
         <>
           <div style={styles.sectionTitle}>최근 방문</div>
-          <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
             {footprints.slice(0, 5).map((fp: any) => (
               <div
                 key={fp.id}
@@ -86,12 +95,13 @@ export default function HomePage() {
                 <div style={styles.visitIcon}>👣</div>
                 <div style={{ flex: 1 }}>
                   <div style={styles.visitRoom}>
-                    {fp.corenull_rooms?.room_name || fp.room_id}
+                    {fp.corenull_rooms?.room_name || '방'}
                   </div>
                   <div style={styles.visitTime}>
                     {new Date(fp.visited_at).toLocaleDateString('ko-KR')}
                   </div>
                 </div>
+                <span style={{ fontSize: 16, color: '#9A8470' }}>›</span>
               </div>
             ))}
           </div>
@@ -102,6 +112,7 @@ export default function HomePage() {
 }
 
 const styles: Record<string, React.CSSProperties> = {
+  loading: { display: 'flex', alignItems: 'center', justifyContent: 'center', height: '50vh', fontSize: 40 },
   header: {
     position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)',
     width: '100%', maxWidth: '430px', height: 56,
@@ -109,13 +120,8 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
     padding: '0 20px', zIndex: 100, backdropFilter: 'blur(12px)',
   },
-  logo: {
-    fontFamily: "'Noto Serif KR', serif", fontSize: 18, fontWeight: 600, color: '#2C1810',
-  },
-  iconBtn: {
-    width: 36, height: 36, borderRadius: '50%', background: '#F5F0E8',
-    border: 'none', fontSize: 16, cursor: 'pointer',
-  },
+  logo: { fontFamily: "'Noto Serif KR', serif", fontSize: 18, fontWeight: 600, color: '#2C1810' },
+  iconBtn: { width: 36, height: 36, borderRadius: '50%', background: '#F5F0E8', border: 'none', fontSize: 16, cursor: 'pointer' },
   sectionTitle: {
     fontSize: 11, color: '#9A8470', letterSpacing: '1px',
     textTransform: 'uppercase', padding: '20px 20px 10px',
@@ -123,8 +129,7 @@ const styles: Record<string, React.CSSProperties> = {
   houseCard: {
     margin: '0 16px 12px', background: '#FEFCF8',
     borderRadius: 16, border: '1px solid rgba(92,61,46,0.12)',
-    overflow: 'hidden', boxShadow: '0 2px 20px rgba(44,24,16,0.08)',
-    cursor: 'pointer',
+    overflow: 'hidden', boxShadow: '0 2px 20px rgba(44,24,16,0.08)', cursor: 'pointer',
   },
   houseCover: {
     height: 100, background: 'linear-gradient(135deg, #4A5240 0%, #7A8C6E 60%, #C8D5B9 100%)',
@@ -135,10 +140,14 @@ const styles: Record<string, React.CSSProperties> = {
     color: 'white', textShadow: '0 1px 4px rgba(0,0,0,0.3)',
   },
   houseLang: { fontSize: 11, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
+  roomCount: {
+    fontSize: 11, color: 'rgba(255,255,255,0.8)',
+    background: 'rgba(0,0,0,0.2)', padding: '3px 8px', borderRadius: 10,
+    alignSelf: 'flex-end',
+  },
   emptyCard: {
     margin: '0 16px', background: '#FEFCF8', borderRadius: 16,
-    border: '1px dashed rgba(92,61,46,0.2)', padding: '32px 20px',
-    textAlign: 'center',
+    border: '1px dashed rgba(92,61,46,0.2)', padding: '32px 20px', textAlign: 'center',
   },
   emptyText: { fontSize: 14, color: '#9A8470', marginBottom: 16 },
   createBtn: {
@@ -152,8 +161,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   visitItem: {
     background: '#FEFCF8', borderRadius: 12, border: '1px solid rgba(92,61,46,0.12)',
-    padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12,
-    cursor: 'pointer',
+    padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer',
   },
   visitIcon: {
     width: 40, height: 40, borderRadius: 10,
@@ -162,8 +170,4 @@ const styles: Record<string, React.CSSProperties> = {
   },
   visitRoom: { fontSize: 13, color: '#1C1208', fontWeight: 500 },
   visitTime: { fontSize: 11, color: '#9A8470', marginTop: 2 },
-  loading: {
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    height: '50vh', fontSize: 40,
-  },
 }
