@@ -133,8 +133,9 @@ export default function MePage() {
         </div>
 
         <div style={styles.menuItem} onClick={() => {
-            if (myHouses.length === 1) router.push(`/houses/${myHouses[0].id}`)
-            else if (myHouses.length > 1) router.push('/')
+            // 집이 1개면 바로 이동, 여러 개면 첫 번째 집으로
+            const firstHouse = library?.my_houses?.[0]
+            if (firstHouse) router.push(`/houses/${firstHouse.id}`)
             else router.push('/houses/create')
           }}>
           <div style={styles.menuItem}>
