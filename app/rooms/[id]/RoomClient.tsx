@@ -5,11 +5,12 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { getDeviceId } from '@/lib/deviceId'
 import ShareModal from '@/components/corenull/ShareModal'
+import RoomSettingsModal from '@/components/corenull/RoomSettingsModal'
 
 type Room = {
   id: string
   room_name: string
-  visibility: 'public' | 'private'
+  visibility: 'public' | 'invite' | 'family'
   seed_mode: boolean
   bloom_date: string | null
   slug: string | null
@@ -67,6 +68,7 @@ export default function RoomPage() {
   const [error, setError] = useState<string | null>(null)
   const [isMember, setIsMember] = useState(false)
   const [showShare, setShowShare] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
   const [ownerKey, setOwnerKey] = useState('')
 
   const isOwner = house?.owner_key === ownerKey
@@ -142,7 +144,7 @@ export default function RoomPage() {
               {room.room_name}
             </h1>
             <span style={visibilityBadge(room.visibility)}>
-              {room.visibility === 'public' ? '공개' : '비공개'}
+              {room.visibility === 'public' ? '공개' : room.visibility === 'invite' ? '이웃공개' : '가족'}
             </span>
             {room.seed_mode && <span style={seedBadge}>🌱 씨앗</span>}
           </div>
@@ -154,6 +156,9 @@ export default function RoomPage() {
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <button style={shareBtnStyle} onClick={() => setShowShare(true)}>🔗</button>
+          {isOwner && (
+            <button style={shareBtnStyle} onClick={() => setShowSettings(true)}>⚙️</button>
+          )}
           {canWrite && (
             <Link href={`/write?room_id=${roomId}`} style={writeBtnStyle}>+ 글쓰기</Link>
           )}
@@ -199,6 +204,20 @@ export default function RoomPage() {
           url={`https://corenull.vercel.app/rooms/${roomId}`}
           title={room.room_name}
           onClose={() => setShowShare(false)}
+        />
+      )}
+
+      {showSettings && (
+        <RoomSettingsModal
+          roomId={room.id}
+          roomName={room.room_name}
+          visibility={room.visibility}
+          ownerKey={ownerKey}
+          onClose={() => setShowSettings(false)}
+          onUpdate={(updated) => {
+            setRoom(prev => prev ? { ...prev, ...updated } : prev)
+            setShowSettings(false)
+          }}
         />
       )}
     </div>
@@ -296,8 +315,8 @@ const imgWrap: React.CSSProperties = {
 function visibilityBadge(v: string): React.CSSProperties {
   return {
     fontSize: '10px', padding: '2px 7px', borderRadius: '10px',
-    background: v === 'public' ? '#e8f0e4' : '#f0ece8',
-    color: v === 'public' ? '#4A5240' : '#5C3D2E', fontWeight: 600,
+    background: v === 'public' ? '#e8f0e4' : v === 'invite' ? '#e8edf4' : '#f0ece8',
+    color: v === 'public' ? '#4A5240' : v === 'invite' ? '#3A5278' : '#5C3D2E', fontWeight: 600,
   }
 }
 const seedBadge: React.CSSProperties = {
