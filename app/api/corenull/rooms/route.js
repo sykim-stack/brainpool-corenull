@@ -1,4 +1,3 @@
-$content = @'
 // CoreNull - Room API
 // 방 생성 / 조회 / 수정 (집주인만 가능)
 export const dynamic = 'force-dynamic'
@@ -127,5 +126,3 @@ const handlePatch = async (req, traceId) => {
 }
 
 export { handler as GET, handler as POST, handler as PATCH }
-'@
-[System.IO.File]::WriteAllText("G:\brainpool-corenull\app\api\corenull\rooms\route.js", $content)
