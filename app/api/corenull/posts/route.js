@@ -4,8 +4,7 @@
 // GET  ?room_id=   → 방 포스트 목록
 // GET  ?parent_id= → 댓글 목록
 // POST             → 작성 (type 파라미터로 구분)
-// PATCH            → 상태 변경 (action: archive | rebirth | harvest)
-
+// PATCH            → 상태 변경 (action: archive | rebirth | harvest | edit | delete)
 export const dynamic = 'force-dynamic'
 
 const handler = async (req) => {
@@ -63,6 +62,7 @@ const handleGet = async (req, traceId) => {
     .select('*')
     .eq('room_id', room_id)
     .in('type', ['post', 'fruit'])
+    .not('meta', 'cs', '{"deleted":true}')
     .order('created_at', { ascending: false })
   if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
   return Response.json({ data, traceId })
@@ -123,7 +123,6 @@ const handlePost = async (req, traceId) => {
 
     const sourceLang = house?.primary_language || 'ko'
     insertPayload.house_id = room.house_id
-    insertPayload.house_id = room.house_id
     insertPayload.language = sourceLang
     insertPayload.translated_ko = null
     insertPayload.translation_status = sourceLang === 'ko' ? 'completed' : 'pending'
@@ -138,7 +137,6 @@ const handlePost = async (req, traceId) => {
 
   const coreringUrl = process.env.CORERING_API_URL
 
-  // CoreRing 번역 트리거 — pending 상태인 경우만, 비동기
   if (insertPayload.translation_status === 'pending' && coreringUrl) {
     fetch(`${coreringUrl}/api/translate`, {
       method: 'POST',
@@ -147,18 +145,14 @@ const handlePost = async (req, traceId) => {
     }).catch(() => {})
   }
 
-  // CoreRing Push 알림 — 댓글 작성 시 원글 작성자에게 알림
   if (messageType === 'comment' && coreringUrl) {
     const parentId = relations?.parent_id
     if (parentId) {
-      // 원글 작성자 조회
       const { data: parentPost } = await supabase
         .from('messages')
         .select('owner_key, content')
         .eq('id', parentId)
         .single()
-
-      // 원글 작성자 ≠ 댓글 작성자인 경우만 알림
       if (parentPost?.owner_key && parentPost.owner_key !== owner_key) {
         fetch(`${coreringUrl}/api/push/send`, {
           method: 'POST',
@@ -179,7 +173,7 @@ const handlePost = async (req, traceId) => {
 
 const handlePatch = async (req, traceId) => {
   const body = JSON.parse(await req.text())
-  const { post_id, owner_key, action, content, room_id } = body
+  const { post_id, owner_key, action, content, meta, room_id } = body
 
   if (!post_id || !owner_key || !action) {
     return Response.json({ _error: 'post_id_owner_key_action_required', traceId }, { status: 500 })
@@ -200,6 +194,34 @@ const handlePatch = async (req, traceId) => {
 
   if (original.owner_key !== owner_key) {
     return Response.json({ _error: 'not_authorized', traceId }, { status: 500 })
+  }
+
+  if (action === 'edit') {
+    if (!content) {
+      return Response.json({ _error: 'content_required', traceId }, { status: 500 })
+    }
+    const { data, error } = await supabase
+      .from('messages')
+      .update({
+        content,
+        meta: meta ? { ...(original.meta || {}), ...meta } : original.meta,
+      })
+      .eq('id', post_id)
+      .select()
+      .single()
+    if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
+    return Response.json({ data, traceId })
+  }
+
+  if (action === 'delete') {
+    const { data, error } = await supabase
+      .from('messages')
+      .update({ meta: { ...(original.meta || {}), deleted: true } })
+      .eq('id', post_id)
+      .select()
+      .single()
+    if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
+    return Response.json({ data, traceId })
   }
 
   if (action === 'archive') {
