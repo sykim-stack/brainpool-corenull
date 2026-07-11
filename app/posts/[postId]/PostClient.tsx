@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { getDeviceId } from '@/lib/deviceId'
 import ShareModal from '@/components/corenull/ShareModal'
+import MediaRenderer from '@/components/corenull/MediaRenderer'
 
 export default function PostDetailPage() {
   const { postId } = useParams()
@@ -62,12 +63,7 @@ export default function PostDetailPage() {
     const res = await fetch('/api/corenull/posts', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        post_id: postId,
-        owner_key: ownerKey,
-        action: 'edit',
-        content: editContent.trim(),
-      }),
+      body: JSON.stringify({ post_id: postId, owner_key: ownerKey, action: 'edit', content: editContent.trim() }),
     })
     const data = await res.json()
     if (data.data) {
@@ -83,16 +79,10 @@ export default function PostDetailPage() {
     const res = await fetch('/api/corenull/posts', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        post_id: postId,
-        owner_key: ownerKey,
-        action: 'delete',
-      }),
+      body: JSON.stringify({ post_id: postId, owner_key: ownerKey, action: 'delete' }),
     })
     const data = await res.json()
-    if (data.data) {
-      router.back()
-    }
+    if (data.data) router.back()
     setDeleting(false)
   }
 
@@ -103,12 +93,8 @@ export default function PostDetailPage() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        room_id: post.room_id,
-        owner_key: ownerKey,
-        type: 'fruit',
-        content: post.content,
-        meta: post.meta || {},
-        relations: { parent_id: postId },
+        room_id: post.room_id, owner_key: ownerKey, type: 'fruit',
+        content: post.content, meta: post.meta || {}, relations: { parent_id: postId },
       }),
     })
     const data = await res.json()
@@ -122,11 +108,7 @@ export default function PostDetailPage() {
     const res = await fetch('/api/corenull/posts', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        post_id: fruit.id,
-        owner_key: ownerKey,
-        action: 'harvest',
-      }),
+      body: JSON.stringify({ post_id: fruit.id, owner_key: ownerKey, action: 'harvest' }),
     })
     const data = await res.json()
     if (data.data) setFruit(data.data)
@@ -140,11 +122,8 @@ export default function PostDetailPage() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        room_id: post.room_id,
-        owner_key: ownerKey,
-        content: newComment.trim(),
-        type: 'comment',
-        relations: { parent_id: postId },
+        room_id: post.room_id, owner_key: ownerKey,
+        content: newComment.trim(), type: 'comment', relations: { parent_id: postId },
       }),
     })
     const data = await res.json()
@@ -159,7 +138,6 @@ export default function PostDetailPage() {
   if (!post) return <div style={styles.loading}>포스트를 찾을 수 없어요</div>
 
   const media = post.meta?.media || []
-  const firstMedia = media[0]
 
   return (
     <div>
@@ -193,18 +171,8 @@ export default function PostDetailPage() {
           <span style={styles.postTime}>{new Date(post.created_at).toLocaleDateString('ko-KR')}</span>
         </div>
 
-        {firstMedia?.type === 'image' && (
-          <div style={styles.mediaWrap}>
-            <img src={firstMedia.url} alt="" style={styles.mediaImg} />
-          </div>
-        )}
-        {firstMedia?.type === 'video' && (
-          <div style={styles.mediaVideo}>
-            <button style={styles.playBtn}>▶</button>
-          </div>
-        )}
+        <MediaRenderer media={media} />
 
-        {/* 수정 모드 */}
         {editMode ? (
           <div style={styles.editBox}>
             <textarea
@@ -214,11 +182,7 @@ export default function PostDetailPage() {
               autoFocus
             />
             <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                style={{ ...styles.editSaveBtn, opacity: editSaving ? 0.5 : 1 }}
-                onClick={handleEdit}
-                disabled={editSaving}
-              >
+              <button style={{ ...styles.editSaveBtn, opacity: editSaving ? 0.5 : 1 }} onClick={handleEdit} disabled={editSaving}>
                 {editSaving ? '저장 중...' : '저장'}
               </button>
               <button style={styles.editCancelBtn} onClick={() => setEditMode(false)}>취소</button>
@@ -242,18 +206,14 @@ export default function PostDetailPage() {
         {showFruitActions && !editMode && (
           <div style={styles.fruitSection}>
             {!fruit && (
-              <button
-                style={{ ...styles.fruitBtn, opacity: fruitLoading ? 0.5 : 1 }}
-                onClick={handleMakeFruit}
-                disabled={fruitLoading}
-              >🍎 열매로 만들기</button>
+              <button style={{ ...styles.fruitBtn, opacity: fruitLoading ? 0.5 : 1 }} onClick={handleMakeFruit} disabled={fruitLoading}>
+                🍎 열매로 만들기
+              </button>
             )}
             {fruit && !isHarvested && (
-              <button
-                style={{ ...styles.harvestBtn, opacity: fruitLoading ? 0.5 : 1 }}
-                onClick={handleHarvest}
-                disabled={fruitLoading}
-              >📚 서재에 수확하기</button>
+              <button style={{ ...styles.harvestBtn, opacity: fruitLoading ? 0.5 : 1 }} onClick={handleHarvest} disabled={fruitLoading}>
+                📚 서재에 수확하기
+              </button>
             )}
             {fruit && isHarvested && (
               <div style={styles.harvestedBadge}>
@@ -319,39 +279,17 @@ const styles: Record<string, React.CSSProperties> = {
   },
   backBtn: { fontSize: 20, color: '#2C1810', background: 'none', border: 'none', cursor: 'pointer' },
   headerTitle: { fontFamily: "'Noto Serif KR', serif", fontSize: 16, fontWeight: 600, color: '#2C1810' },
-  actionBtn: {
-    width: 36, height: 36, borderRadius: '50%',
-    background: '#F5F0E8', border: 'none', fontSize: 16, cursor: 'pointer',
-  },
+  actionBtn: { width: 36, height: 36, borderRadius: '50%', background: '#F5F0E8', border: 'none', fontSize: 16, cursor: 'pointer' },
   body: { padding: '16px 16px 80px' },
   spaceRow: { display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 },
-  spaceHouse: {
-    fontSize: 12, fontWeight: 500, color: '#4A5240',
-    background: 'rgba(74,82,64,0.1)', padding: '3px 8px', borderRadius: 20,
-  },
+  spaceHouse: { fontSize: 12, fontWeight: 500, color: '#4A5240', background: 'rgba(74,82,64,0.1)', padding: '3px 8px', borderRadius: 20 },
   spaceSep: { fontSize: 11, color: '#9A8470' },
   spaceRoom: { fontSize: 12, color: '#5C4A35' },
   seedTag: { fontSize: 11, color: '#C17F3C', background: 'rgba(193,127,60,0.1)', padding: '2px 6px', borderRadius: 10 },
   authorRow: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 },
-  avatar: {
-    width: 32, height: 32, borderRadius: '50%',
-    background: 'linear-gradient(135deg, #5C3D2E, #C17F3C)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16,
-  },
+  avatar: { width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg, #5C3D2E, #C17F3C)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 },
   authorName: { fontSize: 14, fontWeight: 500, color: '#1C1208', flex: 1 },
   postTime: { fontSize: 11, color: '#9A8470' },
-  mediaWrap: { width: '100%', borderRadius: 12, overflow: 'hidden', marginBottom: 16 },
-  mediaImg: { width: '100%', display: 'block' },
-  mediaVideo: {
-    width: '100%', height: 220, borderRadius: 12,
-    background: 'linear-gradient(160deg, #1a1a2e 0%, #2d4a3e 100%)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16,
-  },
-  playBtn: {
-    width: 56, height: 56, borderRadius: '50%',
-    background: 'rgba(255,255,255,0.2)', border: '2px solid rgba(255,255,255,0.4)',
-    fontSize: 22, cursor: 'pointer', color: 'white',
-  },
   content: { fontSize: 16, lineHeight: 1.8, color: '#1C1208', marginBottom: 16 },
   editBox: { marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 8 },
   editTextarea: {
@@ -361,47 +299,21 @@ const styles: Record<string, React.CSSProperties> = {
     fontFamily: "'Noto Sans KR', sans-serif", fontSize: 15, lineHeight: 1.7,
     color: '#1C1208', resize: 'none', outline: 'none', boxSizing: 'border-box',
   },
-  editSaveBtn: {
-    flex: 1, padding: '10px',
-    background: '#2C1810', color: 'white',
-    border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer',
-  },
-  editCancelBtn: {
-    flex: 1, padding: '10px',
-    background: '#F5F0E8', color: '#5C4A35',
-    border: 'none', borderRadius: 10, fontSize: 14, cursor: 'pointer',
-  },
-  translateToggle: {
-    display: 'flex', alignItems: 'center', gap: 6,
-    paddingTop: 12, borderTop: '1px solid rgba(92,61,46,0.12)',
-    cursor: 'pointer', width: 'fit-content', marginBottom: 8,
-  },
+  editSaveBtn: { flex: 1, padding: '10px', background: '#2C1810', color: 'white', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer' },
+  editCancelBtn: { flex: 1, padding: '10px', background: '#F5F0E8', color: '#5C4A35', border: 'none', borderRadius: 10, fontSize: 14, cursor: 'pointer' },
+  translateToggle: { display: 'flex', alignItems: 'center', gap: 6, paddingTop: 12, borderTop: '1px solid rgba(92,61,46,0.12)', cursor: 'pointer', width: 'fit-content', marginBottom: 8 },
   translateLabel: { fontSize: 12, color: '#C17F3C', fontWeight: 500 },
   translateResult: { fontSize: 14, lineHeight: 1.7, color: '#5C4A35', marginBottom: 16 },
   fruitSection: { marginTop: 16, paddingTop: 16, borderTop: '1px solid rgba(92,61,46,0.1)' },
-  fruitBtn: {
-    width: '100%', padding: '12px',
-    background: 'linear-gradient(135deg, #4A7C3F, #7AB648)',
-    color: 'white', border: 'none', borderRadius: 12, fontSize: 14, fontWeight: 600, cursor: 'pointer',
-  },
-  harvestBtn: {
-    width: '100%', padding: '12px',
-    background: 'linear-gradient(135deg, #C17F3C, #E8A857)',
-    color: 'white', border: 'none', borderRadius: 12, fontSize: 14, fontWeight: 600, cursor: 'pointer',
-  },
-  harvestedBadge: {
-    textAlign: 'center', padding: '10px', fontSize: 13, color: '#4A7C3F',
-    background: 'rgba(74,124,63,0.08)', borderRadius: 10,
-  },
+  fruitBtn: { width: '100%', padding: '12px', background: 'linear-gradient(135deg, #4A7C3F, #7AB648)', color: 'white', border: 'none', borderRadius: 12, fontSize: 14, fontWeight: 600, cursor: 'pointer' },
+  harvestBtn: { width: '100%', padding: '12px', background: 'linear-gradient(135deg, #C17F3C, #E8A857)', color: 'white', border: 'none', borderRadius: 12, fontSize: 14, fontWeight: 600, cursor: 'pointer' },
+  harvestedBadge: { textAlign: 'center', padding: '10px', fontSize: 13, color: '#4A7C3F', background: 'rgba(74,124,63,0.08)', borderRadius: 10 },
   divider: { height: 1, background: 'rgba(92,61,46,0.1)', margin: '16px 0' },
   commentCount: { fontSize: 13, fontWeight: 500, color: '#5C4A35', marginBottom: 12 },
   emptyComment: { fontSize: 13, color: '#9A8470', textAlign: 'center', padding: '24px 0' },
   commentList: { display: 'flex', flexDirection: 'column', gap: 12 },
   commentItem: { display: 'flex', gap: 10 },
-  commentAvatar: {
-    width: 28, height: 28, borderRadius: '50%', background: 'rgba(74,82,64,0.15)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0,
-  },
+  commentAvatar: { width: 28, height: 28, borderRadius: '50%', background: 'rgba(74,82,64,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0 },
   commentBody: { flex: 1 },
   commentContent: { fontSize: 14, lineHeight: 1.6, color: '#1C1208' },
   commentTime: { fontSize: 11, color: '#9A8470', marginTop: 3 },
@@ -411,17 +323,6 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'rgba(254,252,248,0.95)', borderTop: '1px solid rgba(92,61,46,0.12)',
     padding: '10px 16px', display: 'flex', gap: 8, backdropFilter: 'blur(12px)',
   },
-  commentField: {
-    flex: 1, height: 40, background: '#F5F0E8', border: '1px solid rgba(92,61,46,0.12)',
-    borderRadius: 20, padding: '0 14px',
-    fontFamily: "'Noto Sans KR', sans-serif", fontSize: 14, color: '#1C1208', outline: 'none',
-  },
-  commentSubmit: {
-    width: 40, height: 40, borderRadius: '50%',
-    background: '#2C1810', color: 'white', border: 'none', fontSize: 18, cursor: 'pointer',
-  },
-  shareBtn: {
-    width: 36, height: 36, borderRadius: '50%',
-    background: '#F5F0E8', border: 'none', fontSize: 16, cursor: 'pointer',
-  },
+  commentField: { flex: 1, height: 40, background: '#F5F0E8', border: '1px solid rgba(92,61,46,0.12)', borderRadius: 20, padding: '0 14px', fontFamily: "'Noto Sans KR', sans-serif", fontSize: 14, color: '#1C1208', outline: 'none' },
+  commentSubmit: { width: 40, height: 40, borderRadius: '50%', background: '#2C1810', color: 'white', border: 'none', fontSize: 18, cursor: 'pointer' },
 }
