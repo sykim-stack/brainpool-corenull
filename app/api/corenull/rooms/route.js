@@ -1,6 +1,16 @@
-// CoreNull - Room API
+﻿// CoreNull - Room API
 // 방 생성 / 조회 / 수정 (집주인만 가능)
 export const dynamic = 'force-dynamic'
+
+const COREHUB_URL = 'https://brainpool-corehub.vercel.app/api/corehub/facts'
+
+const pushFact = (fact) => {
+  fetch(COREHUB_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(fact),
+  }).catch(() => null) // fire-and-forget — 실패해도 CoreNull 영향 없음
+}
 
 const handler = async (req) => {
   const traceId = crypto.randomUUID()
@@ -81,6 +91,18 @@ const handlePost = async (req, traceId) => {
     .select()
     .single()
   if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
+
+  // CoreHub Fact Push — seed_mode인 경우만
+  if (data.seed_mode) {
+    pushFact({
+      source: 'CoreNull',
+      fact_type: 'space.seed.created',
+      owner_key,
+      house_id,
+      payload: { room_id: data.id, bloom_date: data.bloom_date || null },
+    })
+  }
+
   return Response.json({ data, traceId })
 }
 
