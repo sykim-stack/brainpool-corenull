@@ -5,7 +5,18 @@
 // GET  ?parent_id= → 댓글 목록
 // POST             → 작성 (type 파라미터로 구분)
 // PATCH            → 상태 변경 (action: archive | rebirth | harvest | edit | delete)
+
 export const dynamic = 'force-dynamic'
+
+const COREHUB_URL = 'https://brainpool-corehub.vercel.app/api/corehub/facts'
+
+const pushFact = (fact) => {
+  fetch(COREHUB_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(fact),
+  }).catch(() => null) // fire-and-forget
+}
 
 const handler = async (req) => {
   const traceId = crypto.randomUUID()
@@ -117,6 +128,7 @@ const handlePost = async (req, traceId) => {
         .single()
       isMember = !!member
     }
+
     if (!isOwner && !isMember) {
       return Response.json({ _error: 'not_authorized', traceId }, { status: 500 })
     }
@@ -135,8 +147,22 @@ const handlePost = async (req, traceId) => {
     .single()
   if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
 
-  const coreringUrl = process.env.CORERING_API_URL
+  // CoreHub Fact Push — fruit 생성 시
+  if (messageType === 'fruit') {
+    pushFact({
+      source: 'CoreNull',
+      fact_type: 'space.fruit.created',
+      owner_key,
+      house_id: insertPayload.house_id || null,
+      payload: {
+        post_id: data.id,
+        room_id,
+        parent_id: relations?.parent_id || null,
+      },
+    })
+  }
 
+  const coreringUrl = process.env.CORERING_API_URL
   if (insertPayload.translation_status === 'pending' && coreringUrl) {
     fetch(`${coreringUrl}/api/translate`, {
       method: 'POST',
@@ -276,6 +302,20 @@ const handlePatch = async (req, traceId) => {
       .select()
       .single()
     if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
+
+    // CoreHub Fact Push — harvest 성공 시
+    pushFact({
+      source: 'CoreNull',
+      fact_type: 'space.fruit.harvested',
+      owner_key,
+      house_id: original.house_id || null,
+      payload: {
+        post_id,
+        room_id: original.room_id,
+        harvested_at: data.harvested_at,
+      },
+    })
+
     return Response.json({ data, traceId })
   }
 
