@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { getDeviceId } from '@/lib/deviceId'
+import MediaRenderer from '@/components/corenull/MediaRenderer'
 
 const LANG_FLAG: Record<string, string> = {
   ko: '🇰🇷', vi: '🇻🇳', en: '🇺🇸', ja: '🇯🇵', zh: '🇨🇳',
@@ -36,7 +37,6 @@ export default function YardPage() {
 
   if (loading) return <div style={styles.loading}>🌳</div>
 
-  // 섹션 분리
   const bloomed = posts.filter(p => p._room?.seed_mode && isBloomed(p._room?.bloom_date))
   const seeds   = posts.filter(p => p._room?.seed_mode && !isBloomed(p._room?.bloom_date))
   const normal  = posts.filter(p => !p._room?.seed_mode)
@@ -57,46 +57,17 @@ export default function YardPage() {
           </div>
         ) : (
           <>
-            {/* 🌸 꽃 핀 씨앗 */}
             {bloomed.length > 0 && (
-              <Section
-                emoji="🌸"
-                title="꽃이 피었어요"
-                posts={bloomed}
-                ownerKey={ownerKey}
-                router={router}
-                accent="#C17F3C"
-                bg="rgba(193,127,60,0.06)"
-                border="rgba(193,127,60,0.2)"
-              />
+              <Section emoji="🌸" title="꽃이 피었어요" posts={bloomed} ownerKey={ownerKey} router={router}
+                accent="#C17F3C" bg="rgba(193,127,60,0.06)" border="rgba(193,127,60,0.2)" />
             )}
-
-            {/* 🌱 자라는 씨앗 */}
             {seeds.length > 0 && (
-              <Section
-                emoji="🌱"
-                title="자라는 씨앗"
-                posts={seeds}
-                ownerKey={ownerKey}
-                router={router}
-                accent="#4A5240"
-                bg="rgba(74,82,64,0.05)"
-                border="rgba(74,82,64,0.15)"
-              />
+              <Section emoji="🌱" title="자라는 씨앗" posts={seeds} ownerKey={ownerKey} router={router}
+                accent="#4A5240" bg="rgba(74,82,64,0.05)" border="rgba(74,82,64,0.15)" />
             )}
-
-            {/* 📝 일반 이야기 */}
             {normal.length > 0 && (
-              <Section
-                emoji="📝"
-                title="이야기"
-                posts={normal}
-                ownerKey={ownerKey}
-                router={router}
-                accent="#5C4A35"
-                bg="transparent"
-                border="transparent"
-              />
+              <Section emoji="📝" title="이야기" posts={normal} ownerKey={ownerKey} router={router}
+                accent="#5C4A35" bg="transparent" border="transparent" />
             )}
           </>
         )}
@@ -108,10 +79,7 @@ export default function YardPage() {
 function Section({ emoji, title, posts, ownerKey, router, accent, bg, border }: any) {
   return (
     <div style={{ marginBottom: 8 }}>
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 6,
-        padding: '10px 4px 8px',
-      }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 4px 8px' }}>
         <span style={{ fontSize: 16 }}>{emoji}</span>
         <span style={{ fontSize: 12, fontWeight: 600, color: accent, letterSpacing: '0.5px' }}>{title}</span>
         <span style={{ fontSize: 11, color: '#9A8470' }}>({posts.length})</span>
@@ -138,9 +106,6 @@ function PostCard({ post, ownerKey, onClick, sectionBg, sectionBorder }: any) {
   const [commentCount, setCommentCount] = useState(0)
 
   const media = post.meta?.media || []
-  const firstMedia = media[0]
-  const hasImage = firstMedia?.type === 'image'
-  const hasVideo = firstMedia?.type === 'video'
   const room = post._room
   const langFlag = room?.house_language ? (LANG_FLAG[room.house_language] || '🏡') : '🏡'
 
@@ -173,9 +138,7 @@ function PostCard({ post, ownerKey, onClick, sectionBg, sectionBorder }: any) {
           <span style={styles.spaceSep}>·</span>
           <span style={styles.spaceRoom}>{room?.room_name || '방'}</span>
           {room?.seed_mode && (
-            <span style={styles.seedTag}>
-              {isBloomed(room?.bloom_date) ? '🌸' : '🌱'}
-            </span>
+            <span style={styles.seedTag}>{isBloomed(room?.bloom_date) ? '🌸' : '🌱'}</span>
           )}
         </div>
         <div style={styles.authorRow}>
@@ -185,15 +148,10 @@ function PostCard({ post, ownerKey, onClick, sectionBg, sectionBorder }: any) {
         </div>
       </div>
 
-      {hasImage && (
-        <div style={styles.mediaImage}>
-          <img src={firstMedia.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-        </div>
-      )}
-      {hasVideo && (
-        <div style={styles.mediaVideo}>
-          <button style={styles.playBtn} onClick={e => e.stopPropagation()}>▶</button>
-          <div style={styles.videoDuration}>🎬</div>
+      {/* MediaRenderer — 클릭 이벤트 전파 차단 */}
+      {media.length > 0 && (
+        <div onClick={e => e.stopPropagation()} style={{ padding: '0 12px' }}>
+          <MediaRenderer media={media} />
         </div>
       )}
 
@@ -219,9 +177,7 @@ function PostCard({ post, ownerKey, onClick, sectionBg, sectionBorder }: any) {
         <button
           style={{ ...styles.bookmarkBtn, ...(bookmarked ? styles.bookmarked : {}) }}
           onClick={handleBookmark}
-        >
-          🔖
-        </button>
+        >🔖</button>
       </div>
     </div>
   )
@@ -245,58 +201,21 @@ const styles: Record<string, React.CSSProperties> = {
   },
   cardHeader: { padding: '14px 16px 10px' },
   spaceRow: { display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 },
-  spaceHouse: {
-    fontSize: 12, fontWeight: 500, color: '#4A5240',
-    background: 'rgba(74,82,64,0.1)', padding: '3px 8px', borderRadius: 20,
-  },
+  spaceHouse: { fontSize: 12, fontWeight: 500, color: '#4A5240', background: 'rgba(74,82,64,0.1)', padding: '3px 8px', borderRadius: 20 },
   spaceSep: { fontSize: 11, color: '#9A8470' },
   spaceRoom: { fontSize: 12, color: '#5C4A35' },
   seedTag: { fontSize: 12 },
   authorRow: { display: 'flex', alignItems: 'center', gap: 8 },
-  avatar: {
-    width: 28, height: 28, borderRadius: '50%',
-    background: 'linear-gradient(135deg, #5C3D2E, #C17F3C)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14,
-  },
+  avatar: { width: 28, height: 28, borderRadius: '50%', background: 'linear-gradient(135deg, #5C3D2E, #C17F3C)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 },
   authorName: { fontSize: 13, fontWeight: 500, color: '#1C1208', flex: 1 },
   postTime: { fontSize: 11, color: '#9A8470' },
-  mediaImage: { width: '100%', height: 220, overflow: 'hidden' },
-  mediaVideo: {
-    width: '100%', height: 220,
-    background: 'linear-gradient(160deg, #1a1a2e 0%, #2d4a3e 100%)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative',
-  },
-  playBtn: {
-    width: 56, height: 56, borderRadius: '50%',
-    background: 'rgba(255,255,255,0.2)', backdropFilter: 'blur(8px)',
-    border: '2px solid rgba(255,255,255,0.4)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    fontSize: 22, cursor: 'pointer', color: 'white',
-  },
-  videoDuration: {
-    position: 'absolute', bottom: 10, right: 12,
-    background: 'rgba(0,0,0,0.55)', color: 'white',
-    fontSize: 11, padding: '3px 7px', borderRadius: 6,
-  },
   cardBody: { padding: '12px 16px' },
   postText: { fontSize: 14, lineHeight: 1.7, color: '#1C1208' },
-  translateToggle: {
-    display: 'flex', alignItems: 'center', gap: 6, marginTop: 10,
-    paddingTop: 10, borderTop: '1px solid rgba(92,61,46,0.12)',
-    cursor: 'pointer', width: 'fit-content',
-  },
+  translateToggle: { display: 'flex', alignItems: 'center', gap: 6, marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(92,61,46,0.12)', cursor: 'pointer', width: 'fit-content' },
   translateLabel: { fontSize: 12, color: '#C17F3C', fontWeight: 500 },
   translateResult: { marginTop: 8, fontSize: 13, lineHeight: 1.65, color: '#5C4A35' },
   cardFooter: { padding: '10px 16px 14px', display: 'flex', alignItems: 'center', gap: 16 },
-  footerAction: {
-    display: 'flex', alignItems: 'center', gap: 5,
-    fontSize: 13, color: '#9A8470', border: 'none', background: 'none', cursor: 'pointer',
-  },
-  bookmarkBtn: {
-    width: 36, height: 36, borderRadius: '50%',
-    background: '#F5F0E8', border: 'none',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    fontSize: 16, cursor: 'pointer',
-  },
+  footerAction: { display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, color: '#9A8470', border: 'none', background: 'none', cursor: 'pointer' },
+  bookmarkBtn: { width: 36, height: 36, borderRadius: '50%', background: '#F5F0E8', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, cursor: 'pointer' },
   bookmarked: { background: 'rgba(193,127,60,0.12)' },
 }
