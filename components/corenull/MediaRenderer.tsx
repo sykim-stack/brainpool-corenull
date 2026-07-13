@@ -26,14 +26,12 @@ export default function MediaRenderer({ media }: MediaRendererProps) {
 
   return (
     <div style={styles.wrapper}>
-      {/* 이미지 1장 */}
       {images.length === 1 && (
         <div style={styles.single} onClick={() => setLightboxIndex(0)}>
           <img src={images[0].url} alt="" style={styles.imgFull} />
         </div>
       )}
 
-      {/* 이미지 여러 장 — 가로 스크롤 */}
       {images.length > 1 && (
         <div style={styles.scrollRow}>
           {images.map((m, idx) => (
@@ -44,14 +42,12 @@ export default function MediaRenderer({ media }: MediaRendererProps) {
         </div>
       )}
 
-      {/* 비디오 */}
       {videos.map((m, idx) => (
         <div key={idx} style={styles.videoWrap}>
           <video src={m.url} controls style={styles.video} />
         </div>
       ))}
 
-      {/* 기타 파일 */}
       {others.map((m, idx) => (
         <a key={idx} href={m.url} target="_blank" rel="noopener noreferrer" style={styles.fileLink}>
           <span style={styles.fileIcon}>
@@ -61,20 +57,27 @@ export default function MediaRenderer({ media }: MediaRendererProps) {
         </a>
       ))}
 
-      {/* Lightbox */}
       {lightboxIndex !== null && (
         <div style={styles.lightboxOverlay} onClick={() => setLightboxIndex(null)}>
           <button style={styles.lightboxClose} onClick={() => setLightboxIndex(null)}>✕</button>
+
+          {/* 왼쪽 버튼 */}
+          {images.length > 1 && lightboxIndex > 0 && (
+            <button style={styles.navLeft} onClick={e => { e.stopPropagation(); prevImage() }}>‹</button>
+          )}
+
+          {/* 이미지 */}
           <div style={styles.lightboxContent} onClick={e => e.stopPropagation()}>
             <img src={images[lightboxIndex].url} alt="" style={styles.lightboxImg} />
             {images.length > 1 && (
-              <div style={styles.lightboxNav}>
-                <button style={{ ...styles.navBtn, opacity: lightboxIndex === 0 ? 0.3 : 1 }} onClick={prevImage}>‹</button>
-                <span style={styles.navCount}>{lightboxIndex + 1} / {images.length}</span>
-                <button style={{ ...styles.navBtn, opacity: lightboxIndex === images.length - 1 ? 0.3 : 1 }} onClick={nextImage}>›</button>
-              </div>
+              <span style={styles.navCount}>{lightboxIndex + 1} / {images.length}</span>
             )}
           </div>
+
+          {/* 오른쪽 버튼 */}
+          {images.length > 1 && lightboxIndex < images.length - 1 && (
+            <button style={styles.navRight} onClick={e => { e.stopPropagation(); nextImage() }}>›</button>
+          )}
         </div>
       )}
     </div>
@@ -86,20 +89,13 @@ const styles: Record<string, React.CSSProperties> = {
   single: { width: '100%', cursor: 'pointer', borderRadius: 12, overflow: 'hidden' },
   imgFull: { width: '100%', display: 'block' },
   scrollRow: {
-    display: 'flex',
-    gap: 8,
-    overflowX: 'auto',
-    scrollSnapType: 'x mandatory',
-    paddingBottom: 4,
+    display: 'flex', gap: 8, overflowX: 'auto',
+    scrollSnapType: 'x mandatory', paddingBottom: 4,
   } as any,
   scrollItem: {
-    flexShrink: 0,
-    width: 260,
-    height: 260,
-    borderRadius: 12,
-    overflow: 'hidden',
-    cursor: 'pointer',
-    scrollSnapAlign: 'start',
+    flexShrink: 0, width: 260, height: 260,
+    borderRadius: 12, overflow: 'hidden',
+    cursor: 'pointer', scrollSnapAlign: 'start',
   },
   scrollImg: { width: '100%', height: '100%', objectFit: 'cover' },
   videoWrap: { borderRadius: 12, overflow: 'hidden', marginTop: 4 },
@@ -123,20 +119,24 @@ const styles: Record<string, React.CSSProperties> = {
     color: 'white', fontSize: 20, width: 40, height: 40,
     borderRadius: '50%', cursor: 'pointer', zIndex: 301,
   },
+  navLeft: {
+    position: 'absolute', left: 16,
+    background: 'rgba(255,255,255,0.2)', border: 'none',
+    color: 'white', fontSize: 32, width: 44, height: 44,
+    borderRadius: '50%', cursor: 'pointer', zIndex: 301,
+  },
+  navRight: {
+    position: 'absolute', right: 16,
+    background: 'rgba(255,255,255,0.2)', border: 'none',
+    color: 'white', fontSize: 32, width: 44, height: 44,
+    borderRadius: '50%', cursor: 'pointer', zIndex: 301,
+  },
   lightboxContent: {
-    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16,
+    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12,
     maxWidth: '90vw', maxHeight: '90vh',
   },
   lightboxImg: {
-    maxWidth: '90vw', maxHeight: '75vh', objectFit: 'contain', borderRadius: 8,
+    maxWidth: '90vw', maxHeight: '80vh', objectFit: 'contain', borderRadius: 8,
   },
-  lightboxNav: {
-    display: 'flex', alignItems: 'center', gap: 16,
-  },
-  navBtn: {
-    width: 40, height: 40, borderRadius: '50%',
-    background: 'rgba(255,255,255,0.2)', border: 'none',
-    color: 'white', fontSize: 24, cursor: 'pointer',
-  },
-  navCount: { fontSize: 14, color: 'rgba(255,255,255,0.8)' },
+  navCount: { fontSize: 13, color: 'rgba(255,255,255,0.7)' },
 }
