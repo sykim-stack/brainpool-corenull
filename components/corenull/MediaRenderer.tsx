@@ -13,7 +13,7 @@ interface MediaRendererProps {
 }
 
 export default function MediaRenderer({ media }: MediaRendererProps) {
-  const [lightbox, setLightbox] = useState<string | null>(null)
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
 
   if (!media || media.length === 0) return null
 
@@ -21,77 +21,39 @@ export default function MediaRenderer({ media }: MediaRendererProps) {
   const videos = media.filter(m => m.type === 'video')
   const others = media.filter(m => m.type !== 'image' && m.type !== 'video')
 
+  const prevImage = () => setLightboxIndex(prev => (prev !== null && prev > 0 ? prev - 1 : prev))
+  const nextImage = () => setLightboxIndex(prev => (prev !== null && prev < images.length - 1 ? prev + 1 : prev))
+
   return (
     <div style={styles.wrapper}>
-      {/* 이미지 레이아웃 */}
-      {images.length > 0 && (
-        <div style={styles.imageContainer}>
-          {images.length === 1 && (
-            <div style={styles.single} onClick={() => setLightbox(images[0].url)}>
-              <img src={images[0].url} alt="" style={styles.imgFull} />
+      {/* 이미지 1장 */}
+      {images.length === 1 && (
+        <div style={styles.single} onClick={() => setLightboxIndex(0)}>
+          <img src={images[0].url} alt="" style={styles.imgFull} />
+        </div>
+      )}
+
+      {/* 이미지 여러 장 — 가로 스크롤 */}
+      {images.length > 1 && (
+        <div style={styles.scrollRow}>
+          {images.map((m, idx) => (
+            <div key={idx} style={styles.scrollItem} onClick={() => setLightboxIndex(idx)}>
+              <img src={m.url} alt="" style={styles.scrollImg} />
             </div>
-          )}
-          {images.length === 2 && (
-            <div style={styles.grid2}>
-              {images.map((m, i) => (
-                <div key={i} style={styles.gridItem} onClick={() => setLightbox(m.url)}>
-                  <img src={m.url} alt="" style={styles.imgCover} />
-                </div>
-              ))}
-            </div>
-          )}
-          {images.length === 3 && (
-            <div style={styles.grid3}>
-              <div style={styles.grid3Main} onClick={() => setLightbox(images[0].url)}>
-                <img src={images[0].url} alt="" style={styles.imgCover} />
-              </div>
-              <div style={styles.grid3Side}>
-                {images.slice(1).map((m, i) => (
-                  <div key={i} style={styles.grid3SideItem} onClick={() => setLightbox(m.url)}>
-                    <img src={m.url} alt="" style={styles.imgCover} />
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          {images.length === 4 && (
-            <div style={styles.grid4}>
-              {images.map((m, i) => (
-                <div key={i} style={styles.gridItem} onClick={() => setLightbox(m.url)}>
-                  <img src={m.url} alt="" style={styles.imgCover} />
-                </div>
-              ))}
-            </div>
-          )}
-          {images.length >= 5 && (
-            <div style={styles.grid4}>
-              {images.slice(0, 3).map((m, i) => (
-                <div key={i} style={styles.gridItem} onClick={() => setLightbox(m.url)}>
-                  <img src={m.url} alt="" style={styles.imgCover} />
-                </div>
-              ))}
-              <div
-                style={styles.gridItem}
-                onClick={() => setLightbox(images[3].url)}
-              >
-                <img src={images[3].url} alt="" style={{ ...styles.imgCover, filter: 'brightness(0.5)' }} />
-                <div style={styles.moreOverlay}>+{images.length - 3}</div>
-              </div>
-            </div>
-          )}
+          ))}
         </div>
       )}
 
       {/* 비디오 */}
-      {videos.map((m, i) => (
-        <div key={i} style={styles.videoWrap}>
+      {videos.map((m, idx) => (
+        <div key={idx} style={styles.videoWrap}>
           <video src={m.url} controls style={styles.video} />
         </div>
       ))}
 
       {/* 기타 파일 */}
-      {others.map((m, i) => (
-        <a key={i} href={m.url} target="_blank" rel="noopener noreferrer" style={styles.fileLink}>
+      {others.map((m, idx) => (
+        <a key={idx} href={m.url} target="_blank" rel="noopener noreferrer" style={styles.fileLink}>
           <span style={styles.fileIcon}>
             {m.type === 'audio' ? '🎵' : m.type === 'pdf' ? '📄' : '📎'}
           </span>
@@ -100,10 +62,19 @@ export default function MediaRenderer({ media }: MediaRendererProps) {
       ))}
 
       {/* Lightbox */}
-      {lightbox && (
-        <div style={styles.lightboxOverlay} onClick={() => setLightbox(null)}>
-          <img src={lightbox} alt="" style={styles.lightboxImg} />
-          <button style={styles.lightboxClose} onClick={() => setLightbox(null)}>✕</button>
+      {lightboxIndex !== null && (
+        <div style={styles.lightboxOverlay} onClick={() => setLightboxIndex(null)}>
+          <button style={styles.lightboxClose} onClick={() => setLightboxIndex(null)}>✕</button>
+          <div style={styles.lightboxContent} onClick={e => e.stopPropagation()}>
+            <img src={images[lightboxIndex].url} alt="" style={styles.lightboxImg} />
+            {images.length > 1 && (
+              <div style={styles.lightboxNav}>
+                <button style={{ ...styles.navBtn, opacity: lightboxIndex === 0 ? 0.3 : 1 }} onClick={prevImage}>‹</button>
+                <span style={styles.navCount}>{lightboxIndex + 1} / {images.length}</span>
+                <button style={{ ...styles.navBtn, opacity: lightboxIndex === images.length - 1 ? 0.3 : 1 }} onClick={nextImage}>›</button>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -111,31 +82,26 @@ export default function MediaRenderer({ media }: MediaRendererProps) {
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  wrapper: { marginBottom: 16 },
-  imageContainer: { borderRadius: 12, overflow: 'hidden' },
-  single: { width: '100%', cursor: 'pointer' },
+  wrapper: { marginBottom: 12 },
+  single: { width: '100%', cursor: 'pointer', borderRadius: 12, overflow: 'hidden' },
   imgFull: { width: '100%', display: 'block' },
-  imgCover: { width: '100%', height: '100%', objectFit: 'cover', display: 'block' },
-  grid2: {
-    display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2,
+  scrollRow: {
+    display: 'flex',
+    gap: 8,
+    overflowX: 'auto',
+    scrollSnapType: 'x mandatory',
+    paddingBottom: 4,
+  } as any,
+  scrollItem: {
+    flexShrink: 0,
+    width: 260,
+    height: 260,
+    borderRadius: 12,
+    overflow: 'hidden',
+    cursor: 'pointer',
+    scrollSnapAlign: 'start',
   },
-  gridItem: {
-    aspectRatio: '1', overflow: 'hidden', cursor: 'pointer', position: 'relative',
-  },
-  grid3: {
-    display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 2, height: 240,
-  },
-  grid3Main: { overflow: 'hidden', cursor: 'pointer' },
-  grid3Side: { display: 'flex', flexDirection: 'column', gap: 2 },
-  grid3SideItem: { flex: 1, overflow: 'hidden', cursor: 'pointer' },
-  grid4: {
-    display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2,
-  },
-  moreOverlay: {
-    position: 'absolute', inset: 0,
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    fontSize: 24, fontWeight: 700, color: 'white',
-  },
+  scrollImg: { width: '100%', height: '100%', objectFit: 'cover' },
   videoWrap: { borderRadius: 12, overflow: 'hidden', marginTop: 4 },
   video: { width: '100%', display: 'block' },
   fileLink: {
@@ -148,16 +114,29 @@ const styles: Record<string, React.CSSProperties> = {
   fileName: { fontSize: 13, color: '#5C4A35' },
   lightboxOverlay: {
     position: 'fixed', inset: 0, zIndex: 300,
-    background: 'rgba(0,0,0,0.9)',
+    background: 'rgba(0,0,0,0.92)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
-  },
-  lightboxImg: {
-    maxWidth: '100%', maxHeight: '100%', objectFit: 'contain',
   },
   lightboxClose: {
     position: 'absolute', top: 16, right: 16,
     background: 'rgba(255,255,255,0.2)', border: 'none',
     color: 'white', fontSize: 20, width: 40, height: 40,
-    borderRadius: '50%', cursor: 'pointer',
+    borderRadius: '50%', cursor: 'pointer', zIndex: 301,
   },
+  lightboxContent: {
+    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16,
+    maxWidth: '90vw', maxHeight: '90vh',
+  },
+  lightboxImg: {
+    maxWidth: '90vw', maxHeight: '75vh', objectFit: 'contain', borderRadius: 8,
+  },
+  lightboxNav: {
+    display: 'flex', alignItems: 'center', gap: 16,
+  },
+  navBtn: {
+    width: 40, height: 40, borderRadius: '50%',
+    background: 'rgba(255,255,255,0.2)', border: 'none',
+    color: 'white', fontSize: 24, cursor: 'pointer',
+  },
+  navCount: { fontSize: 14, color: 'rgba(255,255,255,0.8)' },
 }
