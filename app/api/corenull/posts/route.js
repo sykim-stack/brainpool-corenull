@@ -1,4 +1,4 @@
-// CoreNull - Posts API
+﻿// CoreNull - Posts API
 // Message type: post | comment | fruit
 // GET  ?post_id=   → 단건 조회
 // GET  ?room_id=   → 방 포스트 목록
@@ -10,8 +10,8 @@ export const dynamic = 'force-dynamic'
 
 const COREHUB_URL = 'https://brainpool-corehub.vercel.app/api/corehub/facts'
 
-const pushFact = (fact) => {
-  fetch(COREHUB_URL, {
+const pushFact = async (fact) => {
+  await fetch(COREHUB_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(fact),
@@ -147,9 +147,9 @@ const handlePost = async (req, traceId) => {
     .single()
   if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
 
-  // CoreHub Fact Push — fruit 생성 시
+  // CoreHub Fact Push — fruit 생성 시 (await로 응답 전 실행)
   if (messageType === 'fruit') {
-    pushFact({
+    await pushFact({
       source: 'CoreNull',
       fact_type: 'space.fruit.created',
       owner_key,
@@ -304,7 +304,7 @@ const handlePatch = async (req, traceId) => {
     if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
 
     // CoreHub Fact Push — harvest 성공 시
-    pushFact({
+    await pushFact({
       source: 'CoreNull',
       fact_type: 'space.fruit.harvested',
       owner_key,
