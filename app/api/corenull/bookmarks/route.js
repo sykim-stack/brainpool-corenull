@@ -1,27 +1,22 @@
 // CoreNull - Bookmarks API
 // 관심 저장 (수동) / 조회
 // Interest = 수동 저장 / DB = corenull_bookmarks
-
 export const dynamic = 'force-dynamic'
 
 const handler = async (req) => {
   const traceId = crypto.randomUUID()
-
   if (req.method === 'GET') return handleGet(req, traceId)
   if (req.method === 'POST') return handlePost(req, traceId)
   if (req.method === 'DELETE') return handleDelete(req, traceId)
-
   return Response.json({ _error: 'method_not_allowed', traceId }, { status: 500 })
 }
 
 const handleGet = async (req, traceId) => {
   const { searchParams } = new URL(req.url)
   const owner_key = searchParams.get('owner_key')
-
   if (!owner_key) {
     return Response.json({ _error: 'owner_key_required', traceId }, { status: 500 })
   }
-
   const { getSupabase } = await import('@/lib/supabase')
   const supabase = getSupabase()
   if (!supabase) return Response.json({ _error: 'supabase_init_failed', traceId }, { status: 500 })
@@ -30,14 +25,13 @@ const handleGet = async (req, traceId) => {
     .from('corenull_bookmarks')
     .select(`
       *,
-      corenull_rooms(id, room_name, room_type, visibility, event_mode, slug),
+      corenull_rooms(id, room_name, visibility),
       messages(id, type, content, meta)
     `)
     .eq('owner_key', owner_key)
     .order('created_at', { ascending: false })
 
   if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
-
   return Response.json({ data, traceId })
 }
 
@@ -48,8 +42,6 @@ const handlePost = async (req, traceId) => {
   if (!owner_key) {
     return Response.json({ _error: 'owner_key_required', traceId }, { status: 500 })
   }
-
-  // room_id 또는 message_id 둘 중 하나만
   if (!room_id && !message_id) {
     return Response.json({ _error: 'room_id_or_message_id_required', traceId }, { status: 500 })
   }
@@ -82,7 +74,6 @@ const handlePost = async (req, traceId) => {
     .single()
 
   if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
-
   return Response.json({ data, traceId })
 }
 
@@ -106,7 +97,6 @@ const handleDelete = async (req, traceId) => {
     .eq('owner_key', owner_key)
 
   if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
-
   return Response.json({ data: { deleted: true }, traceId })
 }
 
