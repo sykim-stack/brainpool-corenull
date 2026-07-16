@@ -16,10 +16,12 @@ type Bookmark = {
 export default function SavedPage() {
   const router = useRouter()
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([])
+  const [ownerKey, setOwnerKey] = useState('')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const key = getDeviceId()
+    setOwnerKey(key)
     fetch(`/api/corenull/bookmarks?owner_key=${key}`)
       .then(r => r.json())
       .then(d => {
@@ -27,6 +29,14 @@ export default function SavedPage() {
         setLoading(false)
       })
   }, [])
+
+  const handleDelete = async (e: any, bookmarkId: string) => {
+    e.stopPropagation()
+    await fetch(`/api/corenull/bookmarks?id=${bookmarkId}&owner_key=${ownerKey}`, {
+      method: 'DELETE',
+    })
+    setBookmarks(prev => prev.filter(b => b.id !== bookmarkId))
+  }
 
   if (loading) return <div style={styles.loading}>🔖</div>
 
@@ -68,7 +78,7 @@ export default function SavedPage() {
                           {new Date(b.created_at).toLocaleDateString('ko-KR')}
                         </div>
                       </div>
-                      <span style={styles.arrow}>›</span>
+                      <button style={styles.deleteBtn} onClick={e => handleDelete(e, b.id)}>✕</button>
                     </div>
                   ))}
                 </div>
@@ -94,7 +104,7 @@ export default function SavedPage() {
                           {new Date(b.created_at).toLocaleDateString('ko-KR')}
                         </div>
                       </div>
-                      <span style={styles.arrow}>›</span>
+                      <button style={styles.deleteBtn} onClick={e => handleDelete(e, b.id)}>✕</button>
                     </div>
                   ))}
                 </div>
@@ -139,5 +149,10 @@ const styles: Record<string, React.CSSProperties> = {
   info: { flex: 1, minWidth: 0 },
   itemTitle: { fontSize: 13, fontWeight: 500, color: '#1C1208', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   date: { fontSize: 11, color: '#9A8470', marginTop: 2 },
-  arrow: { fontSize: 16, color: '#9A8470' },
+  deleteBtn: {
+    width: 28, height: 28, borderRadius: '50%',
+    background: 'rgba(92,61,46,0.08)', border: 'none',
+    fontSize: 12, color: '#9A8470', cursor: 'pointer',
+    flexShrink: 0,
+  },
 }
