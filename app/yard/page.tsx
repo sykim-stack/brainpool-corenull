@@ -103,13 +103,13 @@ function Section({ emoji, title, posts, ownerKey, router, accent, bg, border }: 
 function PostCard({ post, ownerKey, onClick, sectionBg, sectionBorder }: any) {
   const [showTranslate, setShowTranslate] = useState(false)
   const [bookmarkId, setBookmarkId] = useState<string | null>(null)
-  const [bookmarkLoading, setBookmarkLoading] = useState(false)
-  const [commentCount, setCommentCount] = useState(0)
+  const [isActive, setIsActive] = useState(false)
+  const [loading, setLoading] = useState(false)
 
   const media = post.meta?.media || []
   const room = post._room
   const langFlag = room?.house_language ? (LANG_FLAG[room.house_language] || '🏡') : '🏡'
-  const isBookmarked = !!bookmarkId
+  const [commentCount, setCommentCount] = useState(0)
 
   useEffect(() => {
     fetch(`/api/corenull/posts?parent_id=${post.id}`)
@@ -117,39 +117,55 @@ function PostCard({ post, ownerKey, onClick, sectionBg, sectionBorder }: any) {
       .then(d => setCommentCount((d.data || []).length))
   }, [post.id])
 
-  // 북마크 초기 상태 확인
+  // 관심 초기 상태 확인
   useEffect(() => {
     if (!ownerKey) return
     fetch(`/api/corenull/bookmarks?owner_key=${ownerKey}`)
       .then(r => r.json())
       .then(d => {
         const found = (d.data || []).find((b: any) => b.message_id === post.id)
-        if (found) setBookmarkId(found.id)
+        if (found) {
+          setBookmarkId(found.id)
+          setIsActive(!found.ended_at)
+        }
       })
   }, [ownerKey, post.id])
 
-  const handleBookmark = async (e: any) => {
+  const handleInterest = async (e: any) => {
     e.stopPropagation()
-    if (bookmarkLoading) return
-    setBookmarkLoading(true)
+    if (loading) return
+    setLoading(true)
 
-    if (isBookmarked) {
-      // 북마크 취소
-      await fetch(`/api/corenull/bookmarks?id=${bookmarkId}&owner_key=${ownerKey}`, {
-        method: 'DELETE',
-      })
-      setBookmarkId(null)
-    } else {
-      // 북마크 추가
+    if (!bookmarkId) {
+      // 새로 관심 등록
       const res = await fetch('/api/corenull/bookmarks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ owner_key: ownerKey, message_id: post.id }),
       })
       const data = await res.json()
-      if (data.data) setBookmarkId(data.data.id)
+      if (data.data) {
+        setBookmarkId(data.data.id)
+        setIsActive(true)
+      }
+    } else if (isActive) {
+      // 관심 → 관심종료
+      await fetch('/api/corenull/bookmarks', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: bookmarkId, owner_key: ownerKey, action: 'end' }),
+      })
+      setIsActive(false)
+    } else {
+      // 관심종료 → 관심중 복구
+      await fetch('/api/corenull/bookmarks', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: bookmarkId, owner_key: ownerKey, action: 'resume' }),
+      })
+      setIsActive(true)
     }
-    setBookmarkLoading(false)
+    setLoading(false)
   }
 
   return (
@@ -200,15 +216,16 @@ function PostCard({ post, ownerKey, onClick, sectionBg, sectionBorder }: any) {
         </button>
         <div style={{ flex: 1 }} />
         <button
-          style={{
-            ...styles.bookmarkBtn,
-            ...(isBookmarked ? styles.bookmarked : {}),
-            opacity: bookmarkLoading ? 0.5 : 1,
-          }}
-          onClick={handleBookmark}
-          disabled={bookmarkLoading}
+          style={{ ...styles.interestBtn, opacity: loading ? 0.5 : 1 }}
+          onClick={handleInterest}
+          disabled={loading}
         >
-          {isBookmarked ? '🔖' : '🔖'}
+          <span style={{ fontSize: 18, color: isActive ? '#C17F3C' : '#9A8470' }}>
+            {isActive ? '◉' : '○'}
+          </span>
+          <span style={{ fontSize: 11, color: isActive ? '#C17F3C' : '#9A8470' }}>
+            {isActive ? '관심중' : bookmarkId ? '관심종료' : '관심'}
+          </span>
         </button>
       </div>
     </div>
@@ -248,11 +265,9 @@ const styles: Record<string, React.CSSProperties> = {
   translateResult: { marginTop: 8, fontSize: 13, lineHeight: 1.65, color: '#5C4A35' },
   cardFooter: { padding: '10px 16px 14px', display: 'flex', alignItems: 'center', gap: 16 },
   footerAction: { display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, color: '#9A8470', border: 'none', background: 'none', cursor: 'pointer' },
-  bookmarkBtn: {
-    width: 36, height: 36, borderRadius: '50%',
-    background: '#F5F0E8', border: 'none',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    fontSize: 16, cursor: 'pointer', transition: 'all 0.2s',
+  interestBtn: {
+    display: 'flex', alignItems: 'center', gap: 4,
+    background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px',
+    borderRadius: 20,
   },
-  bookmarked: { background: 'rgba(193,127,60,0.15)', transform: 'scale(1.1)' },
 }
