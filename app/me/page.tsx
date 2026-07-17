@@ -99,7 +99,7 @@ export default function MePage() {
           <div style={styles.statDivider} />
           <div style={styles.statItem}>
             <span style={styles.statNum}>{(library?.saved_rooms?.length || 0) + (library?.saved_posts?.length || 0)}</span>
-            <span style={styles.statLabel}>저장</span>
+            <span style={styles.statLabel}>관심</span>
           </div>
         </div>
 
@@ -129,7 +129,7 @@ export default function MePage() {
           </div>
           <div style={styles.menuItem} onClick={() => router.push('/me/saved')}>
             <div style={{ ...styles.menuIcon, background: 'rgba(200,213,185,0.4)' }}>🔖</div>
-            <span style={styles.menuLabel}>저장한 것들</span>
+            <span style={styles.menuLabel}>관심</span>
             <span style={styles.menuBadge}>{(library?.saved_rooms?.length || 0) + (library?.saved_posts?.length || 0)}</span>
             <span style={styles.menuArrow}>›</span>
           </div>

@@ -26,7 +26,7 @@ export default function LibraryPage() {
 
   const tabs = [
     { id: 'footprints', label: '👣 발자취', count: library?.footprints?.length || 0 },
-    { id: 'saved',      label: '🔖 저장',   count: (library?.saved_rooms?.length || 0) + (library?.saved_posts?.length || 0) },
+    { id: 'saved',      label: '🔖 관심',   count: (library?.saved_rooms?.length || 0) + (library?.saved_posts?.length || 0) },
     { id: 'posts',      label: '📝 내 글',  count: library?.my_posts?.length || 0 },
     { id: 'fruits',     label: '🍎 서재',   count: library?.harvested_fruits?.length || 0 },
   ]
@@ -74,12 +74,12 @@ export default function LibraryPage() {
           </div>
         )}
 
-        {/* 저장 탭 */}
+        {/* 관심 탭 */}
         {activeTab === 'saved' && (
           <div>
             {(library?.saved_rooms || []).length > 0 && (
               <>
-                <div style={styles.subTitle}>저장한 방</div>
+                <div style={styles.subTitle}>관심 방</div>
                 <div style={styles.list}>
                   {library.saved_rooms.map((b: any) => (
                     <div key={b.id} style={styles.listItem}>
@@ -95,13 +95,13 @@ export default function LibraryPage() {
             )}
             {(library?.saved_posts || []).length > 0 && (
               <>
-                <div style={styles.subTitle}>저장한 포스트</div>
+                <div style={styles.subTitle}>관심 포스트</div>
                 <div style={styles.list}>
                   {library.saved_posts.map((b: any) => (
                     <div key={b.id} style={styles.listItem} onClick={() => router.push(`/posts/${b.message_id}`)}>
                       <div style={styles.listIcon}>🔖</div>
                       <div style={styles.listInfo}>
-                        <div style={styles.listTitle}>저장한 이야기</div>
+                        <div style={styles.listTitle}>관심 이야기</div>
                         <div style={styles.listSub}>{new Date(b.created_at).toLocaleDateString('ko-KR')}</div>
                       </div>
                       <span style={styles.listArrow}>›</span>
@@ -111,7 +111,7 @@ export default function LibraryPage() {
               </>
             )}
             {(library?.saved_rooms || []).length === 0 && (library?.saved_posts || []).length === 0 && (
-              <Empty emoji="🔖" text="저장한 것이 없어요" />
+              <Empty emoji="🔖" text="관심이 없어요" />
             )}
           </div>
         )}
