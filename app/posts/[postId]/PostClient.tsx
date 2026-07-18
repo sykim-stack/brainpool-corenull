@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { getDeviceId } from '@/lib/deviceId'
 import ShareModal from '@/components/corenull/ShareModal'
@@ -22,8 +22,11 @@ export default function PostDetailPage() {
   const [loading, setLoading] = useState(true)
   const [editMode, setEditMode] = useState(false)
   const [editContent, setEditContent] = useState('')
+  const [editMedia, setEditMedia] = useState<any[]>([])
   const [editSaving, setEditSaving] = useState(false)
+  const [uploading, setUploading] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     const key = getDeviceId()
@@ -36,6 +39,7 @@ export default function PostDetailPage() {
       const postData = p.data || null
       setPost(postData)
       setEditContent(postData?.content || '')
+      setEditMedia(postData?.meta?.media || [])
       setComments(c.data?.filter((m: any) => m.type === 'comment') || [])
       setFruit(c.data?.filter((m: any) => m.type === 'fruit')[0] || null)
       if (postData?.room_id) {
@@ -57,17 +61,45 @@ export default function PostDetailPage() {
   const showFruitActions = isHouseOwner && isSeedRoom && post?.type === 'post'
   const isHarvested = !!fruit?.harvested_at
 
+  const handleEditOpen = () => {
+    setEditContent(post.content)
+    setEditMedia(post.meta?.media || [])
+    setEditMode(true)
+  }
+
+  const handleRemoveMedia = (index: number) => {
+    setEditMedia(prev => prev.filter((_: any, i: number) => i !== index))
+  }
+
+  const handleAddMedia = async (e: any) => {
+    const files = Array.from(e.target.files || [])
+    if (files.length === 0) return
+    setUploading(true)
+    const form = new FormData()
+    files.forEach((f: any) => form.append('files', f))
+    const res = await fetch('/api/corenull/upload', { method: 'POST', body: form })
+    const data = await res.json()
+    setEditMedia(prev => [...prev, ...(data.data || [])])
+    setUploading(false)
+  }
+
   const handleEdit = async () => {
     if (!editContent.trim() || editSaving) return
     setEditSaving(true)
     const res = await fetch('/api/corenull/posts', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ post_id: postId, owner_key: ownerKey, action: 'edit', content: editContent.trim() }),
+      body: JSON.stringify({
+        post_id: postId,
+        owner_key: ownerKey,
+        action: 'edit',
+        content: editContent.trim(),
+        meta: { ...post.meta, media: editMedia },
+      }),
     })
     const data = await res.json()
     if (data.data) {
-      setPost((prev: any) => ({ ...prev, content: data.data.content }))
+      setPost((prev: any) => ({ ...prev, content: data.data.content, meta: data.data.meta }))
       setEditMode(false)
     }
     setEditSaving(false)
@@ -147,7 +179,7 @@ export default function PostDetailPage() {
         <div style={{ display: 'flex', gap: 8 }}>
           {isPostOwner && !editMode && (
             <>
-              <button style={styles.actionBtn} onClick={() => { setEditMode(true); setEditContent(post.content) }}>✏️</button>
+              <button style={styles.actionBtn} onClick={handleEditOpen}>✏️</button>
               <button style={styles.actionBtn} onClick={handleDelete} disabled={deleting}>🗑️</button>
             </>
           )}
@@ -171,10 +203,43 @@ export default function PostDetailPage() {
           <span style={styles.postTime}>{new Date(post.created_at).toLocaleDateString('ko-KR')}</span>
         </div>
 
-        <MediaRenderer media={media} />
-
+        {/* 수정 모드 */}
         {editMode ? (
           <div style={styles.editBox}>
+            {/* 기존 이미지 표시 + 삭제 */}
+            {editMedia.length > 0 && (
+              <div style={styles.editMediaRow}>
+                {editMedia.map((m: any, i: number) => (
+                  <div key={i} style={styles.editMediaItem}>
+                    {m.type === 'image' && (
+                      <img src={m.url} alt="" style={styles.editMediaThumb} />
+                    )}
+                    {m.type === 'video' && (
+                      <div style={styles.editVideoThumb}>🎬</div>
+                    )}
+                    <button style={styles.editMediaRemove} onClick={() => handleRemoveMedia(i)}>✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* 이미지 추가 버튼 */}
+            <button
+              style={styles.addMediaBtn}
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+            >
+              {uploading ? '⏳ 업로드 중...' : '📷 사진/영상 추가'}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*,video/*"
+              multiple
+              style={{ display: 'none' }}
+              onChange={handleAddMedia}
+            />
+
             <textarea
               style={styles.editTextarea}
               value={editContent}
@@ -189,7 +254,10 @@ export default function PostDetailPage() {
             </div>
           </div>
         ) : (
-          <div style={styles.content}>{post.content}</div>
+          <>
+            <MediaRenderer media={media} />
+            <div style={styles.content}>{post.content}</div>
+          </>
         )}
 
         {post.translated_ko && !editMode && (
@@ -291,7 +359,22 @@ const styles: Record<string, React.CSSProperties> = {
   authorName: { fontSize: 14, fontWeight: 500, color: '#1C1208', flex: 1 },
   postTime: { fontSize: 11, color: '#9A8470' },
   content: { fontSize: 16, lineHeight: 1.8, color: '#1C1208', marginBottom: 16 },
-  editBox: { marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 8 },
+  editBox: { marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 10 },
+  editMediaRow: { display: 'flex', gap: 8, flexWrap: 'wrap' },
+  editMediaItem: { position: 'relative' },
+  editMediaThumb: { width: 72, height: 72, borderRadius: 10, objectFit: 'cover' },
+  editVideoThumb: { width: 72, height: 72, borderRadius: 10, background: '#2d4a3e', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 },
+  editMediaRemove: {
+    position: 'absolute', top: -6, right: -6,
+    width: 20, height: 20, borderRadius: '50%',
+    background: '#2C1810', color: 'white',
+    border: 'none', fontSize: 10, cursor: 'pointer',
+  },
+  addMediaBtn: {
+    width: '100%', padding: '10px',
+    background: '#F5F0E8', border: '1px dashed rgba(92,61,46,0.2)',
+    borderRadius: 10, fontSize: 13, color: '#9A8470', cursor: 'pointer',
+  },
   editTextarea: {
     width: '100%', minHeight: 120,
     background: '#F5F0E8', border: '1px solid rgba(92,61,46,0.2)',
