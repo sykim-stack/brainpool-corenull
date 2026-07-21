@@ -1,5 +1,6 @@
 // CoreNull - House API
 // 집 생성 / 조회
+// 1인 1집 원칙: owner_key당 house는 반드시 1개 (DB unique 제약 + API idempotent 처리)
 
 export const dynamic = 'force-dynamic'
 
@@ -34,7 +35,7 @@ const handleGet = async (req, traceId) => {
     return Response.json({ house: data, traceId })
   }
 
-  // owner_key 목록 조회
+  // owner_key 목록 조회 — 1인 1집이므로 배열이지만 항상 0~1개
   if (!owner_key) {
     return Response.json({ _error: 'owner_key_or_house_id_required', traceId }, { status: 500 })
   }
@@ -62,6 +63,17 @@ const handlePost = async (req, traceId) => {
   const supabase = getSupabase()
   if (!supabase) return Response.json({ _error: 'supabase_init_failed', traceId }, { status: 500 })
 
+  // 1인 1집: 이미 집이 있으면 새로 만들지 않고 기존 집을 그대로 반환 (idempotent)
+  const { data: existingHouse } = await supabase
+    .from('corenull_houses')
+    .select('*')
+    .eq('owner_key', owner_key)
+    .maybeSingle()
+
+  if (existingHouse) {
+    return Response.json({ data: existingHouse, already_existed: true, traceId })
+  }
+
   // 집 생성
   const { data: house, error } = await supabase
     .from('corenull_houses')
@@ -69,7 +81,18 @@ const handlePost = async (req, traceId) => {
     .select()
     .single()
 
-  if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
+  if (error) {
+    // DB unique 제약(owner_key)에 걸린 경우 — 동시 요청 등으로 레이스가 났을 때의 안전망
+    if (error.code === '23505') {
+      const { data: raceHouse } = await supabase
+        .from('corenull_houses')
+        .select('*')
+        .eq('owner_key', owner_key)
+        .single()
+      if (raceHouse) return Response.json({ data: raceHouse, already_existed: true, traceId })
+    }
+    return Response.json({ _error: error.message, traceId }, { status: 500 })
+  }
 
   // 기본 방 "일상" 자동 생성
   await supabase

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useOwnerKey } from '@/hooks/useOwnerKey'
 
@@ -17,8 +17,23 @@ export default function CreateHousePage() {
   const [description, setDescription] = useState('')
   const [language, setLanguage] = useState('ko')
   const [submitting, setSubmitting] = useState(false)
+  const [checking, setChecking] = useState(true)
   const router = useRouter()
   const ownerKey = useOwnerKey()
+
+  // 1인 1집 — 이미 집이 있으면 이 페이지에 머무를 필요 없이 바로 홈으로
+  useEffect(() => {
+    if (!ownerKey) return
+    fetch(`/api/corenull/houses?owner_key=${ownerKey}`)
+      .then(r => r.json())
+      .then(d => {
+        if ((d.data || []).length > 0) {
+          router.replace('/')
+          return
+        }
+        setChecking(false)
+      })
+  }, [ownerKey, router])
 
   const handleSubmit = async () => {
     if (!title.trim() || !ownerKey) return
@@ -37,9 +52,14 @@ export default function CreateHousePage() {
 
     const data = await res.json()
     if (data.data) {
-      router.push(`/houses/${data.data.id}`)
+      // 1인 1집 — 만들고 나면 홈이 곧 내 집(방 목록)이므로 홈으로 이동
+      router.push('/')
     }
     setSubmitting(false)
+  }
+
+  if (checking) {
+    return <div style={styles.loading}>🏡</div>
   }
 
   return (
@@ -113,7 +133,7 @@ export default function CreateHousePage() {
 
         {/* 안내 */}
         <div style={styles.notice}>
-          🌱 집을 만들면 기본 방 "일상"이 자동으로 생겨요.
+          🌱 집을 만들면 기본 방 "일상"이 자동으로 생겨요. 집은 딱 하나만 만들 수 있어요.
         </div>
       </div>
     </div>
@@ -121,6 +141,10 @@ export default function CreateHousePage() {
 }
 
 const styles: Record<string, React.CSSProperties> = {
+  loading: {
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    height: '50vh', fontSize: 40,
+  },
   header: {
     position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)',
     width: '100%', maxWidth: '430px', height: 56,
