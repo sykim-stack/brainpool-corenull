@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { getDeviceId } from '@/lib/deviceId'
+import ShareModal from '@/components/corenull/ShareModal'
 
 const LANG_FLAG: Record<string, string> = {
   ko: '🇰🇷', vi: '🇻🇳', en: '🇺🇸', ja: '🇯🇵', zh: '🇨🇳',
@@ -24,6 +25,12 @@ export default function HomePage() {
   const [footprints, setFootprints] = useState<any[]>([])
   const [discoveries, setDiscoveries] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+
+  // 공유 / 초대
+  const [showShare, setShowShare] = useState(false)
+  const [shareMode, setShareMode] = useState<'house' | 'invite'>('house')
+  const [inviteUrl, setInviteUrl] = useState('')
+  const [inviteLoading, setInviteLoading] = useState(false)
 
   useEffect(() => {
     const key = getDeviceId()
@@ -64,6 +71,31 @@ export default function HomePage() {
     }).catch(() => null)
   }
 
+  // 집 자체 링크 공유 (헤더 🔗)
+  const handleShareHouse = () => {
+    setShareMode('house')
+    setInviteUrl(`https://corenull.vercel.app/houses/${house.id}`)
+    setShowShare(true)
+  }
+
+  // 새 이웃 초대 (초대 토큰 발급)
+  const handleInvite = async () => {
+    if (inviteLoading || !house) return
+    setInviteLoading(true)
+    const res = await fetch('/api/corenull/invite', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ house_id: house.id, owner_key: ownerKey }),
+    })
+    const data = await res.json()
+    if (data.data?.invite_token) {
+      setShareMode('invite')
+      setInviteUrl(`https://corenull.vercel.app/invite/${data.data.invite_token}`)
+      setShowShare(true)
+    }
+    setInviteLoading(false)
+  }
+
   if (loading) return <div style={styles.loading}>🏡</div>
 
   // 아직 집이 없는 신규 사용자 — 최초 1회만 집 만들기 온보딩
@@ -90,13 +122,13 @@ export default function HomePage() {
 
   return (
     <div>
-      {/* 헤더 */}
+      {/* 헤더 — 공유는 여기서 바로 */}
       <div style={styles.header}>
         <span style={styles.logo}>Core<span style={{ color: '#C17F3C' }}>Null</span></span>
-        <button style={styles.iconBtn} onClick={() => router.push(`/houses/${house.id}`)}>⚙️</button>
+        <button style={styles.iconBtn} onClick={handleShareHouse}>🔗</button>
       </div>
 
-      {/* 집 커버 — 간단히, 방 목록이 메인이므로 얇게 유지 */}
+      {/* 집 커버 */}
       <div style={styles.cover}>
         <span style={{ fontSize: 32 }}>🏡</span>
         <div>
@@ -158,6 +190,14 @@ export default function HomePage() {
           + 방 만들기
         </button>
 
+        <button
+          style={styles.inviteBtn}
+          onClick={handleInvite}
+          disabled={inviteLoading}
+        >
+          {inviteLoading ? '초대 링크 생성 중...' : '🔗 이웃 초대하기'}
+        </button>
+
         {/* 최근 방문 */}
         {footprints.length > 0 && (
           <>
@@ -185,6 +225,14 @@ export default function HomePage() {
           </>
         )}
       </div>
+
+      {showShare && (
+        <ShareModal
+          url={inviteUrl}
+          title={shareMode === 'invite' ? `${house.title} 초대` : house.title}
+          onClose={() => setShowShare(false)}
+        />
+      )}
     </div>
   )
 }
@@ -255,6 +303,13 @@ const styles: Record<string, React.CSSProperties> = {
     width: '100%', padding: '14px',
     background: '#FEFCF8', border: '1px dashed rgba(92,61,46,0.2)',
     borderRadius: 14, fontSize: 14, color: '#9A8470', cursor: 'pointer',
+    marginBottom: 8,
+  },
+  inviteBtn: {
+    width: '100%', padding: '14px',
+    background: 'rgba(74,82,64,0.08)', border: '1px solid rgba(74,82,64,0.2)',
+    borderRadius: 14, fontSize: 14, color: '#4A5240',
+    fontWeight: 500, cursor: 'pointer',
   },
   visitItem: {
     background: '#FEFCF8', borderRadius: 12, border: '1px solid rgba(92,61,46,0.12)',
