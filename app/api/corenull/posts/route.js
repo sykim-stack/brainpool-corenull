@@ -1,10 +1,13 @@
 ﻿// CoreNull - Posts API
 // Message type: post | comment | fruit
-// GET  ?post_id=   → 단건 조회
-// GET  ?room_id=   → 방 포스트 목록
+// GET  ?post_id=   → 단건 조회 (ADR-ACCESS-001: canReadPost로 접근 제어)
+// GET  ?room_id=   → 방 포스트 목록 (ADR-ACCESS-001: canReadRoom으로 접근 제어)
 // GET  ?parent_id= → 댓글 목록
 // POST             → 작성 (type 파라미터로 구분)
 // PATCH            → 상태 변경 (action: archive | rebirth | harvest | edit | delete)
+//
+// 접근 제어는 항상 lib/accessPolicy.js의 canReadRoom()/canReadPost()만 호출한다.
+// visibility/owner_key를 이 파일에서 직접 비교하지 않는다.
 
 export const dynamic = 'force-dynamic'
 
@@ -34,6 +37,7 @@ const handleGet = async (req, traceId) => {
   const owner_key = searchParams.get('owner_key')
 
   const { getSupabase } = await import('@/lib/supabase')
+  const { canReadRoom, canReadPost } = await import('@/lib/accessPolicy')
   const supabase = getSupabase()
   if (!supabase) return Response.json({ _error: 'supabase_init_failed', traceId }, { status: 500 })
 
@@ -44,6 +48,13 @@ const handleGet = async (req, traceId) => {
       .eq('id', post_id)
       .single()
     if (error || !data) return Response.json({ _error: 'post_not_found', traceId }, { status: 500 })
+
+    // post_id 단건 조회가 가장 큰 우회 경로 — 정책 엔진에 그대로 위임
+    const access = await canReadPost(supabase, data, owner_key)
+    if (!access.allowed) {
+      return Response.json({ _error: access._error || 'ACCESS_DENIED', traceId }, { status: 500 })
+    }
+
     return Response.json({ data, traceId })
   }
 
@@ -60,6 +71,17 @@ const handleGet = async (req, traceId) => {
 
   if (!room_id) {
     return Response.json({ _error: 'room_id_or_post_id_or_parent_id_required', traceId }, { status: 500 })
+  }
+
+  const { data: room } = await supabase
+    .from('corenull_rooms')
+    .select('id, house_id, visibility')
+    .eq('id', room_id)
+    .single()
+
+  const access = await canReadRoom(supabase, room, owner_key)
+  if (!access.allowed) {
+    return Response.json({ _error: access._error || 'ACCESS_DENIED', traceId }, { status: 500 })
   }
 
   if (owner_key) {
@@ -117,6 +139,9 @@ const handlePost = async (req, traceId) => {
       .eq('id', room.house_id)
       .single()
 
+    // 참고: 이건 "쓰기 권한(Permission)" 판단이라 canJoinRoom()의 사촌뻘이지만,
+    // canJoinRoom()은 아직 미구현(ADR-ACCESS-002 대상)이라 기존 로직을 그대로 둔다.
+    // ADR-ACCESS-002가 나오면 이 블록을 정책 엔진 호출로 교체한다.
     const isOwner = house?.owner_key === owner_key
     let isMember = false
     if (!isOwner) {

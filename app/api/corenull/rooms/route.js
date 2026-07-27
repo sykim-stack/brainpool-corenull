@@ -1,5 +1,8 @@
 ﻿// CoreNull - Room API
 // 방 생성 / 조회 / 수정 (집주인만 가능)
+// GET ?room_id= 단건 조회에는 ADR-ACCESS-001 접근 제어 적용
+// 접근 제어는 항상 lib/accessPolicy.js의 canReadRoom()만 호출한다.
+// visibility/owner_key를 이 파일에서 직접 비교하지 않는다.
 export const dynamic = 'force-dynamic'
 
 const COREHUB_URL = 'https://brainpool-corehub.vercel.app/api/corehub/facts'
@@ -24,9 +27,11 @@ const handleGet = async (req, traceId) => {
   const { searchParams } = new URL(req.url)
   const house_id = searchParams.get('house_id')
   const room_id = searchParams.get('room_id')
+  const owner_key = searchParams.get('owner_key')
 
   if (room_id) {
     const { getSupabase } = await import('@/lib/supabase')
+    const { canReadRoom } = await import('@/lib/accessPolicy')
     const supabase = getSupabase()
     if (!supabase) return Response.json({ _error: 'supabase_init_failed', traceId }, { status: 500 })
     const { data, error } = await supabase
@@ -35,6 +40,12 @@ const handleGet = async (req, traceId) => {
       .eq('id', room_id)
       .single()
     if (error || !data) return Response.json({ _error: 'room_not_found', traceId }, { status: 500 })
+
+    const access = await canReadRoom(supabase, data, owner_key)
+    if (!access.allowed) {
+      return Response.json({ _error: access._error || 'ACCESS_DENIED', traceId }, { status: 500 })
+    }
+
     return Response.json({ room: data, traceId })
   }
 

@@ -85,8 +85,14 @@ export default function RoomPage() {
     setLoading(true)
     setError(null)
     try {
-      const rRes = await fetch(`/api/corenull/rooms?room_id=${roomId}`)
+      // ADR-ACCESS-001: owner_key를 같이 보내야 family 방 접근 제어가 정상 동작함
+      const rRes = await fetch(`/api/corenull/rooms?room_id=${roomId}&owner_key=${key}`)
       const rData = await rRes.json()
+      if (rData._error === 'ACCESS_DENIED') {
+        setError('🔒 볼 수 없는 방이에요.')
+        setLoading(false)
+        return
+      }
       if (rData._error || !rData.room) {
         setError('방을 찾을 수 없어요.')
         setLoading(false)
@@ -144,7 +150,7 @@ export default function RoomPage() {
               {room.room_name}
             </h1>
             <span style={visibilityBadge(room.visibility)}>
-              {room.visibility === 'public' ? '공개' : room.visibility === 'invite' ? '이웃공개' : '가족'}
+              {room.visibility === 'public' ? '공개' : room.visibility === 'invite' ? '이웃' : '비공개'}
             </span>
             {room.seed_mode && <span style={seedBadge}>🌱 씨앗</span>}
           </div>

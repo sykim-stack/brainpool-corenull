@@ -20,6 +20,7 @@ export default function PostDetailPage() {
   const [showTranslate, setShowTranslate] = useState(false)
   const [showShare, setShowShare] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [accessDenied, setAccessDenied] = useState(false)
   const [editMode, setEditMode] = useState(false)
   const [editContent, setEditContent] = useState('')
   const [editMedia, setEditMedia] = useState<any[]>([])
@@ -33,9 +34,15 @@ export default function PostDetailPage() {
     setOwnerKey(key)
     if (!postId) return
     Promise.all([
-      fetch(`/api/corenull/posts?post_id=${postId}`).then(r => r.json()),
+      // ADR-ACCESS-001: owner_key를 같이 보내야 family 방 접근 제어가 정상 동작함
+      fetch(`/api/corenull/posts?post_id=${postId}&owner_key=${key}`).then(r => r.json()),
       fetch(`/api/corenull/posts?parent_id=${postId}`).then(r => r.json()),
     ]).then(async ([p, c]) => {
+      if (p._error === 'ACCESS_DENIED') {
+        setAccessDenied(true)
+        setLoading(false)
+        return
+      }
       const postData = p.data || null
       setPost(postData)
       setEditContent(postData?.content || '')
@@ -43,7 +50,7 @@ export default function PostDetailPage() {
       setComments(c.data?.filter((m: any) => m.type === 'comment') || [])
       setFruit(c.data?.filter((m: any) => m.type === 'fruit')[0] || null)
       if (postData?.room_id) {
-        const rRes = await fetch(`/api/corenull/rooms?room_id=${postData.room_id}`).then(r => r.json())
+        const rRes = await fetch(`/api/corenull/rooms?room_id=${postData.room_id}&owner_key=${key}`).then(r => r.json())
         const roomData = rRes.room || null
         setRoom(roomData)
         if (roomData?.house_id) {
@@ -167,6 +174,7 @@ export default function PostDetailPage() {
   }
 
   if (loading) return <div style={styles.loading}>📖</div>
+  if (accessDenied) return <div style={styles.loading}>🔒 볼 수 없는 이야기예요</div>
   if (!post) return <div style={styles.loading}>포스트를 찾을 수 없어요</div>
 
   const media = post.meta?.media || []
