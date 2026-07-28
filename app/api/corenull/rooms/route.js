@@ -1,8 +1,10 @@
 ﻿// CoreNull - Room API
 // 방 생성 / 조회 / 수정 (집주인만 가능)
-// GET ?room_id= 단건 조회에는 ADR-ACCESS-001 접근 제어 적용
+// GET ?room_id=  단건 조회 — ADR-ACCESS-001 접근 제어 적용
+// GET ?house_id= 목록 조회 — ADR-ACCESS-001 접근 제어 적용 (family 방은 필터링됨)
+//
 // 접근 제어는 항상 lib/accessPolicy.js의 canReadRoom()만 호출한다.
-// visibility/owner_key를 이 파일에서 직접 비교하지 않는다.
+// visibility/owner_key를 이 파일에서 직접 비교하지 않는다. (Engine Contract)
 export const dynamic = 'force-dynamic'
 
 const COREHUB_URL = 'https://brainpool-corehub.vercel.app/api/corehub/facts'
@@ -29,11 +31,12 @@ const handleGet = async (req, traceId) => {
   const room_id = searchParams.get('room_id')
   const owner_key = searchParams.get('owner_key')
 
+  const { getSupabase } = await import('@/lib/supabase')
+  const { canReadRoom } = await import('@/lib/accessPolicy')
+  const supabase = getSupabase()
+  if (!supabase) return Response.json({ _error: 'supabase_init_failed', traceId }, { status: 500 })
+
   if (room_id) {
-    const { getSupabase } = await import('@/lib/supabase')
-    const { canReadRoom } = await import('@/lib/accessPolicy')
-    const supabase = getSupabase()
-    if (!supabase) return Response.json({ _error: 'supabase_init_failed', traceId }, { status: 500 })
     const { data, error } = await supabase
       .from('corenull_rooms')
       .select('*')
@@ -53,17 +56,21 @@ const handleGet = async (req, traceId) => {
     return Response.json({ _error: 'house_id_or_room_id_required', traceId }, { status: 500 })
   }
 
-  const { getSupabase } = await import('@/lib/supabase')
-  const supabase = getSupabase()
-  if (!supabase) return Response.json({ _error: 'supabase_init_failed', traceId }, { status: 500 })
-
   const { data, error } = await supabase
     .from('corenull_rooms')
     .select('*')
     .eq('house_id', house_id)
     .order('created_at', { ascending: true })
   if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
-  return Response.json({ data, traceId })
+
+  // ADR-ACCESS-001: 목록 조회도 단건 조회와 동일한 정책 엔진(canReadRoom)을 통과한다.
+  // family 방은 owner/participant가 아니면 목록 자체에서 제외된다.
+  const accessResults = await Promise.all(
+    (data || []).map((room) => canReadRoom(supabase, room, owner_key))
+  )
+  const visibleRooms = (data || []).filter((_, i) => accessResults[i].allowed)
+
+  return Response.json({ data: visibleRooms, traceId })
 }
 
 const handlePost = async (req, traceId) => {
