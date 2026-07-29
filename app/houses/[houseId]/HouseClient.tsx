@@ -1,344 +1,215 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import { useRouter, useParams } from 'next/navigation'
 import { getDeviceId } from '@/lib/deviceId'
+import ShareModal from '@/components/corenull/ShareModal'
 
-const LANG_FLAG: Record<string, string> = {
-  ko: '🇰🇷', vi: '🇻🇳', en: '🇺🇸', ja: '🇯🇵', zh: '🇨🇳',
+const COREHUB_URL = 'https://brainpool-corehub.vercel.app/api/corehub/opportunities'
+
+const ACTION_LABEL: Record<string, string> = {
+  'trigger.hajunai.nudge':    '🌱 씨앗이 기다리고 있어요',
+  'trigger.hajunai.celebrate': '🍎 씨앗이 열매가 됐어요',
+  'suggest.corering':          '💬 번역 도움이 필요하신가요?',
 }
 
-export default function WritePage() {
-  const [content, setContent] = useState('')
-  const [houses, setHouses] = useState<any[]>([])
-  const [selectedHouse, setSelectedHouse] = useState<any>(null)
-  const [rooms, setRooms] = useState<any[]>([])
-  const [selectedRoom, setSelectedRoom] = useState<any>(null)
-  const [mediaFiles, setMediaFiles] = useState<any[]>([])
-  const [uploading, setUploading] = useState(false)
-  const [submitting, setSubmitting] = useState(false)
-  const [ownerKey, setOwnerKey] = useState('')
-  const [submitError, setSubmitError] = useState('')
-
-  // 새 방 만들기
-  const [showNewRoom, setShowNewRoom] = useState(false)
-  const [newRoomName, setNewRoomName] = useState('')
-  const [isSeed, setIsSeed] = useState(false)
-  const [bloomDate, setBloomDate] = useState('')
-  const [creatingRoom, setCreatingRoom] = useState(false)
-  const [roomError, setRoomError] = useState('')
-
-  const fileInputRef = useRef<HTMLInputElement>(null)
+export default function HouseDetailPage() {
+  const { houseId } = useParams()
   const router = useRouter()
-  const today = new Date().toISOString().split('T')[0]
 
- useEffect(() => {
+  const [ownerKey, setOwnerKey] = useState('')
+  const [house, setHouse] = useState<any>(null)
+  const [rooms, setRooms] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [showShare, setShowShare] = useState(false)
+  const [inviteUrl, setInviteUrl] = useState('')
+  const [inviteLoading, setInviteLoading] = useState(false)
+  const [discoveries, setDiscoveries] = useState<any[]>([])
+
+  useEffect(() => {
     const key = getDeviceId()
     setOwnerKey(key)
+    if (!houseId) return
+    Promise.all([
+      fetch(`/api/corenull/houses?house_id=${houseId}`).then(r => r.json()),
+      // ADR-ACCESS-001: owner_key를 같이 보내야 비공개(family) 방도
+      // 참여자/집주인 본인에게 정상적으로 보임
+      fetch(`/api/corenull/rooms?house_id=${houseId}&owner_key=${key}`).then(r => r.json()),
+    ]).then(([h, r]) => {
+      setHouse(h.house || null)
+      setRooms(r.data || [])
+      setLoading(false)
+    })
 
-    const preselectedRoomId = new URLSearchParams(window.location.search).get('room_id')
-
-    fetch(`/api/corenull/houses?owner_key=${key}`)
+    // CoreHub Opportunities 조회 (오늘의 발견)
+    fetch(`${COREHUB_URL}?owner_key=${key}`)
       .then(r => r.json())
-      .then(async d => {
-        const houseList = d.data || []
-        setHouses(houseList)
-        if (houseList.length === 0) return
-
-        if (preselectedRoomId) {
-          for (const house of houseList) {
-            // ADR-ACCESS-001: owner_key를 같이 보내야 본인 비공개 방도 목록에 뜸
-            const r = await fetch(`/api/corenull/rooms?house_id=${house.id}&owner_key=${key}`)
-            const rd = await r.json()
-            const roomList = rd.data || []
-            const found = roomList.find((rm: any) => rm.id === preselectedRoomId)
-            if (found) {
-              setSelectedHouse(house)
-              setRooms(roomList)
-              setSelectedRoom(found)
-              return
-            }
-          }
-        }
-
-        const house = houseList[0]
-        setSelectedHouse(house)
-        await loadRooms(house.id, key)
+      .then(d => {
+        const items = Array.isArray(d.data) ? d.data : []
+        setDiscoveries(items.slice(0, 3)) // 최대 3개
       })
-  }, [])
+      .catch(() => null)
+  }, [houseId])
 
-  // ADR-ACCESS-001: owner_key를 명시적으로 인자로 받는다.
-  // (컴포넌트 상태 ownerKey를 참조하면 useEffect 초기 호출 시 아직 반영 전이라
-  //  빈 문자열로 요청이 나가는 stale closure 문제가 생길 수 있어 인자로 고정한다)
-  const loadRooms = async (houseId: string, key?: string) => {
-    const requesterKey = key ?? ownerKey
-    const r = await fetch(`/api/corenull/rooms?house_id=${houseId}&owner_key=${requesterKey}`)
-    const rd = await r.json()
-    const roomList = rd.data || []
-    setRooms(roomList)
-    setSelectedRoom(roomList.length > 0 ? roomList[0] : null)
-  }
+  const isOwner = house?.owner_key === ownerKey
 
-  // ─── 집 전환 ──────────────────────────────────────────
-  const handleHouseChange = async (houseId: string) => {
-    const house = houses.find((h: any) => h.id === houseId)
-    if (!house) return
-    setSelectedHouse(house)
-    setShowNewRoom(false)
-    await loadRooms(house.id)
-  }
-
-  // ─── 새 방 생성 ───────────────────────────────────────
-  const handleCreateRoom = async () => {
-    if (!newRoomName.trim() || !selectedHouse) return
-    setCreatingRoom(true)
-    setRoomError('')
-
-    const res = await fetch('/api/corenull/rooms', {
+  const handleInvite = async () => {
+    if (inviteLoading) return
+    setInviteLoading(true)
+    const res = await fetch('/api/corenull/invite', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        house_id: selectedHouse.id,
-        owner_key: ownerKey,
-        room_name: newRoomName.trim(),
-        room_type: isSeed ? 'seed' : 'normal',
-        visibility: 'public',
-        seed_mode: isSeed,
-        bloom_date: isSeed && bloomDate ? bloomDate : null,
-      }),
+      body: JSON.stringify({ house_id: houseId, owner_key: ownerKey }),
     })
-
     const data = await res.json()
-    if (data.data) {
-      const created = data.data
-      setRooms(prev => [...prev, created])
-      setSelectedRoom(created)
-      setShowNewRoom(false)
-      setNewRoomName('')
-      setIsSeed(false)
-      setBloomDate('')
-    } else {
-      setRoomError(data._error || '방 만들기에 실패했어요')
+    if (data.data?.invite_token) {
+      setInviteUrl(`https://corenull.vercel.app/invite/${data.data.invite_token}`)
+      setShowShare(true)
     }
-    setCreatingRoom(false)
+    setInviteLoading(false)
   }
 
-  // ─── 미디어 업로드 ────────────────────────────────────
-  const handleFileSelect = async (e: any) => {
-    const files = Array.from(e.target.files || [])
-    if (files.length === 0) return
-    setUploading(true)
-    const form = new FormData()
-    files.forEach((f: any) => form.append('files', f))
-    const res = await fetch('/api/corenull/upload', { method: 'POST', body: form })
-    const data = await res.json()
-    setMediaFiles(prev => [...prev, ...(data.data || [])])
-    setUploading(false)
-  }
-
-  // ─── 포스트 작성 ──────────────────────────────────────
-  const handleSubmit = async () => {
-    if (!content.trim() || !selectedRoom) return
-    setSubmitting(true)
-    setSubmitError('')
-    const res = await fetch('/api/corenull/posts', {
-      method: 'POST',
+  // Opportunity 소비 처리
+  const handleDiscoveryDismiss = async (opportunityId: string) => {
+    setDiscoveries(prev => prev.filter(d => d.id !== opportunityId))
+    fetch(`${COREHUB_URL}`, {
+      method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        room_id: selectedRoom.id,
-        owner_key: ownerKey,
-        content: content.trim(),
-        meta: { media: mediaFiles },
-        type: 'post',  // Growth = Message(type="post") — 씨앗방이어도 항상 post
-      }),
-    })
-    const data = await res.json()
-    if (data.data) {
-      router.refresh()
-      router.push('/yard')
-    } else {
-      setSubmitError(data._error || '올리기에 실패했어요')
-    }
-    setSubmitting(false)
+      body: JSON.stringify({ opportunity_id: opportunityId, outcome: 'shown' }),
+    }).catch(() => null)
   }
 
-  const removeMedia = (index: number) => {
-    setMediaFiles(prev => prev.filter((_, i) => i !== index))
-  }
+  if (loading) return <div style={styles.loading}>🏡</div>
+  if (!house) return <div style={styles.loading}>집을 찾을 수 없어요</div>
+
+  const langFlag = house.primary_language === 'ko' ? '🇰🇷'
+    : house.primary_language === 'vi' ? '🇻🇳'
+    : house.primary_language === 'en' ? '🇺🇸'
+    : house.primary_language === 'ja' ? '🇯🇵'
+    : house.primary_language === 'zh' ? '🇨🇳' : '🌐'
 
   return (
     <div>
       {/* 헤더 */}
       <div style={styles.header}>
         <button style={styles.backBtn} onClick={() => router.back()}>←</button>
-        <span style={styles.headerTitle}>새 이야기</span>
-        <button
-          style={{ ...styles.submitBtn, opacity: (!content.trim() || !selectedRoom || submitting) ? 0.4 : 1 }}
-          onClick={handleSubmit}
-          disabled={!content.trim() || !selectedRoom || submitting}
-        >
-          {submitting ? '...' : '올리기'}
-        </button>
+        <span style={styles.headerTitle}>{house.title}</span>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {isOwner && (
+            <button
+              style={styles.iconBtn}
+              onClick={handleInvite}
+              disabled={inviteLoading}
+            >
+              {inviteLoading ? '...' : '🔗'}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* 집 커버 */}
+      <div style={styles.cover}>
+        <div style={styles.coverEmoji}>🏡</div>
+        <div>
+          <div style={styles.coverTitle}>{house.title}</div>
+          <div style={styles.coverLang}>{langFlag} {house.primary_language}</div>
+          {house.description && (
+            <div style={styles.coverDesc}>{house.description}</div>
+          )}
+        </div>
       </div>
 
       <div style={styles.body}>
-        {submitError && <div style={styles.errorBox}>⚠️ {submitError}</div>}
 
-        {/* ── 집 선택 (집이 2개 이상일 때만 노출) ── */}
-        {houses.length > 1 && (
-          <div style={styles.houseSelect}>
-            <span style={styles.roomLabel}>어느 집에?</span>
-            <select
-              style={styles.roomDropdown}
-              value={selectedHouse?.id || ''}
-              onChange={e => handleHouseChange(e.target.value)}
-            >
-              {houses.map((h: any) => (
-                <option key={h.id} value={h.id}>
-                  {LANG_FLAG[h.primary_language] || '🏡'} {h.title}
-                </option>
-              ))}
-            </select>
+        {/* ✨ 오늘의 발견 */}
+        {discoveries.length > 0 && (
+          <div style={styles.discoverySection}>
+            <div style={styles.discoverySectionTitle}>✨ 오늘의 발견</div>
+            <div style={styles.discoveryList}>
+              {discoveries.map((d: any) => {
+                const label = ACTION_LABEL[d.action_type]
+                  || d.payload?.message
+                  || '새로운 연결을 발견했어요'
+                return (
+                  <div key={d.id} style={styles.discoveryCard}>
+                    <span style={styles.discoveryText}>{label}</span>
+                    <button
+                      style={styles.discoveryDismiss}
+                      onClick={() => handleDiscoveryDismiss(d.id)}
+                    >✕</button>
+                  </div>
+                )
+              })}
+            </div>
           </div>
         )}
 
-        {/* ── 방 선택 ── */}
-        {!showNewRoom ? (
-          <div style={styles.roomSelect}>
-            <span style={styles.roomLabel}>어느 방에?</span>
-            <select
-              style={styles.roomDropdown}
-              value={selectedRoom?.id || ''}
-              onChange={e => {
-                if (e.target.value === '__new__') {
-                  setShowNewRoom(true)
-                  return
-                }
-                const r = rooms.find((r: any) => r.id === e.target.value)
-                setSelectedRoom(r)
-              }}
-            >
-              {rooms.map((r: any) => (
-                <option key={r.id} value={r.id}>
-                  {r.room_name}{r.seed_mode ? ' 🌱' : ''}
-                </option>
-              ))}
-              <option value="__new__">+ 새 방 만들기</option>
-            </select>
+        {/* 방 목록 */}
+        <div style={styles.sectionTitle}>방</div>
+
+        {rooms.length === 0 ? (
+          <div style={styles.emptyCard}>
+            <div style={{ fontSize: 32, marginBottom: 8 }}>🚪</div>
+            <div style={styles.emptyText}>아직 방이 없어요</div>
           </div>
         ) : (
-          /* ── 새 방 만들기 폼 ── */
-          <div style={styles.newRoomBox}>
-            <div style={styles.newRoomHeader}>
-              <span style={styles.roomLabel}>새 방 만들기</span>
-              <button
-                style={styles.cancelBtn}
-                onClick={() => { setShowNewRoom(false); setNewRoomName(''); setIsSeed(false); setBloomDate(''); setRoomError('') }}
+          <div style={styles.roomList}>
+            {rooms.map((room: any) => (
+              <div
+                key={room.id}
+                style={styles.roomCard}
+                onClick={() => router.push(`/rooms/${room.id}`)}
               >
-                취소
-              </button>
-            </div>
-
-            {roomError && <div style={styles.errorBox}>⚠️ {roomError}</div>}
-
-            <input
-              style={styles.newRoomInput}
-              placeholder="방 이름"
-              value={newRoomName}
-              onChange={e => setNewRoomName(e.target.value)}
-              maxLength={20}
-              autoFocus
-            />
-
-            {/* 씨앗 토글 */}
-            <div style={styles.toggleRow} onClick={() => setIsSeed(v => !v)}>
-              <div style={styles.toggleLeft}>
-                <span style={{ fontSize: 18 }}>🌱</span>
-                <div>
-                  <div style={styles.toggleTitle}>씨앗</div>
-                  <div style={styles.toggleDesc}>스스로에게 한 약속</div>
+                <div style={styles.roomIcon}>
+                  {room.seed_mode ? '🌱' : '🚪'}
                 </div>
-              </div>
-              <div style={{ ...styles.toggleSwitch, background: isSeed ? '#2C1810' : '#e0d8d0' }}>
-                <div style={{ ...styles.toggleThumb, transform: isSeed ? 'translateX(20px)' : 'translateX(2px)' }} />
-              </div>
-            </div>
-
-            {/* bloom_date — 씨앗일 때만 표시 */}
-            {isSeed && (
-              <div style={styles.bloomBox}>
-                <div style={styles.bloomLabel}>🌸 꽃 피는 날 (선택)</div>
-                <div style={styles.bloomDesc}>이 날이 되면 씨앗이 꽃으로 변해요</div>
-                <input
-                  type="date"
-                  style={styles.dateInput}
-                  value={bloomDate}
-                  min={today}
-                  onChange={e => setBloomDate(e.target.value)}
-                />
-              </div>
-            )}
-
-            <button
-              style={{ ...styles.createRoomBtn, opacity: (!newRoomName.trim() || creatingRoom) ? 0.4 : 1 }}
-              onClick={handleCreateRoom}
-              disabled={!newRoomName.trim() || creatingRoom}
-            >
-              {creatingRoom ? '만드는 중...' : '방 만들기'}
-            </button>
-          </div>
-        )}
-
-        {/* ── 텍스트 입력 ── */}
-        <textarea
-          style={styles.textarea}
-          placeholder="오늘 어떤 순간을 남기고 싶으세요?"
-          value={content}
-          onChange={e => setContent(e.target.value)}
-          autoFocus={!showNewRoom}
-        />
-
-        {/* ── 미디어 미리보기 ── */}
-        {mediaFiles.length > 0 && (
-          <div style={styles.mediaPreview}>
-            {mediaFiles.map((m, i) => (
-              <div key={i} style={styles.mediaItem}>
-                {m.type === 'image' ? (
-                  <img src={m.url} alt="" style={styles.mediaThumb} />
-                ) : (
-                  <div style={styles.videoThumb}>🎬</div>
-                )}
-                <button style={styles.removeBtn} onClick={() => removeMedia(i)}>✕</button>
+                <div style={styles.roomInfo}>
+                  <div style={styles.roomName}>{room.room_name}</div>
+                  <div style={styles.roomMeta}>
+                    {room.visibility === 'public' ? '🌍 공개' : room.visibility === 'invite' ? '👥 이웃공개' : '🔒 비공개'}
+                    {room.seed_mode && ' · 🌱 씨앗'}
+                  </div>
+                </div>
+                <span style={styles.roomArrow}>›</span>
               </div>
             ))}
           </div>
         )}
 
-        {/* ── 미디어 추가 ── */}
-        <div style={styles.mediaRow}>
-          <button
-            style={styles.mediaBtn}
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
-          >
-            {uploading ? '⏳' : '📷'} {uploading ? '업로드 중...' : '사진/영상'}
-          </button>
-        </div>
+        <button
+          style={styles.addRoomBtn}
+          onClick={() => router.push('/write')}
+        >
+          + 방 만들기
+        </button>
 
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*,video/*"
-          multiple
-          style={{ display: 'none' }}
-          onChange={handleFileSelect}
-        />
+        {isOwner && (
+          <button
+            style={styles.inviteBtn}
+            onClick={handleInvite}
+            disabled={inviteLoading}
+          >
+            {inviteLoading ? '초대 링크 생성 중...' : '🔗 이웃 초대하기'}
+          </button>
+        )}
       </div>
+
+      {showShare && inviteUrl && (
+        <ShareModal
+          url={inviteUrl}
+          title={`${house.title} 초대`}
+          onClose={() => setShowShare(false)}
+        />
+      )}
     </div>
   )
 }
 
 const styles: Record<string, React.CSSProperties> = {
+  loading: {
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    height: '50vh', fontSize: 40,
+  },
   header: {
     position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)',
     width: '100%', maxWidth: '430px', height: 56,
@@ -348,105 +219,85 @@ const styles: Record<string, React.CSSProperties> = {
   },
   backBtn: { fontSize: 20, color: '#2C1810', background: 'none', border: 'none', cursor: 'pointer' },
   headerTitle: { fontFamily: "'Noto Serif KR', serif", fontSize: 16, fontWeight: 600, color: '#2C1810' },
-  submitBtn: {
-    padding: '8px 16px', background: '#2C1810', color: 'white',
-    border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 500, cursor: 'pointer',
+  iconBtn: {
+    width: 36, height: 36, borderRadius: '50%', background: '#F5F0E8',
+    border: 'none', fontSize: 16, cursor: 'pointer',
   },
+  cover: {
+    height: 140,
+    background: 'linear-gradient(135deg, #4A5240 0%, #7A8C6E 60%, #C8D5B9 100%)',
+    display: 'flex', alignItems: 'flex-end', padding: '16px', gap: 12,
+  },
+  coverEmoji: { fontSize: 40 },
+  coverTitle: {
+    fontFamily: "'Noto Serif KR', serif", fontSize: 20, fontWeight: 600,
+    color: 'white', textShadow: '0 1px 4px rgba(0,0,0,0.3)',
+  },
+  coverLang: { fontSize: 12, color: 'rgba(255,255,255,0.8)', marginTop: 3 },
+  coverDesc: { fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 },
   body: { padding: '16px' },
-  errorBox: {
-    background: 'rgba(200,60,40,0.08)', border: '1px solid rgba(200,60,40,0.25)',
-    borderRadius: 10, padding: '10px 12px', marginBottom: 12,
-    fontSize: 13, color: '#A33',
+
+  // ✨ 오늘의 발견
+  discoverySection: {
+    marginBottom: 20,
   },
-  houseSelect: {
-    display: 'flex', alignItems: 'center', gap: 10,
-    background: '#FEFCF8', border: '1px solid rgba(92,61,46,0.12)',
-    borderRadius: 12, padding: '10px 14px', marginBottom: 10,
+  discoverySectionTitle: {
+    fontSize: 13, fontWeight: 600, color: '#2C1810',
+    marginBottom: 8,
   },
-  roomSelect: {
-    display: 'flex', alignItems: 'center', gap: 10,
-    background: '#FEFCF8', border: '1px solid rgba(92,61,46,0.12)',
-    borderRadius: 12, padding: '10px 14px', marginBottom: 12,
+  discoveryList: {
+    display: 'flex', flexDirection: 'column', gap: 8,
   },
-  roomLabel: { fontSize: 13, color: '#9A8470', flexShrink: 0 },
-  roomDropdown: {
-    flex: 1, border: 'none', background: 'none',
-    fontSize: 14, color: '#1C1208', fontFamily: "'Noto Sans KR', sans-serif",
-    outline: 'none', cursor: 'pointer',
-  },
-  newRoomBox: {
-    background: '#FEFCF8', border: '1px solid rgba(92,61,46,0.12)',
-    borderRadius: 12, padding: '14px', marginBottom: 12,
-    display: 'flex', flexDirection: 'column', gap: 10,
-  },
-  newRoomHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
-  cancelBtn: { fontSize: 13, color: '#9A8470', background: 'none', border: 'none', cursor: 'pointer' },
-  newRoomInput: {
-    width: '100%', height: 44,
-    background: '#F5F0E8', border: '1px solid rgba(92,61,46,0.12)',
-    borderRadius: 10, padding: '0 12px',
-    fontSize: 14, color: '#1C1208', outline: 'none', boxSizing: 'border-box',
-    fontFamily: "'Noto Sans KR', sans-serif",
-  },
-  toggleRow: {
+  discoveryCard: {
+    background: 'linear-gradient(135deg, rgba(193,127,60,0.08), rgba(74,82,64,0.06))',
+    border: '1px solid rgba(193,127,60,0.2)',
+    borderRadius: 12, padding: '12px 14px',
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '10px 12px', background: '#F5F0E8', borderRadius: 10, cursor: 'pointer',
   },
-  toggleLeft: { display: 'flex', alignItems: 'center', gap: 10 },
-  toggleTitle: { fontSize: 13, fontWeight: 500, color: '#1C1208' },
-  toggleDesc: { fontSize: 11, color: '#9A8470', marginTop: 1 },
-  toggleSwitch: {
-    width: 44, height: 24, borderRadius: 12, position: 'relative',
-    transition: 'background 0.2s', flexShrink: 0,
+  discoveryText: {
+    fontSize: 13, color: '#2C1810', lineHeight: 1.5, flex: 1,
   },
-  toggleThumb: {
-    position: 'absolute', top: 2, width: 20, height: 20,
-    borderRadius: '50%', background: 'white',
-    transition: 'transform 0.2s', boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
+  discoveryDismiss: {
+    background: 'none', border: 'none', cursor: 'pointer',
+    fontSize: 12, color: '#9A8470', padding: '0 0 0 8px', flexShrink: 0,
   },
-  bloomBox: {
-    background: 'rgba(193,127,60,0.06)', border: '1px solid rgba(193,127,60,0.2)',
-    borderRadius: 10, padding: '12px',
-    display: 'flex', flexDirection: 'column', gap: 4,
+
+  sectionTitle: {
+    fontSize: 11, color: '#9A8470', letterSpacing: '1px',
+    textTransform: 'uppercase', marginBottom: 10,
   },
-  bloomLabel: { fontSize: 13, fontWeight: 500, color: '#C17F3C' },
-  bloomDesc: { fontSize: 11, color: '#9A8470', marginBottom: 6 },
-  dateInput: {
-    width: '100%', height: 40,
-    background: '#FEFCF8', border: '1px solid rgba(92,61,46,0.12)',
-    borderRadius: 8, padding: '0 12px',
-    fontSize: 14, color: '#1C1208', outline: 'none', boxSizing: 'border-box',
+  emptyCard: {
+    background: '#FEFCF8', borderRadius: 16,
+    border: '1px dashed rgba(92,61,46,0.2)', padding: '32px 20px',
+    textAlign: 'center', marginBottom: 12,
   },
-  createRoomBtn: {
-    width: '100%', padding: '12px', background: '#2C1810', color: 'white',
-    border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 500, cursor: 'pointer',
+  emptyText: { fontSize: 14, color: '#9A8470' },
+  roomList: { display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 },
+  roomCard: {
+    background: '#FEFCF8', borderRadius: 14,
+    border: '1px solid rgba(92,61,46,0.12)',
+    padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12,
+    cursor: 'pointer', boxShadow: '0 2px 12px rgba(44,24,16,0.06)',
   },
-  textarea: {
-    width: '100%', minHeight: 200,
-    background: '#FEFCF8', border: '1px solid rgba(92,61,46,0.12)',
-    borderRadius: 12, padding: 14,
-    fontFamily: "'Noto Sans KR', sans-serif", fontSize: 15, lineHeight: 1.7,
-    color: '#1C1208', resize: 'none', outline: 'none', marginBottom: 12,
-    boxSizing: 'border-box',
+  roomIcon: {
+    width: 44, height: 44, borderRadius: 12,
+    background: 'rgba(74,82,64,0.1)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20,
   },
-  mediaPreview: { display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 },
-  mediaItem: { position: 'relative' },
-  mediaThumb: { width: 80, height: 80, borderRadius: 10, objectFit: 'cover' },
-  videoThumb: {
-    width: 80, height: 80, borderRadius: 10,
-    background: '#2d4a3e', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28,
-  },
-  removeBtn: {
-    position: 'absolute', top: -6, right: -6,
-    width: 20, height: 20, borderRadius: '50%',
-    background: '#2C1810', color: 'white',
-    border: 'none', fontSize: 10, cursor: 'pointer',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-  },
-  mediaRow: { display: 'flex', gap: 8 },
-  mediaBtn: {
-    flex: 1, height: 48,
+  roomInfo: { flex: 1 },
+  roomName: { fontSize: 15, fontWeight: 500, color: '#1C1208' },
+  roomMeta: { fontSize: 11, color: '#9A8470', marginTop: 3 },
+  roomArrow: { fontSize: 16, color: '#9A8470' },
+  addRoomBtn: {
+    width: '100%', padding: '14px',
     background: '#FEFCF8', border: '1px dashed rgba(92,61,46,0.2)',
-    borderRadius: 12, fontSize: 14, color: '#9A8470', cursor: 'pointer',
+    borderRadius: 14, fontSize: 14, color: '#9A8470', cursor: 'pointer',
+    marginBottom: 8,
+  },
+  inviteBtn: {
+    width: '100%', padding: '14px',
+    background: 'rgba(74,82,64,0.08)', border: '1px solid rgba(74,82,64,0.2)',
+    borderRadius: 14, fontSize: 14, color: '#4A5240',
+    fontWeight: 500, cursor: 'pointer',
   },
 }

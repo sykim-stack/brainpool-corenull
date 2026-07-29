@@ -46,7 +46,10 @@ export default function HomePage() {
 
         if (myHouse) {
           const [rRes, fRes] = await Promise.all([
-            fetch(`/api/corenull/rooms?house_id=${myHouse.id}`).then(r => r.json()),
+            // ADR-ACCESS-001: owner_key를 반드시 같이 보내야 함.
+            // 안 보내면 canReadRoom()이 "누군지 모르는 요청"으로 판단해서
+            // 본인이 만든 비공개(family) 방까지 목록에서 사라진다.
+            fetch(`/api/corenull/rooms?house_id=${myHouse.id}&owner_key=${key}`).then(r => r.json()),
             fetch(`/api/corenull/footprints?owner_key=${key}`).then(r => r.json()),
           ])
           setRooms(rRes.data || [])
@@ -176,7 +179,7 @@ export default function HomePage() {
                 <div style={styles.roomInfo}>
                   <div style={styles.roomName}>{room.room_name}</div>
                   <div style={styles.roomMeta}>
-                    {room.visibility === 'public' ? '🌍 공개' : room.visibility === 'invite' ? '👥 이웃공개' : '👨‍👩‍👧 가족'}
+                    {room.visibility === 'public' ? '🌍 공개' : room.visibility === 'invite' ? '👥 이웃공개' : '🔒 비공개'}
                     {room.seed_mode && ' · 🌱 씨앗'}
                   </div>
                 </div>
