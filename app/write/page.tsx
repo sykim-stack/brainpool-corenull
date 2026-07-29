@@ -47,7 +47,8 @@ export default function WritePage() {
 
         if (preselectedRoomId) {
           for (const house of houseList) {
-            const r = await fetch(`/api/corenull/rooms?house_id=${house.id}`)
+            // ADR-ACCESS-001: owner_key를 같이 보내야 본인 비공개 방도 목록에 뜸
+            const r = await fetch(`/api/corenull/rooms?house_id=${house.id}&owner_key=${key}`)
             const rd = await r.json()
             const roomList = rd.data || []
             const found = roomList.find((rm: any) => rm.id === preselectedRoomId)
@@ -62,12 +63,16 @@ export default function WritePage() {
 
         const house = houseList[0]
         setSelectedHouse(house)
-        await loadRooms(house.id)
+        await loadRooms(house.id, key)
       })
   }, [])
 
-  const loadRooms = async (houseId: string) => {
-    const r = await fetch(`/api/corenull/rooms?house_id=${houseId}`)
+  // ADR-ACCESS-001: owner_key를 명시적으로 인자로 받는다.
+  // (컴포넌트 상태 ownerKey를 참조하면 useEffect 초기 호출 시 아직 반영 전이라
+  //  빈 문자열로 요청이 나가는 stale closure 문제가 생길 수 있어 인자로 고정한다)
+  const loadRooms = async (houseId: string, key?: string) => {
+    const requesterKey = key ?? ownerKey
+    const r = await fetch(`/api/corenull/rooms?house_id=${houseId}&owner_key=${requesterKey}`)
     const rd = await r.json()
     const roomList = rd.data || []
     setRooms(roomList)
