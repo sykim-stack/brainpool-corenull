@@ -124,7 +124,7 @@ export default function HouseDetailPage() {
         {/* ✨ 오늘의 발견 */}
         {discoveries.length > 0 && (
           <div style={styles.discoverySection}>
-            <div style={styles.discoverySectionTitle}>✨ 오늘의 발견</div>
+            <div style={styles.discoverySectionTitle}>💡 오늘의 발견</div>
             <div style={styles.discoveryList}>
               {discoveries.map((d: any) => {
                 const label = ACTION_LABEL[d.action_type]

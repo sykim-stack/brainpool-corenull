@@ -144,7 +144,7 @@ export default function HomePage() {
         {/* 오늘의 발견 */}
         {discoveries.length > 0 && (
           <div style={{ marginBottom: 20 }}>
-            <div style={styles.sectionTitle}>✨ 오늘의 발견</div>
+            <div style={styles.sectionTitle}>💡 오늘의 발견</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {discoveries.map((d: any) => {
                 const label = ACTION_LABEL[d.action_type] || d.payload?.message || '새로운 연결을 발견했어요'
