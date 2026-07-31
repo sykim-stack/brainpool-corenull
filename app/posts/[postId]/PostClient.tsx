@@ -28,6 +28,7 @@ export default function PostDetailPage() {
   const [uploading, setUploading] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const cameraInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     const key = getDeviceId()
@@ -78,6 +79,7 @@ export default function PostDetailPage() {
     setEditMedia(prev => prev.filter((_: any, i: number) => i !== index))
   }
 
+  // 카메라 촬영 / 앨범 선택 공용 핸들러
   const handleAddMedia = async (e: any) => {
     const files = Array.from(e.target.files || [])
     if (files.length === 0) return
@@ -88,6 +90,8 @@ export default function PostDetailPage() {
     const data = await res.json()
     setEditMedia(prev => [...prev, ...(data.data || [])])
     setUploading(false)
+    // 같은 파일을 연속으로 다시 촬영/선택해도 onChange가 다시 뜨도록 value 초기화
+    e.target.value = ''
   }
 
   const handleEdit = async () => {
@@ -231,14 +235,33 @@ export default function PostDetailPage() {
               </div>
             )}
 
-            {/* 이미지 추가 버튼 */}
-            <button
-              style={styles.addMediaBtn}
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-            >
-              {uploading ? '⏳ 업로드 중...' : '📷 사진/영상 추가'}
-            </button>
+            {/* 이미지 추가: 카메라 촬영 / 앨범 선택 */}
+            <div style={styles.addMediaRow}>
+              <button
+                style={styles.addMediaBtn}
+                onClick={() => cameraInputRef.current?.click()}
+                disabled={uploading}
+              >
+                {uploading ? '⏳' : '📷'} {uploading ? '업로드 중...' : '카메라로 찍기'}
+              </button>
+              <button
+                style={styles.addMediaBtn}
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+              >
+                {uploading ? '⏳' : '🖼️'} {uploading ? '업로드 중...' : '앨범에서 선택'}
+              </button>
+            </div>
+            {/* capture 속성: 모바일에서 갤러리 없이 카메라 앱을 바로 띄움(후면 카메라).
+                데스크톱에서는 무시되고 일반 파일 선택창이 뜸 */}
+            <input
+              ref={cameraInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              style={{ display: 'none' }}
+              onChange={handleAddMedia}
+            />
             <input
               ref={fileInputRef}
               type="file"
@@ -378,10 +401,11 @@ const styles: Record<string, React.CSSProperties> = {
     background: '#2C1810', color: 'white',
     border: 'none', fontSize: 10, cursor: 'pointer',
   },
+  addMediaRow: { display: 'flex', gap: 8 },
   addMediaBtn: {
-    width: '100%', padding: '10px',
+    flex: 1, padding: '10px',
     background: '#F5F0E8', border: '1px dashed rgba(92,61,46,0.2)',
-    borderRadius: 10, fontSize: 13, color: '#9A8470', cursor: 'pointer',
+    borderRadius: 10, fontSize: 12, color: '#9A8470', cursor: 'pointer',
   },
   editTextarea: {
     width: '100%', minHeight: 120,
