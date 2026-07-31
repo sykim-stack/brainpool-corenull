@@ -29,6 +29,7 @@ export default function WritePage() {
   const [roomError, setRoomError] = useState('')
 
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const cameraInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
   const today = new Date().toISOString().split('T')[0]
 
@@ -123,7 +124,7 @@ export default function WritePage() {
     setCreatingRoom(false)
   }
 
-  // ─── 미디어 업로드 ────────────────────────────────────
+  // ─── 미디어 업로드 (카메라 촬영 / 앨범 선택 공용) ─────
   const handleFileSelect = async (e: any) => {
     const files = Array.from(e.target.files || [])
     if (files.length === 0) return
@@ -134,6 +135,8 @@ export default function WritePage() {
     const data = await res.json()
     setMediaFiles(prev => [...prev, ...(data.data || [])])
     setUploading(false)
+    // 같은 파일을 연속으로 다시 촬영/선택해도 onChange가 다시 뜨도록 value 초기화
+    e.target.value = ''
   }
 
   // ─── 포스트 작성 ──────────────────────────────────────
@@ -314,17 +317,40 @@ export default function WritePage() {
           </div>
         )}
 
-        {/* ── 미디어 추가 ── */}
+        {/* ── 미디어 추가: 카메라 촬영 / 앨범 선택 ── */}
         <div style={styles.mediaRow}>
+          <button
+            style={styles.mediaBtn}
+            onClick={() => cameraInputRef.current?.click()}
+            disabled={uploading}
+          >
+            {uploading ? '⏳' : '📷'} {uploading ? '업로드 중...' : '카메라로 찍기'}
+          </button>
           <button
             style={styles.mediaBtn}
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
           >
-            {uploading ? '⏳' : '📷'} {uploading ? '업로드 중...' : '사진/영상'}
+            {uploading ? '⏳' : '🖼️'} {uploading ? '업로드 중...' : '앨범에서 선택'}
           </button>
         </div>
 
+        {/*
+          카메라 인풋: capture 속성이 모바일 브라우저(iOS Safari/Android Chrome)에서
+          갤러리 선택 없이 카메라 앱을 바로 띄운다. "environment"는 후면 카메라.
+          데스크톱에서는 capture가 무시되고 그냥 일반 파일 선택창이 뜬다 (안전한 fallback).
+          사진 한 장씩 촬영하는 흐름이라 multiple은 넣지 않음.
+        */}
+        <input
+          ref={cameraInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          style={{ display: 'none' }}
+          onChange={handleFileSelect}
+        />
+
+        {/* 앨범 인풋: 기존 그대로, 여러 장/영상 다중 선택 가능 */}
         <input
           ref={fileInputRef}
           type="file"
@@ -447,6 +473,6 @@ const styles: Record<string, React.CSSProperties> = {
   mediaBtn: {
     flex: 1, height: 48,
     background: '#FEFCF8', border: '1px dashed rgba(92,61,46,0.2)',
-    borderRadius: 12, fontSize: 14, color: '#9A8470', cursor: 'pointer',
+    borderRadius: 12, fontSize: 13, color: '#9A8470', cursor: 'pointer',
   },
 }
