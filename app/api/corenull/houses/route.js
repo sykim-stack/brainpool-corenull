@@ -1,5 +1,5 @@
 // CoreNull - House API
-// 집 생성 / 조회
+// 집 생성 / 조회 / 수정
 // 1인 1집 원칙: owner_key당 house는 반드시 1개 (DB unique 제약 + API idempotent 처리)
 
 export const dynamic = 'force-dynamic'
@@ -9,6 +9,7 @@ const handler = async (req) => {
 
   if (req.method === 'GET') return handleGet(req, traceId)
   if (req.method === 'POST') return handlePost(req, traceId)
+  if (req.method === 'PATCH') return handlePatch(req, traceId)
 
   return Response.json({ _error: 'method_not_allowed', traceId }, { status: 500 })
 }
@@ -108,4 +109,48 @@ const handlePost = async (req, traceId) => {
   return Response.json({ data: house, traceId })
 }
 
-export { handler as GET, handler as POST }
+// 집 정보 수정 (owner만) — 지금은 히어로 배경 지정 용도
+const handlePatch = async (req, traceId) => {
+  const body = JSON.parse(await req.text())
+  const { house_id, owner_key, hero_image_url } = body
+
+  if (!house_id || !owner_key) {
+    return Response.json({ _error: 'house_id_and_owner_key_required', traceId }, { status: 500 })
+  }
+
+  const { getSupabase } = await import('@/lib/supabase')
+  const supabase = getSupabase()
+  if (!supabase) return Response.json({ _error: 'supabase_init_failed', traceId }, { status: 500 })
+
+  const { data: house, error: fetchError } = await supabase
+    .from('corenull_houses')
+    .select('owner_key')
+    .eq('id', house_id)
+    .single()
+  if (fetchError || !house) {
+    return Response.json({ _error: 'house_not_found', traceId }, { status: 500 })
+  }
+  if (house.owner_key !== owner_key) {
+    return Response.json({ _error: 'not_house_owner', traceId }, { status: 500 })
+  }
+
+  // 지금은 hero_image_url만 수정 가능 (별도 업로드 폼 없이, 기존 Post 미디어 URL을 그대로 지정)
+  const updatePayload = {}
+  if (hero_image_url !== undefined) updatePayload.hero_image_url = hero_image_url || null
+
+  if (Object.keys(updatePayload).length === 0) {
+    return Response.json({ _error: 'nothing_to_update', traceId }, { status: 500 })
+  }
+
+  const { data, error } = await supabase
+    .from('corenull_houses')
+    .update(updatePayload)
+    .eq('id', house_id)
+    .select()
+    .single()
+  if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
+
+  return Response.json({ data, traceId })
+}
+
+export { handler as GET, handler as POST, handler as PATCH }
