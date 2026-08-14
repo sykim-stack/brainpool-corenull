@@ -2,7 +2,7 @@
 // 서버 컴포넌트 — generateMetadata + HouseClient 호출
 
 import { getHouseMetadata } from '@/lib/metadata'
-import HouseClient from './HouseClient'
+import HouseClient from '@/components/corenull/HouseClient'
 
 export async function generateMetadata({ params }: { params: { houseId: string } }) {
   return getHouseMetadata(params.houseId)
