@@ -117,7 +117,7 @@ const styles: Record<string, React.CSSProperties> = {
     position: 'fixed',
     bottom: 80,
     left: '50%',
-    transform: 'translateX(155px)', // 430px 프레임 우측 정렬(215-24-36 정도 여백)
+    transform: 'translateX(155px)', // 430px 프레임 우측 정렬
     display: 'flex',
     flexDirection: 'column',
     gap: 10,
