@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { getDeviceId } from '@/lib/deviceId'
 import ShareModal from '@/components/corenull/ShareModal'
-import PostBlock from '@/components/corenull/PostBlock.tsx'
+import PostBlock from '@/components/corenull/PostBlock'
 
 // ─────────────────────────────────────────────────────────────
 // 마당 (House Yard) — "골목에서 바라본 House의 모습"
