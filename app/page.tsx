@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { getDeviceId } from '@/lib/deviceId'
 import ShareModal from '@/components/corenull/ShareModal'
 import PostBlock from '@/components/corenull/PostBlock'
+import CoreNullLogo from '@/components/corenull/CoreNullLogo'
 
 // ─────────────────────────────────────────────────────────────
 // 거실 (Living) — "House 안으로 들어온 곳", 나만의 흐름.
@@ -157,7 +158,7 @@ export default function LivingPage() {
     <div>
       {/* 헤더 — 큰 Hero 이미지 없이 로고+공유만 (거실은 레이어를 덜 켠다) */}
       <div style={styles.header}>
-        <span style={styles.logo}>Core<span style={{ color: '#C17F3C' }}>Null</span></span>
+        <CoreNullLogo />
         <button style={styles.iconBtn} onClick={handleShareHouse}>🔗</button>
       </div>
 
