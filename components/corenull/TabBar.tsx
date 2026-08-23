@@ -6,7 +6,6 @@ const TABS = [
   { id: 'yard',     href: '/yard',        emoji: '🌳', label: '마당' },
   { id: 'living',   href: '/',            emoji: '🏠', label: '거실' },
   { id: 'library',  href: '/me/library',  emoji: '📚', label: '서재' },
-  { id: 'storage',  href: null,           emoji: '📦', label: '랜덤창고', disabled: true },
 ]
 
 export default function TabBar() {
@@ -20,65 +19,44 @@ export default function TabBar() {
   }
 
   return (
-    <>
-      {/* FAB 스택 — 글쓰기 / 프로필. 탭바 위 우측 하단에 고정 */}
-      <div style={styles.fabStack}>
+    <nav style={styles.nav}>
+      {TABS.map((tab) => (
         <button
-          style={{ ...styles.fab, ...styles.fabProfile }}
-          onClick={() => router.push('/me')}
-          aria-label="프로필"
+          key={tab.id}
+          onClick={() => {
+            if (tab.disabled || !tab.href) return
+            router.push(tab.href)
+          }}
+          disabled={tab.disabled}
+          style={{
+            ...styles.tabBtn,
+            ...(tab.disabled ? styles.tabBtnDisabled : {}),
+          }}
         >
-          👤
-        </button>
-        <button
-          style={{ ...styles.fab, ...styles.fabWrite }}
-          onClick={() => router.push('/write')}
-          aria-label="글쓰기"
-        >
-          ✏️
-        </button>
-      </div>
-
-      <nav style={styles.nav}>
-        {TABS.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => {
-              if (tab.disabled || !tab.href) return
-              router.push(tab.href)
-            }}
-            disabled={tab.disabled}
+          <span
             style={{
-              ...styles.tabBtn,
-              ...(tab.disabled ? styles.tabBtnDisabled : {}),
+              fontSize: 22,
+              lineHeight: 1,
+              transform: isActive(tab.href) ? 'scale(1.15)' : 'scale(1)',
+              transition: 'transform 0.2s',
             }}
           >
-            <span
-              style={{
-                fontSize: 22,
-                lineHeight: 1,
-                transform: isActive(tab.href) ? 'scale(1.15)' : 'scale(1)',
-                transition: 'transform 0.2s',
-                opacity: tab.disabled ? 0.35 : 1,
-              }}
-            >
-              {tab.emoji}
-            </span>
-            <span
-              style={{
-                fontSize: 10,
-                marginTop: 4,
-                color: tab.disabled ? '#B8AE9C' : isActive(tab.href) ? '#C17F3C' : '#9A8470',
-                fontWeight: isActive(tab.href) ? 500 : 400,
-                transition: 'color 0.2s',
-              }}
-            >
-              {tab.label}{tab.disabled ? ' (곧)' : ''}
-            </span>
-          </button>
-        ))}
-      </nav>
-    </>
+            {tab.emoji}
+          </span>
+          <span
+            style={{
+              fontSize: 10,
+              marginTop: 4,
+              color: isActive(tab.href) ? '#C17F3C' : '#9A8470',
+              fontWeight: isActive(tab.href) ? 500 : 400,
+              transition: 'color 0.2s',
+            }}
+          >
+            {tab.label}
+          </span>
+        </button>
+      ))}
+    </nav>
   )
 }
 
@@ -112,39 +90,5 @@ const styles: Record<string, React.CSSProperties> = {
   },
   tabBtnDisabled: {
     cursor: 'default',
-  },
-  fabStack: {
-    position: 'fixed',
-    bottom: 80,
-    left: '50%',
-    transform: 'translateX(155px)', // 430px 프레임 우측 정렬
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 10,
-    zIndex: 110,
-  },
-  fab: {
-    width: 48,
-    height: 48,
-    borderRadius: '50%',
-    border: 'none',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontSize: 20,
-    cursor: 'pointer',
-    boxShadow: '0 4px 14px rgba(44,24,16,0.25)',
-  },
-  fabWrite: {
-    background: '#2C1810',
-    color: '#FBF8F2',
-  },
-  fabProfile: {
-    background: '#F5F0E8',
-    color: '#2C1810',
-    width: 40,
-    height: 40,
-    fontSize: 16,
-    alignSelf: 'flex-end',
   },
 }
