@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import TabBar from '@/components/corenull/TabBar'
+import FloatingActions from '@/components/corenull/FloatingActions'
 
 export const metadata: Metadata = {
   title: 'CoreNull',
@@ -12,7 +13,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
         <link
-          href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@300;400;600&family=Noto+Sans+KR:wght@300;400;500&family=IBM+Plex+Mono:wght@400;500&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@300;400;600&family=Noto+Sans+KR:wght@300;400;500&display=swap"
           rel="stylesheet"
         />
       </head>
@@ -36,6 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {children}
         </main>
         <TabBar />
+        <FloatingActions />
       </body>
     </html>
   )
