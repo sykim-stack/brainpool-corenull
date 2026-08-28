@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
-import TabBar from '@/components/corenull/TabBar'
-import FloatingActions from '@/components/corenull/FloatingActions'
+import TabBar from '@/components/blocks/TabBar'
+import FloatingActions from '@/components/blocks/FloatingActions'
 
 export const metadata: Metadata = {
   title: 'CoreNull',
