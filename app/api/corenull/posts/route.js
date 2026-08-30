@@ -86,7 +86,29 @@ const handleGet = async (req, traceId) => {
     .not('meta', 'cs', '{"deleted":true}')
     .order('created_at', { ascending: false })
   if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
-  return Response.json({ data, traceId })
+
+  // comment_count — post마다 개별 fetch(N+1) 대신, 이 room의 댓글 전체를
+  // 한 번에 가져와서 parent_id 기준으로 세어 매핑한다.
+  const postIds = (data || []).map(p => p.id)
+  let commentCounts = {}
+  if (postIds.length > 0) {
+    const { data: comments } = await supabase
+      .from('messages')
+      .select('relations')
+      .eq('room_id', room_id)
+      .eq('type', 'comment')
+    for (const c of comments || []) {
+      const parentId = c.relations?.parent_id
+      if (parentId) commentCounts[parentId] = (commentCounts[parentId] || 0) + 1
+    }
+  }
+
+  const withCommentCount = (data || []).map(p => ({
+    ...p,
+    comment_count: commentCounts[p.id] || 0,
+  }))
+
+  return Response.json({ data: withCommentCount, traceId })
 }
 
 const handlePost = async (req, traceId) => {
@@ -135,13 +157,17 @@ const handlePost = async (req, traceId) => {
     const isOwner = house?.owner_key === owner_key
     let isMember = false
     if (!isOwner) {
-      const { data: member } = await supabase
+      // room_id 스코핑 반영 (ADR-ACCESS-001): room_id가 NULL인 멤버십 행은
+      // House 전체에 대한 참여, room_id가 채워진 행은 그 Room에만 한정된
+      // 참여(Participant)다. 이전엔 house_id+device_id만 확인해서, Room
+      // 한정 참여자가 실수로 House의 다른 모든 Room에도 쓸 수 있는
+      // 허점이 있었다.
+      const { data: memberRows } = await supabase
         .from('corenull_house_members')
-        .select('device_id')
+        .select('room_id')
         .eq('house_id', room.house_id)
         .eq('device_id', owner_key)
-        .single()
-      isMember = !!member
+      isMember = (memberRows || []).some(m => m.room_id === null || m.room_id === room_id)
     }
 
     if (!isOwner && !isMember) {

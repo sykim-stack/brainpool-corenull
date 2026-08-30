@@ -29,15 +29,19 @@ export default function WritePage() {
   const [roomError, setRoomError] = useState('')
 
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const cameraInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
   const today = new Date().toISOString().split('T')[0]
 
- useEffect(() => {
+  useEffect(() => {
     const key = getDeviceId()
     setOwnerKey(key)
 
-    const preselectedRoomId = new URLSearchParams(window.location.search).get('room_id')
+    const params = new URLSearchParams(window.location.search)
+    const preselectedRoomId = params.get('room_id')
+    // 거실(LivingBlock)의 "방 만들기" 버튼에서 넘어온 신호.
+    // write 페이지가 이미 갖고 있던 인라인 방만들기 폼(showNewRoom)을
+    // 그대로 재사용 — 새 화면/컴포넌트를 따로 만들지 않는다.
+    const shouldOpenNewRoom = params.get('new_room') === '1'
 
     fetch(`/api/corenull/houses?owner_key=${key}`)
       .then(r => r.json())
@@ -48,8 +52,7 @@ export default function WritePage() {
 
         if (preselectedRoomId) {
           for (const house of houseList) {
-            // ADR-ACCESS-001: owner_key를 같이 보내야 본인 비공개 방도 목록에 뜸
-            const r = await fetch(`/api/corenull/rooms?house_id=${house.id}&owner_key=${key}`)
+            const r = await fetch(`/api/corenull/rooms?house_id=${house.id}`)
             const rd = await r.json()
             const roomList = rd.data || []
             const found = roomList.find((rm: any) => rm.id === preselectedRoomId)
@@ -64,16 +67,14 @@ export default function WritePage() {
 
         const house = houseList[0]
         setSelectedHouse(house)
-        await loadRooms(house.id, key)
+        await loadRooms(house.id)
+
+        if (shouldOpenNewRoom) setShowNewRoom(true)
       })
   }, [])
 
-  // ADR-ACCESS-001: owner_key를 명시적으로 인자로 받는다.
-  // (컴포넌트 상태 ownerKey를 참조하면 useEffect 초기 호출 시 아직 반영 전이라
-  //  빈 문자열로 요청이 나가는 stale closure 문제가 생길 수 있어 인자로 고정한다)
-  const loadRooms = async (houseId: string, key?: string) => {
-    const requesterKey = key ?? ownerKey
-    const r = await fetch(`/api/corenull/rooms?house_id=${houseId}&owner_key=${requesterKey}`)
+  const loadRooms = async (houseId: string) => {
+    const r = await fetch(`/api/corenull/rooms?house_id=${houseId}`)
     const rd = await r.json()
     const roomList = rd.data || []
     setRooms(roomList)
@@ -124,7 +125,7 @@ export default function WritePage() {
     setCreatingRoom(false)
   }
 
-  // ─── 미디어 업로드 (카메라 촬영 / 앨범 선택 공용) ─────
+  // ─── 미디어 업로드 ────────────────────────────────────
   const handleFileSelect = async (e: any) => {
     const files = Array.from(e.target.files || [])
     if (files.length === 0) return
@@ -135,8 +136,6 @@ export default function WritePage() {
     const data = await res.json()
     setMediaFiles(prev => [...prev, ...(data.data || [])])
     setUploading(false)
-    // 같은 파일을 연속으로 다시 촬영/선택해도 onChange가 다시 뜨도록 value 초기화
-    e.target.value = ''
   }
 
   // ─── 포스트 작성 ──────────────────────────────────────
@@ -317,40 +316,17 @@ export default function WritePage() {
           </div>
         )}
 
-        {/* ── 미디어 추가: 카메라 촬영 / 앨범 선택 ── */}
+        {/* ── 미디어 추가 ── */}
         <div style={styles.mediaRow}>
-          <button
-            style={styles.mediaBtn}
-            onClick={() => cameraInputRef.current?.click()}
-            disabled={uploading}
-          >
-            {uploading ? '⏳' : '📷'} {uploading ? '업로드 중...' : '카메라로 찍기'}
-          </button>
           <button
             style={styles.mediaBtn}
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
           >
-            {uploading ? '⏳' : '🖼️'} {uploading ? '업로드 중...' : '앨범에서 선택'}
+            {uploading ? '⏳' : '📷'} {uploading ? '업로드 중...' : '사진/영상'}
           </button>
         </div>
 
-        {/*
-          카메라 인풋: capture 속성이 모바일 브라우저(iOS Safari/Android Chrome)에서
-          갤러리 선택 없이 카메라 앱을 바로 띄운다. "environment"는 후면 카메라.
-          데스크톱에서는 capture가 무시되고 그냥 일반 파일 선택창이 뜬다 (안전한 fallback).
-          사진 한 장씩 촬영하는 흐름이라 multiple은 넣지 않음.
-        */}
-        <input
-          ref={cameraInputRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          style={{ display: 'none' }}
-          onChange={handleFileSelect}
-        />
-
-        {/* 앨범 인풋: 기존 그대로, 여러 장/영상 다중 선택 가능 */}
         <input
           ref={fileInputRef}
           type="file"
@@ -473,6 +449,6 @@ const styles: Record<string, React.CSSProperties> = {
   mediaBtn: {
     flex: 1, height: 48,
     background: '#FEFCF8', border: '1px dashed rgba(92,61,46,0.2)',
-    borderRadius: 12, fontSize: 13, color: '#9A8470', cursor: 'pointer',
+    borderRadius: 12, fontSize: 14, color: '#9A8470', cursor: 'pointer',
   },
 }

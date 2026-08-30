@@ -122,6 +122,12 @@ export default function LivingBlock({
         onPostClick={onPostClick}
         onCommentClick={onCommentClick}
       />
+
+      {/*
+        NeighborContentBlock 자리 — ADR-ACCESS-002 승인 전까지 OFF.
+        게이트 풀리면 여기에 <NeighborContentBlock tier="invite" .../> 하나만 추가
+        (§5-6: 복도의 거주지는 거실).
+      */}
     </div>
   )
 }

@@ -1,130 +1,108 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import RoomCard from '@/components/corenull/RoomCard'
+import { useEffect, useState } from 'react'
+import { useParams, useRouter } from 'next/navigation'
+import { getDeviceId } from '@/lib/deviceId'
+import TopBar from '@/components/blocks/TopBar'
+import YardBlock from '@/components/blocks/YardBlock'
+import CoreNullLogo from '@/components/corenull/CoreNullLogo'
+import { PostBlockData } from '@/components/blocks/PostBlock'
+import { RingData } from '@/components/blocks/RingBlock'
 
-type FilterKey = 'all' | 'neighbor' | 'recommend' | 'seed'
+const LANG_FLAG: Record<string, string> = {
+  ko: '🇰🇷', vi: '🇻🇳', en: '🇺🇸', ja: '🇯🇵', zh: '🇨🇳',
+}
 
-const FILTERS: { key: FilterKey; label: string; enabled: boolean }[] = [
-  { key: 'all', label: '전체', enabled: true },
-  { key: 'seed', label: '🌱 씨앗', enabled: true },
-  { key: 'neighbor', label: '이웃', enabled: false },
-  { key: 'recommend', label: '추천', enabled: false },
-]
+// Ring weight 임시 계산 — 나중에 CoreHub 가중치로 교체될 자리.
+// 계약(ADR-RINGBLOCK-000: rings:[{index,weight}])만 지키면 되므로,
+// 이 함수만 교체하면 HeroBlock/RingBlock/YardBlock 전부 그대로 유지된다.
+function buildRingData(roomCount: number, neighborCount: number): RingData {
+  const rings = [
+    { index: 0, weight: Math.min(roomCount / 6, 1) },
+    { index: 1, weight: Math.min(neighborCount / 12, 1) },
+    { index: 2, weight: 0.5 },
+  ]
+  return { rings }
+}
 
-export default function YardPage() {
+export default function HouseYardPage() {
+  const { houseId } = useParams()
   const router = useRouter()
+
+  const [ownerKey, setOwnerKey] = useState('')
+  const [house, setHouse] = useState<any>(null)
   const [rooms, setRooms] = useState<any[]>([])
+  const [posts, setPosts] = useState<PostBlockData[]>([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState<FilterKey>('all')
 
   useEffect(() => {
-    fetch('/api/corenull/yard')
-      .then((r) => r.json())
-      .then((d) => {
-        setRooms(d.data || [])
-        setLoading(false)
-      })
-  }, [])
+    const key = getDeviceId()
+    setOwnerKey(key)
+    if (!houseId) return
 
-  const visibleRooms = useMemo(() => {
-    if (filter === 'seed') return rooms.filter((r) => !!r.stage?.seed_started_at)
-    // neighbor/recommend는 아직 비활성 — 눌러도 여기까지 안 옴 (버튼 disabled)
-    return rooms
-  }, [rooms, filter])
+    Promise.all([
+      fetch(`/api/corenull/houses?house_id=${houseId}`).then(r => r.json()),
+      fetch(`/api/corenull/rooms?house_id=${houseId}`).then(r => r.json()),
+    ]).then(async ([h, r]) => {
+      setHouse(h.house || null)
+      const roomList = r.data || []
+      setRooms(roomList)
 
-  if (loading) {
-    return (
-      <div style={styles.loading}>🌳</div>
-    )
-  }
+      // 내 방 최신 콘텐츠 — 공개 방들 기준으로 최신 post 모아오기.
+      // room마다 개별 fetch하지 않고, room_id 목록으로 한 번에 조회
+      // (예전 yard 페이지의 N+1 문제를 반복하지 않기 위함).
+      const publicRoomIds = roomList.filter((rm: any) => rm.visibility === 'public').map((rm: any) => rm.id)
+      if (publicRoomIds.length > 0) {
+        const postResults = await Promise.all(
+          publicRoomIds.map((rid: string) =>
+            fetch(`/api/corenull/posts?room_id=${rid}`).then(res => res.json())
+          )
+        )
+        const merged = postResults
+          .flatMap((res) => res.data || [])
+          .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+          .slice(0, 10)
+          .map((p: any): PostBlockData => ({
+            id: p.id,
+            content: p.content,
+            media: p.meta?.media,
+            created_at: p.created_at,
+            comment_count: p.comment_count ?? 0,
+          }))
+        setPosts(merged)
+      }
+
+      setLoading(false)
+    })
+  }, [houseId])
+
+  const langFlag = house?.primary_language ? (LANG_FLAG[house.primary_language] || '🌐') : '🌐'
 
   return (
     <div>
-      <div style={styles.header}>
-        <span style={styles.headerTitle}>🌳 마당</span>
-        <button style={styles.iconBtn} aria-label="검색">🔍</button>
-      </div>
+      <TopBar
+        logo={<CoreNullLogo size="sm" />}
+        title="마당"
+        actions={[
+          { key: 'share', emoji: '🔗', label: '이웃 초대', onClick: () => {/* TODO: invite 연결 */} },
+        ]}
+      />
 
-      <div style={styles.filterRow}>
-        {FILTERS.map((f) => (
-          <button
-            key={f.key}
-            onClick={() => f.enabled && setFilter(f.key)}
-            disabled={!f.enabled}
-            style={{
-              ...styles.chip,
-              ...(filter === f.key ? styles.chipActive : {}),
-              ...(!f.enabled ? styles.chipDisabled : {}),
-            }}
-          >
-            {f.label}{!f.enabled ? ' · 곧' : ''}
-          </button>
-        ))}
-      </div>
-
-      <div style={styles.feed}>
-        {visibleRooms.length === 0 ? (
-          <div style={styles.empty}>
-            <div style={{ fontSize: 40, marginBottom: 12 }}>🌱</div>
-            <p style={{ fontSize: 14, color: '#9A8470', lineHeight: 1.6 }}>
-              {filter === 'seed' ? '자라는 씨앗이 아직 없어요' : '아직 이야기가 없어요.\n첫 이야기를 남겨보세요.'}
-            </p>
-          </div>
-        ) : (
-          visibleRooms.map((room) => (
-            <div key={room.id} style={styles.cardWrap}>
-              <RoomCard room={room} onClick={() => router.push(`/rooms/${room.id}`)} />
-              <div style={styles.cardFooter}>
-                <span style={styles.houseTag}>
-                  {room.house_language === 'ko' ? '🇰🇷' : room.house_language === 'vi' ? '🇻🇳'
-                    : room.house_language === 'en' ? '🇺🇸' : room.house_language === 'ja' ? '🇯🇵'
-                    : room.house_language === 'zh' ? '🇨🇳' : '🏡'} {room.house_title || '집'}
-                </span>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
+      <YardBlock
+        loading={loading}
+        background={{ gradient: undefined }}
+        ring={buildRingData(rooms.length, 0)}
+        avatar={<span style={{ fontSize: 20 }}>🏡</span>}
+        doorplate={{
+          langFlag,
+          title: house?.title || '',
+          description: house?.description,
+          roomCount: rooms.length,
+        }}
+        posts={posts}
+        onPostClick={(postId) => router.push(`/posts/${postId}`)}
+        onCommentClick={(postId) => router.push(`/posts/${postId}`)}
+      />
     </div>
   )
-}
-
-const styles: Record<string, React.CSSProperties> = {
-  loading: { display: 'flex', alignItems: 'center', justifyContent: 'center', height: '50vh', fontSize: 40 },
-  header: {
-    position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)',
-    width: '100%', maxWidth: '430px', height: 56,
-    background: 'rgba(254,252,248,0.95)', borderBottom: '1px solid rgba(92,61,46,0.12)',
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '0 20px', zIndex: 100, backdropFilter: 'blur(12px)',
-  },
-  headerTitle: { fontFamily: "'Noto Serif KR', serif", fontSize: 18, fontWeight: 600, color: '#2C1810' },
-  iconBtn: {
-    width: 34, height: 34, borderRadius: '50%', background: '#F5F0E8',
-    border: 'none', fontSize: 14, cursor: 'pointer',
-  },
-  filterRow: {
-    position: 'fixed', top: 56, left: '50%', transform: 'translateX(-50%)',
-    width: '100%', maxWidth: '430px',
-    display: 'flex', gap: 8, padding: '10px 20px',
-    background: 'rgba(254,252,248,0.95)', borderBottom: '1px solid rgba(92,61,46,0.08)',
-    zIndex: 99, backdropFilter: 'blur(12px)',
-  },
-  chip: {
-    fontFamily: "'IBM Plex Mono', monospace", fontSize: 11,
-    padding: '6px 12px', borderRadius: 20,
-    border: '1px solid rgba(92,61,46,0.15)', background: 'none',
-    color: '#5C4A35', cursor: 'pointer',
-  },
-  chipActive: { background: '#2C1810', color: '#FBF8F2', borderColor: '#2C1810' },
-  chipDisabled: { opacity: 0.4, cursor: 'default' },
-  feed: { padding: '112px 16px 16px', display: 'flex', flexDirection: 'column', gap: 16 },
-  empty: { textAlign: 'center', padding: '48px 24px' },
-  cardWrap: { display: 'flex', flexDirection: 'column', gap: 6 },
-  cardFooter: { padding: '0 2px' },
-  houseTag: {
-    fontSize: 11, color: '#9A8470',
-  },
 }

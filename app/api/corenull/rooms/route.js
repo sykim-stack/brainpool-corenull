@@ -1,10 +1,12 @@
 ﻿// CoreNull - Room API
 // 방 생성 / 조회 / 수정 (집주인만 가능)
-// GET ?room_id=  단건 조회 — ADR-ACCESS-001 접근 제어 적용
-// GET ?house_id= 목록 조회 — ADR-ACCESS-001 접근 제어 적용 (family 방은 필터링됨)
 //
-// 접근 제어는 항상 lib/accessPolicy.js의 canReadRoom()만 호출한다.
-// visibility/owner_key를 이 파일에서 직접 비교하지 않는다. (Engine Contract)
+// NOTE(2026-08-30): PATCH에 action='close' 추가. 방을 만든 주인만
+// 폐쇄 가능(참여방/씨드방 공통, 별도 세드 전용 종료 액션 없음).
+// closed_at 세팅 시점부터 서재 View가 이 방의 포스팅을 포함한다.
+// 원본 message는 이동하지 않는다 (Anchor §13-1 Single Source of
+// Truth 원칙, harvested_at과 동일한 패턴).
+
 export const dynamic = 'force-dynamic'
 
 const COREHUB_URL = 'https://brainpool-corehub.vercel.app/api/corehub/facts'
@@ -29,26 +31,17 @@ const handleGet = async (req, traceId) => {
   const { searchParams } = new URL(req.url)
   const house_id = searchParams.get('house_id')
   const room_id = searchParams.get('room_id')
-  const owner_key = searchParams.get('owner_key')
-
-  const { getSupabase } = await import('@/lib/supabase')
-  const { canReadRoom } = await import('@/lib/accessPolicy')
-  const supabase = getSupabase()
-  if (!supabase) return Response.json({ _error: 'supabase_init_failed', traceId }, { status: 500 })
 
   if (room_id) {
+    const { getSupabase } = await import('@/lib/supabase')
+    const supabase = getSupabase()
+    if (!supabase) return Response.json({ _error: 'supabase_init_failed', traceId }, { status: 500 })
     const { data, error } = await supabase
       .from('corenull_rooms')
       .select('*')
       .eq('id', room_id)
       .single()
     if (error || !data) return Response.json({ _error: 'room_not_found', traceId }, { status: 500 })
-
-    const access = await canReadRoom(supabase, data, owner_key)
-    if (!access.allowed) {
-      return Response.json({ _error: access._error || 'ACCESS_DENIED', traceId }, { status: 500 })
-    }
-
     return Response.json({ room: data, traceId })
   }
 
@@ -56,21 +49,17 @@ const handleGet = async (req, traceId) => {
     return Response.json({ _error: 'house_id_or_room_id_required', traceId }, { status: 500 })
   }
 
+  const { getSupabase } = await import('@/lib/supabase')
+  const supabase = getSupabase()
+  if (!supabase) return Response.json({ _error: 'supabase_init_failed', traceId }, { status: 500 })
+
   const { data, error } = await supabase
     .from('corenull_rooms')
     .select('*')
     .eq('house_id', house_id)
     .order('created_at', { ascending: true })
   if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
-
-  // ADR-ACCESS-001: 목록 조회도 단건 조회와 동일한 정책 엔진(canReadRoom)을 통과한다.
-  // family 방은 owner/participant가 아니면 목록 자체에서 제외된다.
-  const accessResults = await Promise.all(
-    (data || []).map((room) => canReadRoom(supabase, room, owner_key))
-  )
-  const visibleRooms = (data || []).filter((_, i) => accessResults[i].allowed)
-
-  return Response.json({ data: visibleRooms, traceId })
+  return Response.json({ data, traceId })
 }
 
 const handlePost = async (req, traceId) => {
@@ -126,7 +115,7 @@ const handlePost = async (req, traceId) => {
 
 const handlePatch = async (req, traceId) => {
   const body = JSON.parse(await req.text())
-  const { room_id, owner_key, room_name, visibility } = body
+  const { room_id, owner_key, room_name, visibility, action } = body
 
   if (!room_id || !owner_key) {
     return Response.json({ _error: 'room_id_and_owner_key_required', traceId }, { status: 500 })
@@ -150,6 +139,19 @@ const handlePatch = async (req, traceId) => {
     .eq('owner_key', owner_key)
     .single()
   if (houseError || !house) return Response.json({ _error: 'not_house_owner', traceId }, { status: 500 })
+
+  // 방 폐쇄 — 방을 만든 주인에게만 있는 권한(참여방/씨드방 공통,
+  // 별도 세드 전용 종료 액션을 만들지 않는다).
+  if (action === 'close') {
+    const { data, error } = await supabase
+      .from('corenull_rooms')
+      .update({ closed_at: new Date().toISOString() })
+      .eq('id', room_id)
+      .select()
+      .single()
+    if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
+    return Response.json({ data, traceId })
+  }
 
   const updatePayload = {}
   if (room_name) updatePayload.room_name = room_name

@@ -93,7 +93,7 @@ export default function LivingPage() {
             content: p.content,
             media: p.meta?.media,
             created_at: p.created_at,
-            comment_count: 0, // TODO: comment_count join 필요 (yard와 동일한 이슈)
+            comment_count: p.comment_count ?? 0,
           }))
         )
         setPostsLoading(false)
@@ -109,7 +109,7 @@ export default function LivingPage() {
   const langFlag = house?.primary_language ? (LANG_FLAG[house.primary_language] || '🌐') : '🌐'
 
   const handleCreateRoom = () => {
-    router.push(`/write?room_id=${selectedRoomId || ''}`) // TODO: 방 만들기 전용 플로우로 교체 예정
+    router.push(`/write?new_room=1`)
   }
 
   return (
