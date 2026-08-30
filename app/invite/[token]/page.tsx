@@ -42,21 +42,30 @@ export default function InvitePage() {
     const data = await res.json()
     if (data._error) {
       if (data._error === 'owner_cannot_join') {
-        // 집주인은 바로 집으로 이동
-        router.push(`/houses/${invite?.corenull_houses?.id}`)
+        // 집주인은 바로 해당 공간(room 초대면 room, house 초대면 house)으로 이동
+        if (invite?.room_id) {
+          router.push(`/rooms/${invite.room_id}`)
+        } else {
+          router.push(`/houses/${invite?.corenull_houses?.id}`)
+        }
         return
       }
       setErrorMsg('참여에 실패했어요. 다시 시도해주세요.')
       setStatus('error')
     } else {
       setStatus('done')
-      setTimeout(() => router.push(`/houses/${data.data.house_id}`), 1500)
+      // room_id가 있으면 참여방으로, 없으면 house로 이동
+      const dest = data.data.room_id ? `/rooms/${data.data.room_id}` : `/houses/${data.data.house_id}`
+      setTimeout(() => router.push(dest), 1500)
     }
   }
 
   const LANG_FLAG: Record<string, string> = {
     ko: '🇰🇷', vi: '🇻🇳', en: '🇺🇸', ja: '🇯🇵', zh: '🇨🇳',
   }
+
+  const isRoomInvite = !!invite?.room_id
+  const roomName = invite?.corenull_rooms?.room_name
 
   return (
     <div style={styles.container}>
@@ -80,16 +89,25 @@ export default function InvitePage() {
 
         {status === 'valid' && invite && (
           <div style={styles.center}>
-            <div style={{ fontSize: 48, marginBottom: 12 }}>🏡</div>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>{isRoomInvite ? '🌱' : '🏡'}</div>
             <div style={styles.houseTitle}>
               {LANG_FLAG[invite.corenull_houses?.primary_language] || '🌐'} {invite.corenull_houses?.title}
             </div>
-            <p style={styles.sub}>이 집에 초대됐어요</p>
+            {isRoomInvite ? (
+              <>
+                <p style={styles.sub}>
+                  <strong>{roomName}</strong> 방에 참여하도록 초대됐어요
+                </p>
+                <p style={styles.hint}>이 방에만 글을 쓸 수 있어요. 집의 다른 부분엔 관여하지 않아요.</p>
+              </>
+            ) : (
+              <p style={styles.sub}>이 집에 초대됐어요</p>
+            )}
             <p style={styles.expiry}>
               초대 유효기간: {new Date(invite.expired_at).toLocaleDateString('ko-KR')}
             </p>
             <button style={styles.btnPrimary} onClick={handleJoin}>
-              🚪 집에 들어가기
+              {isRoomInvite ? '🌱 참여하기' : '🚪 집에 들어가기'}
             </button>
           </div>
         )}
@@ -104,7 +122,7 @@ export default function InvitePage() {
         {status === 'done' && (
           <div style={styles.center}>
             <div style={{ fontSize: 40, marginBottom: 12 }}>✅</div>
-            <p style={styles.sub}>환영합니다! 집으로 이동 중...</p>
+            <p style={styles.sub}>환영합니다! 이동 중...</p>
           </div>
         )}
       </div>
@@ -132,6 +150,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 22, fontWeight: 700, color: '#2C1810', textAlign: 'center',
   },
   sub: { fontSize: 14, color: '#9A8470', textAlign: 'center' },
+  hint: { fontSize: 12, color: '#B0A08C', textAlign: 'center', lineHeight: 1.5 },
   expiry: { fontSize: 12, color: '#C17F3C' },
   errorText: { fontSize: 14, color: '#5C3D2E', textAlign: 'center' },
   btnPrimary: {

@@ -85,14 +85,8 @@ export default function RoomPage() {
     setLoading(true)
     setError(null)
     try {
-      // ADR-ACCESS-001: owner_key를 같이 보내야 family 방 접근 제어가 정상 동작함
-      const rRes = await fetch(`/api/corenull/rooms?room_id=${roomId}&owner_key=${key}`)
+      const rRes = await fetch(`/api/corenull/rooms?room_id=${roomId}`)
       const rData = await rRes.json()
-      if (rData._error === 'ACCESS_DENIED') {
-        setError('🔒 볼 수 없는 방이에요.')
-        setLoading(false)
-        return
-      }
       if (rData._error || !rData.room) {
         setError('방을 찾을 수 없어요.')
         setLoading(false)
@@ -104,7 +98,9 @@ export default function RoomPage() {
       const hData = await hRes.json()
       if (!hData._error && hData.house) {
         setHouse(hData.house)
-        const mRes = await fetch(`/api/corenull/members?house_id=${rData.room.house_id}&device_id=${key}`)
+        // room_id를 같이 넘겨서, house 전체 멤버든 이 room 한정
+        // 참여자든 둘 다 "쓸 수 있음"으로 판정되게 한다(ADR-ACCESS-001).
+        const mRes = await fetch(`/api/corenull/members?house_id=${rData.room.house_id}&device_id=${key}&room_id=${roomId}`)
         const mData = await mRes.json()
         setIsMember(!mData._error && mData.is_member === true)
       }
@@ -150,7 +146,7 @@ export default function RoomPage() {
               {room.room_name}
             </h1>
             <span style={visibilityBadge(room.visibility)}>
-              {room.visibility === 'public' ? '공개' : room.visibility === 'invite' ? '이웃' : '비공개'}
+              {room.visibility === 'public' ? '공개' : room.visibility === 'invite' ? '이웃공개' : '가족'}
             </span>
             {room.seed_mode && <span style={seedBadge}>🌱 씨앗</span>}
           </div>
@@ -162,7 +158,10 @@ export default function RoomPage() {
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <button style={shareBtnStyle} onClick={() => setShowShare(true)}>🔗</button>
-          {isOwner && (
+          {/* owner와 참여자 둘 다 설정(방 이름/폐쇄는 owner만 보이고,
+              참여자에게는 '나가기'가 보임)에 접근할 수 있어야 한다.
+              owner 전용이던 게이트를 canWrite(owner||member) 기준으로 넓힘. */}
+          {canWrite && (
             <button style={shareBtnStyle} onClick={() => setShowSettings(true)}>⚙️</button>
           )}
           {canWrite && (
@@ -213,16 +212,26 @@ export default function RoomPage() {
         />
       )}
 
-      {showSettings && (
+      {showSettings && house && (
         <RoomSettingsModal
           roomId={room.id}
           roomName={room.room_name}
           visibility={room.visibility}
+          houseId={house.id}
           ownerKey={ownerKey}
+          isOwner={isOwner}
           onClose={() => setShowSettings(false)}
           onUpdate={(updated) => {
             setRoom(prev => prev ? { ...prev, ...updated } : prev)
             setShowSettings(false)
+          }}
+          onRoomClosed={() => {
+            // 방 폐쇄 후엔 이 room에서 더 이상 쓸 게 없으니 house로 돌아간다.
+            router.push(`/houses/${house.id}`)
+          }}
+          onLeft={() => {
+            // 참여자 본인이 나가면 이 room을 더 볼 권한이 없어질 수 있으니 뒤로.
+            router.back()
           }}
         />
       )}
