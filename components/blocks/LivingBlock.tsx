@@ -43,9 +43,17 @@ export interface LivingBlockProps {
   onRoomSelect: (roomId: string) => void
   onCreateRoomClick: () => void
 
-  filters: FilterChip[]
-  selectedFilter: string
-  onFilterChange: (key: string) => void
+  // 두 개의 독립된 축 — 공개범위와 성장단계는 서로 무관하게 조합 가능
+  // (예: 공개+씨드, 이웃공개+참여, 비공개+열매 전부 유효한 조합).
+  // 참여(Participation)는 필터 축이 아니라 room 자체의 속성이라
+  // RoomTab의 badge로 표시한다 — 여기 필터 목록엔 없다.
+  visibilityFilters: FilterChip[]
+  selectedVisibility: string
+  onVisibilityChange: (key: string) => void
+
+  stageFilters: FilterChip[]
+  selectedStage: string
+  onStageChange: (key: string) => void
 
   posts: PostBlockData[]
   onPostClick?: (postId: string) => void
@@ -62,9 +70,12 @@ export default function LivingBlock({
   selectedRoomId,
   onRoomSelect,
   onCreateRoomClick,
-  filters,
-  selectedFilter,
-  onFilterChange,
+  visibilityFilters,
+  selectedVisibility,
+  onVisibilityChange,
+  stageFilters,
+  selectedStage,
+  onStageChange,
   posts,
   onPostClick,
   onCommentClick,
@@ -98,16 +109,34 @@ export default function LivingBlock({
         </button>
       </div>
 
-      {/* 필터 탭 */}
-      {filters.length > 0 && (
+      {/* 공개범위 필터 */}
+      {visibilityFilters.length > 0 && (
         <div style={styles.filterRow}>
-          {filters.map((filter) => (
+          {visibilityFilters.map((filter) => (
             <button
               key={filter.key}
-              onClick={() => onFilterChange(filter.key)}
+              onClick={() => onVisibilityChange(filter.key)}
               style={{
                 ...styles.filterChip,
-                ...(filter.key === selectedFilter ? styles.filterChipActive : {}),
+                ...(filter.key === selectedVisibility ? styles.filterChipActive : {}),
+              }}
+            >
+              {filter.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* 성장단계 필터 — 공개범위와 완전히 독립된 축 */}
+      {stageFilters.length > 0 && (
+        <div style={{ ...styles.filterRow, paddingTop: 6 }}>
+          {stageFilters.map((filter) => (
+            <button
+              key={filter.key}
+              onClick={() => onStageChange(filter.key)}
+              style={{
+                ...styles.filterChip,
+                ...(filter.key === selectedStage ? styles.filterChipActive : {}),
               }}
             >
               {filter.label}

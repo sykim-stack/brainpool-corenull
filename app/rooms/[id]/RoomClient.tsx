@@ -217,17 +217,13 @@ export default function RoomPage() {
           roomId={room.id}
           roomName={room.room_name}
           visibility={room.visibility}
+          seedMode={room.seed_mode}
           houseId={house.id}
           ownerKey={ownerKey}
           isOwner={isOwner}
           onClose={() => setShowSettings(false)}
           onUpdate={(updated) => {
             setRoom(prev => prev ? { ...prev, ...updated } : prev)
-            setShowSettings(false)
-          }}
-          onRoomClosed={() => {
-            // 방 폐쇄 후엔 이 room에서 더 이상 쓸 게 없으니 house로 돌아간다.
-            router.push(`/houses/${house.id}`)
           }}
           onLeft={() => {
             // 참여자 본인이 나가면 이 room을 더 볼 권한이 없어질 수 있으니 뒤로.

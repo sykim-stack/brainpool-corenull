@@ -115,7 +115,7 @@ const handlePost = async (req, traceId) => {
 
 const handlePatch = async (req, traceId) => {
   const body = JSON.parse(await req.text())
-  const { room_id, owner_key, room_name, visibility, action } = body
+  const { room_id, owner_key, room_name, visibility, seed_mode } = body
 
   if (!room_id || !owner_key) {
     return Response.json({ _error: 'room_id_and_owner_key_required', traceId }, { status: 500 })
@@ -140,22 +140,12 @@ const handlePatch = async (req, traceId) => {
     .single()
   if (houseError || !house) return Response.json({ _error: 'not_house_owner', traceId }, { status: 500 })
 
-  // 방 폐쇄 — 방을 만든 주인에게만 있는 권한(참여방/씨드방 공통,
-  // 별도 세드 전용 종료 액션을 만들지 않는다).
-  if (action === 'close') {
-    const { data, error } = await supabase
-      .from('corenull_rooms')
-      .update({ closed_at: new Date().toISOString() })
-      .eq('id', room_id)
-      .select()
-      .single()
-    if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
-    return Response.json({ data, traceId })
-  }
-
   const updatePayload = {}
   if (room_name) updatePayload.room_name = room_name
   if (visibility) updatePayload.visibility = visibility
+  // seed_mode는 boolean이라 falsy(false) 체크로는 "끄기"가 무시되므로
+  // undefined인지로 판단 — false도 유효한 업데이트 값이다.
+  if (seed_mode !== undefined) updatePayload.seed_mode = seed_mode
 
   const { data, error } = await supabase
     .from('corenull_rooms')

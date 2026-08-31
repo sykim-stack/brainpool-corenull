@@ -14,12 +14,12 @@ interface RoomSettingsModalProps {
   roomId: string
   roomName: string
   visibility: Visibility
+  seedMode: boolean
   houseId: string
   ownerKey: string   // 지금 접속한 사람의 device_id
   isOwner: boolean   // house owner인지
   onClose: () => void
-  onUpdate: (updated: { room_name: string; visibility: Visibility }) => void
-  onRoomClosed?: () => void
+  onUpdate: (updated: { room_name: string; visibility: Visibility; seed_mode?: boolean }) => void
   onLeft?: () => void // 본인이 나가기 완료했을 때
 }
 
@@ -27,26 +27,25 @@ export default function RoomSettingsModal({
   roomId,
   roomName,
   visibility,
+  seedMode,
   houseId,
   ownerKey,
   isOwner,
   onClose,
   onUpdate,
-  onRoomClosed,
   onLeft,
 }: RoomSettingsModalProps) {
   const [name, setName] = useState(roomName)
   const [vis, setVis] = useState<Visibility>(visibility)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [seedOff, setSeedOff] = useState(false) // 씨드 끄기 진행 중 표시용
 
   const [participants, setParticipants] = useState<Participant[]>([])
   const [loadingParticipants, setLoadingParticipants] = useState(true)
   const [inviteUrl, setInviteUrl] = useState('')
   const [inviteLoading, setInviteLoading] = useState(false)
-  const [closing, setClosing] = useState(false)
   const [leavingId, setLeavingId] = useState<string | null>(null)
-  const [confirmClose, setConfirmClose] = useState(false)
 
   // 참여자 목록 — 이 room에 한정된 참여(room_id === roomId)만 표시.
   // house 전체 멤버(room_id null, 이웃초대로 생긴 것)는 "참여자"
@@ -125,21 +124,22 @@ export default function RoomSettingsModal({
     setLeavingId(null)
   }
 
-  const handleClose = async () => {
-    setClosing(true)
+  // 씨드 끄기 — 새 액션이 아니라 이미 있는 rooms PATCH에 seed_mode:false만
+  // 넘기는 것. 방을 지우는 게 아니라 씨드 뷰만 끄고 일반 방으로 돌아간다.
+  const handleSeedOff = async () => {
+    setSeedOff(true)
     const res = await fetch('/api/corenull/rooms', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ room_id: roomId, owner_key: ownerKey, action: 'close' }),
+      body: JSON.stringify({ room_id: roomId, owner_key: ownerKey, seed_mode: false }),
     })
     const data = await res.json()
     if (data.data) {
-      onRoomClosed?.()
-      onClose()
+      onUpdate({ room_name: data.data.room_name, visibility: data.data.visibility, seed_mode: false })
     } else {
-      setError(data._error || '방 폐쇄에 실패했어요')
+      setError(data._error || '씨드 끄기에 실패했어요')
     }
-    setClosing(false)
+    setSeedOff(false)
   }
 
   return (
@@ -200,8 +200,9 @@ export default function RoomSettingsModal({
                   {p.device_id === ownerKey ? '나' : p.device_id.slice(0, 8)}
                 </span>
                 {/* owner는 남을 내보낼 수 있고, 본인은 스스로 나갈 수 있다.
-                    owner가 자기 자신을 내보내는 UI는 만들지 않는다 — 방을
-                    끝내려면 아래 '방 폐쇄'로 가는 게 명확하다. */}
+                    owner가 자기 자신을 내보내는 UI는 만들지 않는다 — owner가
+                    참여를 그만두고 싶으면 개념상 room 자체를 없애야 하는데
+                    그건 이 화면 밖(삭제) 이야기다. */}
                 {(isOwner && p.device_id !== ownerKey) || (!isOwner && p.device_id === ownerKey) ? (
                   <button
                     style={styles.removeBtn}
@@ -234,27 +235,23 @@ export default function RoomSettingsModal({
           </>
         )}
 
-        {/* 방 폐쇄 — owner 전용 */}
-        {isOwner && (
-          <>
-            {!confirmClose ? (
-              <button style={styles.closeRoomBtn} onClick={() => setConfirmClose(true)}>
-                방 폐쇄
-              </button>
-            ) : (
-              <div style={styles.confirmBox}>
-                <div style={styles.confirmText}>
-                  방을 폐쇄하면 더 이상 글을 쓸 수 없어요. 지금까지의 글은 각자의 서재에 남아요.
-                </div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button style={{ ...styles.closeRoomBtn, flex: 1, opacity: closing ? 0.5 : 1 }} onClick={handleClose} disabled={closing}>
-                    {closing ? '폐쇄 중...' : '폐쇄 확정'}
-                  </button>
-                  <button style={styles.cancelBtn} onClick={() => setConfirmClose(false)}>취소</button>
-                </div>
-              </div>
-            )}
-          </>
+        {/* 씨드 끄기 — owner 전용, seedMode가 켜져있을 때만.
+            방을 지우는 게 아니라 씨드 뷰만 끄고 일반 방으로 돌아간다 —
+            그래서 삭제처럼 확인 단계를 두지 않는다(스위치니까). */}
+        {isOwner && seedMode && (
+          <div style={styles.seedOffRow}>
+            <div>
+              <div style={styles.seedOffTitle}>🌱 씨드 끄기</div>
+              <div style={styles.seedOffDesc}>일반 방으로 돌아가요. 글은 그대로 남아요.</div>
+            </div>
+            <button
+              style={{ ...styles.seedOffBtn, opacity: seedOff ? 0.5 : 1 }}
+              onClick={handleSeedOff}
+              disabled={seedOff}
+            >
+              {seedOff ? '...' : '끄기'}
+            </button>
+          </div>
         )}
 
         <button style={styles.cancelBtn} onClick={onClose}>닫기</button>
@@ -345,16 +342,18 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '8px', background: '#2C1810', color: 'white',
     border: 'none', borderRadius: 8, fontSize: 12, cursor: 'pointer',
   },
-  closeRoomBtn: {
-    width: '100%', padding: '12px',
-    background: 'rgba(163,51,51,0.08)', border: '1px solid rgba(163,51,51,0.25)',
-    borderRadius: 12, fontSize: 14, color: '#A33', fontWeight: 500, cursor: 'pointer',
+  seedOffRow: {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    padding: '10px 12px', background: 'rgba(74,124,63,0.06)',
+    border: '1px solid rgba(74,124,63,0.2)', borderRadius: 12,
   },
-  confirmBox: {
-    background: 'rgba(163,51,51,0.06)', borderRadius: 12, padding: 12,
-    display: 'flex', flexDirection: 'column', gap: 10,
+  seedOffTitle: { fontSize: 13, fontWeight: 500, color: '#1C1208' },
+  seedOffDesc: { fontSize: 11, color: '#9A8470', marginTop: 2 },
+  seedOffBtn: {
+    padding: '8px 14px', background: '#4A7C3F', color: 'white',
+    border: 'none', borderRadius: 10, fontSize: 12, fontWeight: 500, cursor: 'pointer',
+    flexShrink: 0,
   },
-  confirmText: { fontSize: 12, color: '#5C4A35', lineHeight: 1.5 },
   cancelBtn: {
     width: '100%', padding: '12px',
     background: 'none', color: '#9A8470',
