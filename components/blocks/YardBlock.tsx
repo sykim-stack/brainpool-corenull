@@ -33,6 +33,11 @@ export interface YardBlockProps {
   onPostClick?: (postId: string) => void
   onCommentClick?: (postId: string) => void
   loading?: boolean
+
+  showInterest?: boolean
+  getInterestState?: (postId: string) => 'none' | 'active' | 'ended'
+  interestLoadingId?: string | null
+  onInterestClick?: (postId: string) => void
 }
 
 export default function YardBlock({
@@ -44,6 +49,10 @@ export default function YardBlock({
   onPostClick,
   onCommentClick,
   loading = false,
+  showInterest = false,
+  getInterestState,
+  interestLoadingId = null,
+  onInterestClick,
 }: YardBlockProps) {
   if (loading) {
     return <div style={styles.loading}>🌳</div>
@@ -58,6 +67,10 @@ export default function YardBlock({
         posts={posts}
         onPostClick={onPostClick}
         onCommentClick={onCommentClick}
+        showInterest={showInterest}
+        getInterestState={getInterestState}
+        interestLoadingId={interestLoadingId}
+        onInterestClick={onInterestClick}
       />
 
       {/*

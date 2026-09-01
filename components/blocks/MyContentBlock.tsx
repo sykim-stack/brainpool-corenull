@@ -19,6 +19,14 @@ export interface MyContentBlockProps {
   onPostClick?: (postId: string) => void
   onCommentClick?: (postId: string) => void
   emptyLabel?: string // posts가 비었을 때 문구
+
+  // 관심(북마크) — PostBlock의 showInterest 계약을 그대로 통과시킨다.
+  // 이 블록 자체는 여전히 fetch하지 않고, 호출부가 post_id별 상태를
+  // 계산해서 넘겨준다.
+  showInterest?: boolean
+  getInterestState?: (postId: string) => 'none' | 'active' | 'ended'
+  interestLoadingId?: string | null
+  onInterestClick?: (postId: string) => void
 }
 
 export default function MyContentBlock({
@@ -27,6 +35,10 @@ export default function MyContentBlock({
   onPostClick,
   onCommentClick,
   emptyLabel = '아직 이야기가 없어요',
+  showInterest = false,
+  getInterestState,
+  interestLoadingId = null,
+  onInterestClick,
 }: MyContentBlockProps) {
   return (
     <section style={styles.section}>
@@ -44,6 +56,10 @@ export default function MyContentBlock({
               post={post}
               onClick={() => onPostClick?.(post.id)}
               onCommentClick={() => onCommentClick?.(post.id)}
+              showInterest={showInterest}
+              interestState={getInterestState?.(post.id) ?? 'none'}
+              interestLoading={interestLoadingId === post.id}
+              onInterestClick={() => onInterestClick?.(post.id)}
             />
           ))}
         </PostBlockGrid>

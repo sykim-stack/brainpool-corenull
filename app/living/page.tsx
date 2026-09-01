@@ -60,6 +60,8 @@ function buildRingData(roomCount: number): RingData {
   }
 }
 
+type BookmarkRow = { id: string; message_id: string | null; ended_at: string | null }
+
 export default function LivingPage() {
   const router = useRouter()
 
@@ -73,26 +75,30 @@ export default function LivingPage() {
   const [loading, setLoading] = useState(true)
   const [postsLoading, setPostsLoading] = useState(false)
 
+  // 관심(북마크) — post별 개별 fetch 대신 목록 한 번만 불러와서 매핑.
+  const [bookmarks, setBookmarks] = useState<BookmarkRow[]>([])
+  const [interestLoadingId, setInterestLoadingId] = useState<string | null>(null)
+
   // 내 house + room 목록 로드 (1인1집, 첫 번째 House 사용)
   useEffect(() => {
     const key = getDeviceId()
     setOwnerKey(key)
     if (!key) return
 
-    fetch(`/api/corenull/houses?owner_key=${key}`)
-      .then(r => r.json())
-      .then(async (d) => {
-        const myHouse = d.data?.[0]
-        if (!myHouse) {
-          setLoading(false)
-          return
-        }
-        setHouse(myHouse)
-
-        const roomList = myHouse.corenull_rooms || []
-        setRooms(roomList)
+    Promise.all([
+      fetch(`/api/corenull/houses?owner_key=${key}`).then(r => r.json()),
+      fetch(`/api/corenull/bookmarks?owner_key=${key}`).then(r => r.json()),
+    ]).then(([d, b]) => {
+      const myHouse = d.data?.[0]
+      setBookmarks(b.data || [])
+      if (!myHouse) {
         setLoading(false)
-      })
+        return
+      }
+      setHouse(myHouse)
+      setRooms(myHouse.corenull_rooms || [])
+      setLoading(false)
+    })
   }, [])
 
   // 두 축(공개범위/성장단계) AND 조합으로 room 목록 필터링.
@@ -146,6 +152,41 @@ export default function LivingPage() {
       })
   }, [selectedRoomId])
 
+  const getInterestState = (postId: string): 'none' | 'active' | 'ended' => {
+    const b = bookmarks.find((bm) => bm.message_id === postId)
+    if (!b) return 'none'
+    return b.ended_at ? 'ended' : 'active'
+  }
+
+  const handleInterestClick = async (postId: string) => {
+    if (interestLoadingId) return
+    setInterestLoadingId(postId)
+
+    const existing = bookmarks.find((bm) => bm.message_id === postId)
+
+    if (!existing) {
+      const res = await fetch('/api/corenull/bookmarks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ owner_key: ownerKey, message_id: postId }),
+      })
+      const data = await res.json()
+      if (data.data) setBookmarks((prev) => [...prev, data.data])
+    } else {
+      const action = existing.ended_at ? 'resume' : 'end'
+      const res = await fetch('/api/corenull/bookmarks', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: existing.id, owner_key: ownerKey, action }),
+      })
+      const data = await res.json()
+      if (data.data) {
+        setBookmarks((prev) => prev.map((bm) => (bm.id === existing.id ? data.data : bm)))
+      }
+    }
+    setInterestLoadingId(null)
+  }
+
   const roomTabs: RoomTab[] = filteredRooms.map((r) => ({
     id: r.id,
     label: r.room_name,
@@ -189,6 +230,10 @@ export default function LivingPage() {
         posts={postsLoading ? [] : posts}
         onPostClick={(postId) => router.push(`/posts/${postId}`)}
         onCommentClick={(postId) => router.push(`/posts/${postId}`)}
+        showInterest
+        getInterestState={getInterestState}
+        interestLoadingId={interestLoadingId}
+        onInterestClick={handleInterestClick}
       />
     </div>
   )

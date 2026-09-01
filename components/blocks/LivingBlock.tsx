@@ -59,6 +59,11 @@ export interface LivingBlockProps {
   onPostClick?: (postId: string) => void
   onCommentClick?: (postId: string) => void
   loading?: boolean
+
+  showInterest?: boolean
+  getInterestState?: (postId: string) => 'none' | 'active' | 'ended'
+  interestLoadingId?: string | null
+  onInterestClick?: (postId: string) => void
 }
 
 export default function LivingBlock({
@@ -80,6 +85,10 @@ export default function LivingBlock({
   onPostClick,
   onCommentClick,
   loading = false,
+  showInterest = false,
+  getInterestState,
+  interestLoadingId = null,
+  onInterestClick,
 }: LivingBlockProps) {
   if (loading) {
     return <div style={styles.loading}>🛋️</div>
@@ -150,6 +159,10 @@ export default function LivingBlock({
         posts={posts}
         onPostClick={onPostClick}
         onCommentClick={onCommentClick}
+        showInterest={showInterest}
+        getInterestState={getInterestState}
+        interestLoadingId={interestLoadingId}
+        onInterestClick={onInterestClick}
       />
 
       {/*
