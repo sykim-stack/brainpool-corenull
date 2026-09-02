@@ -31,18 +31,21 @@ const handleGet = async (req, traceId) => {
 
   const [footprintsRes, bookmarksRes, myPostsRes, harvestedFruitsRes] = await Promise.all([
 
-    // 1. 발자취
+    // 1. 발자취 — room 이름 + house 이름까지 join.
+    //    (독립 페이지용 /api/corenull/footprints/route.js와 동일한 join
+    //    패턴 — 그때 이 파일은 빠뜨렸던 것을 여기서 맞춘다.)
     supabase
       .from('corenull_footprints')
-      .select('*')
+      .select('*, corenull_rooms(id, room_name, house_id, corenull_houses(id, title))')
       .eq('owner_key', owner_key)
       .order('visited_at', { ascending: false })
       .limit(50),
 
-    // 2. 북마크
+    // 2. 북마크 — room_id면 방 이름, message_id면 글 내용까지 join.
+    //    프론트가 실제 내용을 보여주려면 이 join이 있어야 한다.
     supabase
       .from('corenull_bookmarks')
-      .select('*')
+      .select('*, corenull_rooms(id, room_name), messages(id, content, meta)')
       .eq('owner_key', owner_key)
       .order('created_at', { ascending: false }),
 

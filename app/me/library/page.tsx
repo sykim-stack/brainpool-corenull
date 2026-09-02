@@ -3,27 +3,20 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { getDeviceId } from '@/lib/deviceId'
-import PostBlock from '@/components/corenull/PostBlock'
-
-// ─────────────────────────────────────────────────────────────
-// 서재 — "기록/보관 공간". Post + Image + Created At + Timeline.
-// harvested=true인 Room의 글(Fruit)도, 내가 쓴 글도 결국 Post이므로
-// 여기도 PostBlock을 그대로 재사용한다 (Room Card 아님).
-// ─────────────────────────────────────────────────────────────
 
 type Tab = 'footprints' | 'saved' | 'posts' | 'fruits'
 
 export default function LibraryPage() {
   const [library, setLibrary] = useState<any>(null)
-  const [activeTab, setActiveTab] = useState<Tab>('fruits')
+  const [activeTab, setActiveTab] = useState<Tab>('footprints')
   const [loading, setLoading] = useState(true)
   const router = useRouter()
 
   useEffect(() => {
     const key = getDeviceId()
     fetch(`/api/corenull/library?owner_key=${key}`)
-      .then((r) => r.json())
-      .then((d) => {
+      .then(r => r.json())
+      .then(d => {
         setLibrary(d.data)
         setLoading(false)
       })
@@ -32,19 +25,11 @@ export default function LibraryPage() {
   if (loading) return <div style={styles.loading}>📚</div>
 
   const tabs = [
-    { id: 'fruits',     label: '🍎 서재',   count: library?.harvested_fruits?.length || 0 },
-    { id: 'posts',      label: '📝 내 글',  count: library?.my_posts?.length || 0 },
     { id: 'footprints', label: '👣 발자취', count: library?.footprints?.length || 0 },
     { id: 'saved',      label: '🔖 관심',   count: (library?.saved_rooms?.length || 0) + (library?.saved_posts?.length || 0) },
+    { id: 'posts',      label: '📝 내 글',  count: library?.my_posts?.length || 0 },
+    { id: 'fruits',     label: '🍎 서재',   count: library?.harvested_fruits?.length || 0 },
   ]
-
-  const toPostBlock = (m: any, extra: Record<string, any> = {}) => ({
-    id: m.id,
-    content: m.content,
-    media: m.meta?.media || [],
-    created_at: m.created_at,
-    view_meta: { relation: '나', ...extra },
-  })
 
   return (
     <div>
@@ -55,7 +40,7 @@ export default function LibraryPage() {
       </div>
 
       <div style={styles.tabRow}>
-        {tabs.map((tab) => (
+        {tabs.map(tab => (
           <button
             key={tab.id}
             style={{ ...styles.tab, ...(activeTab === tab.id ? styles.tabActive : {}) }}
@@ -69,45 +54,8 @@ export default function LibraryPage() {
 
       <div style={styles.body}>
 
-        {/* 서재(harvested Fruit) 탭 — PostBlock */}
-        {activeTab === 'fruits' && (
-          <>
-            {(library?.harvested_fruits || []).length === 0 ? (
-              <Empty emoji="🍎" text="아직 수확된 열매가 없어요" />
-            ) : (
-              <div style={styles.postList}>
-                {library.harvested_fruits.map((fruit: any) => (
-                  <PostBlock
-                    key={fruit.id}
-                    post={toPostBlock(fruit, { stage_emoji: '🍎' })}
-                    onClick={() => router.push(`/posts/${fruit.id}`)}
-                  />
-                ))}
-              </div>
-            )}
-          </>
-        )}
-
-        {/* 내 글 탭 — PostBlock */}
-        {activeTab === 'posts' && (
-          <>
-            {(library?.my_posts || []).length === 0 ? (
-              <Empty emoji="📝" text="아직 쓴 이야기가 없어요" />
-            ) : (
-              <div style={styles.postList}>
-                {library.my_posts.map((post: any) => (
-                  <PostBlock
-                    key={post.id}
-                    post={toPostBlock(post)}
-                    onClick={() => router.push(`/posts/${post.id}`)}
-                  />
-                ))}
-              </div>
-            )}
-          </>
-        )}
-
-        {/* 발자취 탭 — Room 탐색이라 리스트 그대로 유지 (PostBlock 대상 아님) */}
+        {/* 발자취 탭 — house_name을 주정보로(FootprintRow와 동일한 판단),
+            room_name은 부정보. join이 없던 API 버그를 고친 뒤 실제 표시. */}
         {activeTab === 'footprints' && (
           <div style={styles.list}>
             {(library?.footprints || []).length === 0 ? (
@@ -115,10 +63,14 @@ export default function LibraryPage() {
             ) : (
               library.footprints.map((fp: any) => (
                 <div key={fp.id} style={styles.listItem} onClick={() => router.push(`/rooms/${fp.room_id}`)}>
-                  <div style={styles.listIcon}>👣</div>
+                  <div style={styles.listIcon}>🏡</div>
                   <div style={styles.listInfo}>
-                    <div style={styles.listTitle}>{fp.corenull_rooms?.room_name || fp.room_id}</div>
-                    <div style={styles.listSub}>{new Date(fp.visited_at).toLocaleDateString('ko-KR')}</div>
+                    <div style={styles.listTitle}>
+                      {fp.corenull_rooms?.corenull_houses?.title || '알 수 없는 집'}
+                    </div>
+                    <div style={styles.listSub}>
+                      {fp.corenull_rooms?.room_name || '방'} · {new Date(fp.visited_at).toLocaleDateString('ko-KR')}
+                    </div>
                   </div>
                   <span style={styles.listArrow}>›</span>
                 </div>
@@ -127,7 +79,7 @@ export default function LibraryPage() {
           </div>
         )}
 
-        {/* 관심 탭 */}
+        {/* 관심 탭 — 하드코딩 대신 join된 실제 room_name/message content 사용 */}
         {activeTab === 'saved' && (
           <div>
             {(library?.saved_rooms || []).length > 0 && (
@@ -135,12 +87,13 @@ export default function LibraryPage() {
                 <div style={styles.subTitle}>관심 방</div>
                 <div style={styles.list}>
                   {library.saved_rooms.map((b: any) => (
-                    <div key={b.id} style={styles.listItem}>
+                    <div key={b.id} style={styles.listItem} onClick={() => router.push(`/rooms/${b.room_id}`)}>
                       <div style={styles.listIcon}>🏠</div>
                       <div style={styles.listInfo}>
-                        <div style={styles.listTitle}>{b.room_id}</div>
+                        <div style={styles.listTitle}>{b.corenull_rooms?.room_name || '방'}</div>
                         <div style={styles.listSub}>{new Date(b.created_at).toLocaleDateString('ko-KR')}</div>
                       </div>
+                      <span style={styles.listArrow}>›</span>
                     </div>
                   ))}
                 </div>
@@ -154,7 +107,9 @@ export default function LibraryPage() {
                     <div key={b.id} style={styles.listItem} onClick={() => router.push(`/posts/${b.message_id}`)}>
                       <div style={styles.listIcon}>🔖</div>
                       <div style={styles.listInfo}>
-                        <div style={styles.listTitle}>관심 이야기</div>
+                        <div style={styles.listTitle}>
+                          {(b.messages?.content?.slice(0, 30) || '이야기')}{(b.messages?.content?.length || 0) > 30 ? '…' : ''}
+                        </div>
                         <div style={styles.listSub}>{new Date(b.created_at).toLocaleDateString('ko-KR')}</div>
                       </div>
                       <span style={styles.listArrow}>›</span>
@@ -165,6 +120,63 @@ export default function LibraryPage() {
             )}
             {(library?.saved_rooms || []).length === 0 && (library?.saved_posts || []).length === 0 && (
               <Empty emoji="🔖" text="관심이 없어요" />
+            )}
+          </div>
+        )}
+
+        {/* 내 글 탭 */}
+        {activeTab === 'posts' && (
+          <div style={styles.list}>
+            {(library?.my_posts || []).length === 0 ? (
+              <Empty emoji="📝" text="아직 쓴 이야기가 없어요" />
+            ) : (
+              library.my_posts.map((post: any) => (
+                <div key={post.id} style={styles.postItem} onClick={() => router.push(`/posts/${post.id}`)}>
+                  {post.meta?.media?.[0]?.type === 'image' && (
+                    <img src={post.meta.media[0].url} alt="" style={styles.postThumb} />
+                  )}
+                  <div style={styles.postInfo}>
+                    <div style={styles.postContent}>
+                      {post.content?.slice(0, 60)}{post.content?.length > 60 ? '...' : ''}
+                    </div>
+                    <div style={styles.postMeta}>
+                      {post.meta?.archived && <span style={styles.archivedBadge}>보관됨</span>}
+                      {post.meta?.reborn_from && <span style={styles.rebornBadge}>재탄생</span>}
+                      <span style={styles.listSub}>{new Date(post.created_at).toLocaleDateString('ko-KR')}</span>
+                    </div>
+                  </div>
+                  <span style={styles.listArrow}>›</span>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
+        {/* 서재(열매) 탭 */}
+        {activeTab === 'fruits' && (
+          <div style={styles.list}>
+            {(library?.harvested_fruits || []).length === 0 ? (
+              <Empty emoji="🍎" text="아직 수확된 열매가 없어요" />
+            ) : (
+              library.harvested_fruits.map((fruit: any) => (
+                <div key={fruit.id} style={styles.postItem} onClick={() => router.push(`/posts/${fruit.id}`)}>
+                  {fruit.meta?.media?.[0]?.type === 'image' && (
+                    <img src={fruit.meta.media[0].url} alt="" style={styles.postThumb} />
+                  )}
+                  <div style={styles.postInfo}>
+                    <div style={styles.postContent}>
+                      {fruit.content?.slice(0, 60)}{fruit.content?.length > 60 ? '...' : ''}
+                    </div>
+                    <div style={styles.postMeta}>
+                      <span style={styles.fruitBadge}>🍎 열매</span>
+                      <span style={styles.listSub}>
+                        {new Date(fruit.harvested_at).toLocaleDateString('ko-KR')} 수확
+                      </span>
+                    </div>
+                  </div>
+                  <span style={styles.listArrow}>›</span>
+                </div>
+              ))
             )}
           </div>
         )}
@@ -212,7 +224,6 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'rgba(193,127,60,0.12)', padding: '1px 5px', borderRadius: 10,
   },
   body: { padding: '16px', marginTop: '40px' },
-  postList: { display: 'flex', flexDirection: 'column', gap: 12 },
   subTitle: { fontSize: 11, color: '#9A8470', letterSpacing: '0.5px', textTransform: 'uppercase', padding: '8px 4px 6px' },
   list: { display: 'flex', flexDirection: 'column', gap: 8 },
   listItem: {
@@ -227,4 +238,15 @@ const styles: Record<string, React.CSSProperties> = {
   listTitle: { fontSize: 13, fontWeight: 500, color: '#1C1208', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
   listSub: { fontSize: 11, color: '#9A8470', marginTop: 2 },
   listArrow: { fontSize: 16, color: '#9A8470' },
+  postItem: {
+    background: '#FEFCF8', borderRadius: 12, border: '1px solid rgba(92,61,46,0.12)',
+    padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', marginBottom: 8,
+  },
+  postThumb: { width: 48, height: 48, borderRadius: 8, objectFit: 'cover', flexShrink: 0 },
+  postInfo: { flex: 1, minWidth: 0 },
+  postContent: { fontSize: 13, color: '#1C1208', lineHeight: 1.5, overflow: 'hidden', display: '-webkit-box' },
+  postMeta: { display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 },
+  archivedBadge: { fontSize: 10, color: '#9A8470', background: 'rgba(92,61,46,0.08)', padding: '2px 6px', borderRadius: 6 },
+  rebornBadge: { fontSize: 10, color: '#C17F3C', background: 'rgba(193,127,60,0.1)', padding: '2px 6px', borderRadius: 6 },
+  fruitBadge: { fontSize: 10, color: '#4A7C3F', background: 'rgba(74,124,63,0.1)', padding: '2px 6px', borderRadius: 6 },
 }
