@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { getDeviceId } from '@/lib/deviceId'
+import { computeStage } from '@/lib/roomStage'
 import TopBar from '@/components/blocks/TopBar'
 import LivingBlock, { RoomTab, FilterChip } from '@/components/blocks/LivingBlock'
 import CoreNullLogo from '@/components/corenull/CoreNullLogo'
@@ -20,33 +21,23 @@ const VISIBILITY_FILTERS: FilterChip[] = [
   { key: 'family', label: '비공개' },
 ]
 
-// NOTE(2026-08-31 정정): '열매'를 여기서 뺐다. 열매는 Room의 상태가
-// 아니라 Room 안에 생기는 Message(type='fruit')다 — Room 자체를
-// "열매 단계"로 필터링하는 건 범주 오류였다(구버전 getRoomStage가
-// 존재하지도 않는 room.harvested_at을 참조하던 버그가 그 증거).
-// 열매 여부는 방을 열어서 그 안의 글에 🍎 뱃지로 이미 표시된다.
+// NOTE(2026-08-31): '열매'를 Room 필터에서 뺐다 — 열매는 Room의 상태가
+// 아니라 Room 안에 생기는 Message(type='fruit')다. computeStage()가
+// 반환하는 stage가 'fruit'인 경우는 있지만(목표일을 지났거나 harvested
+// 됐을 때), 그건 "이 방을 지금 찾아볼 이유"라기보다 "다 끝난 방"이라
+// 목록 필터 축에서는 굳이 안 보여준다. 필요해지면 언제든 추가 가능.
 const STAGE_FILTERS: FilterChip[] = [
   { key: 'all', label: '전체' },
-  { key: 'seed', label: '🌱 씨드중' },
+  { key: 'seed', label: '🌱 씨드' },
+  { key: 'growth', label: '🌿 성장' },
   { key: 'flower', label: '🌸 꽃' },
 ]
 
-// Room의 성장단계 — 오직 room 자체 컬럼(seed_mode, bloom_date,
-// created_at)만으로 계산한다. Message를 조회하지 않는다(N+1 방지,
-// 그리고 애초에 Room 필터가 Message 상태를 알 필요가 없다).
-//   seed_mode off       → 필터 대상 아님(일반 방)
-//   seed_mode on, 목표일 없음(성장형) → 'seed'로 취급(진행률 개념 없음)
-//   seed_mode on, 목표일 있음(목표형) → 시간 진행률로 seed/flower 판정
-function getRoomStage(room: any): 'none' | 'seed' | 'flower' {
-  if (!room.seed_mode) return 'none'
-  if (!room.bloom_date) return 'seed' // 성장형은 고정 씨드/성장 취급, 꽃 개념 없음
-
-  const created = new Date(room.created_at).getTime()
-  const target = new Date(room.bloom_date).getTime()
-  const now = Date.now()
-  if (now >= target) return 'flower'
-  return 'seed'
-}
+// NOTE(2026-08-31): 로컬 stage 계산 함수를 지웠다. lib/roomStage.js의
+// computeStage()가 이미 정확한 계약(fruit 판정에 harvested OR 목표일
+// 초과 둘 다 반영)으로 존재하는데 모르고 새로 짰던 것 — Anchor §7
+// 중복 로직 금지 위반이었다. room.stage는 이제 houses API가
+// attachRoomStages로 미리 계산해서 내려준다.
 
 // Ring weight — YardBlock과 동일한 임시 계산. 계약만 지키면 되므로
 // 이 함수만 나중에 CoreHub 가중치로 교체해도 LivingBlock/HeroBlock은 안 바뀐다.
@@ -67,7 +58,7 @@ export default function LivingPage() {
 
   const [ownerKey, setOwnerKey] = useState('')
   const [house, setHouse] = useState<any>(null)
-  const [rooms, setRooms] = useState<any[]>([])
+  const [rooms, setRooms] = useState<any[]>([]) // 각 room에 .stage(RoomStage 계약) 포함
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null)
   const [selectedVisibility, setSelectedVisibility] = useState('all')
   const [selectedStage, setSelectedStage] = useState('all')
@@ -102,11 +93,12 @@ export default function LivingPage() {
   }, [])
 
   // 두 축(공개범위/성장단계) AND 조합으로 room 목록 필터링.
-  // 각 축은 서로 완전히 독립 — 이 조립부에서만 조합한다.
+  // stage 계산은 room.stage(API가 이미 붙여서 내려줌)를 computeStage()에
+  // 넣어서 얻는다 — 여기서 다시 계산하지 않는다.
   const filteredRooms = rooms.filter((r) => {
     if (selectedVisibility !== 'all' && r.visibility !== selectedVisibility) return false
     if (selectedStage !== 'all') {
-      const stage = getRoomStage(r)
+      const { stage } = r.stage ? computeStage(r.stage) : { stage: 'none' }
       if (stage !== selectedStage) return false
     }
     return true
@@ -125,9 +117,7 @@ export default function LivingPage() {
   }, [selectedVisibility, selectedStage, rooms]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // 선택된 room의 post 목록 로드. 필터는 room 선택 단계에서 이미
-  // 끝났으므로, 여기서는 그 room의 글을 있는 그대로 보여준다 —
-  // 열매(fruit)도 이 목록에 섞여서 나오고 PostBlock이 알아서
-  // 🍎 뱃지로 구분해 보여준다(view_meta.stage_emoji).
+  // 끝났으므로, 여기서는 그 room의 글을 있는 그대로 보여준다.
   useEffect(() => {
     if (!selectedRoomId) {
       setPosts([])
@@ -187,11 +177,14 @@ export default function LivingPage() {
     setInterestLoadingId(null)
   }
 
-  const roomTabs: RoomTab[] = filteredRooms.map((r) => ({
-    id: r.id,
-    label: r.room_name,
-    badge: r.seed_mode ? (getRoomStage(r) === 'flower' ? '🌸' : '🌱') : undefined,
-  }))
+  const roomTabs: RoomTab[] = filteredRooms.map((r) => {
+    const computed = r.stage ? computeStage(r.stage) : { emoji: null }
+    return {
+      id: r.id,
+      label: r.room_name,
+      badge: computed.emoji || undefined,
+    }
+  })
 
   const langFlag = house?.primary_language ? (LANG_FLAG[house.primary_language] || '🌐') : '🌐'
 
@@ -204,6 +197,10 @@ export default function LivingPage() {
       <TopBar
         logo={<CoreNullLogo size="sm" />}
         title="거실"
+        actions={house ? [
+          // TODO: 광장 구현되면 다른 화면들처럼 이 자리를 상황에 따라 교체할 수 있음.
+          { key: 'home', emoji: '🏠', label: '나의 마당', onClick: () => router.push(`/houses/${house.id}/yard`) },
+        ] : []}
       />
 
       <LivingBlock
