@@ -115,7 +115,7 @@ const handlePost = async (req, traceId) => {
 
 const handlePatch = async (req, traceId) => {
   const body = JSON.parse(await req.text())
-  const { room_id, owner_key, room_name, visibility, seed_mode } = body
+  const { room_id, owner_key, room_name, visibility, seed_mode, bloom_date } = body
 
   if (!room_id || !owner_key) {
     return Response.json({ _error: 'room_id_and_owner_key_required', traceId }, { status: 500 })
@@ -146,6 +146,7 @@ const handlePatch = async (req, traceId) => {
   // seed_mode는 boolean이라 falsy(false) 체크로는 "끄기"가 무시되므로
   // undefined인지로 판단 — false도 유효한 업데이트 값이다.
   if (seed_mode !== undefined) updatePayload.seed_mode = seed_mode
+  if (bloom_date !== undefined) updatePayload.bloom_date = bloom_date
 
   const { data, error } = await supabase
     .from('corenull_rooms')

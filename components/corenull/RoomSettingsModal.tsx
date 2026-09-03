@@ -40,6 +40,10 @@ export default function RoomSettingsModal({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [seedOff, setSeedOff] = useState(false) // 씨드 끄기 진행 중 표시용
+  const [seedOnMode, setSeedOnMode] = useState(false) // 씨드 켜기 폼 펼침 여부
+  const [bloomDate, setBloomDate] = useState('')
+  const [seedOn, setSeedOn] = useState(false) // 씨드 켜기 진행 중 표시용
+  const today = new Date().toISOString().split('T')[0]
 
   const [participants, setParticipants] = useState<Participant[]>([])
   const [loadingParticipants, setLoadingParticipants] = useState(true)
@@ -122,6 +126,31 @@ export default function RoomSettingsModal({
       if (deviceId === ownerKey) onLeft?.()
     }
     setLeavingId(null)
+  }
+
+  // 씨드 켜기 — rooms PATCH에 seed_mode:true (+bloom_date 선택) 넘기는 것.
+  // write 페이지의 신규 방 생성 시 씨드 토글과 동일한 필드 조합.
+  const handleSeedOn = async () => {
+    setSeedOn(true)
+    const res = await fetch('/api/corenull/rooms', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        room_id: roomId,
+        owner_key: ownerKey,
+        seed_mode: true,
+        bloom_date: bloomDate || null,
+      }),
+    })
+    const data = await res.json()
+    if (data.data) {
+      onUpdate({ room_name: data.data.room_name, visibility: data.data.visibility, seed_mode: true })
+      setSeedOnMode(false)
+      setBloomDate('')
+    } else {
+      setError(data._error || '씨드 켜기에 실패했어요')
+    }
+    setSeedOn(false)
   }
 
   // 씨드 끄기 — 새 액션이 아니라 이미 있는 rooms PATCH에 seed_mode:false만
@@ -235,6 +264,40 @@ export default function RoomSettingsModal({
           </>
         )}
 
+        {/* 씨드 켜기 — owner 전용, seedMode가 꺼져있을 때만.
+            write 페이지 신규 방 생성 시 씨드 토글과 동일한 필드
+            조합(seed_mode + bloom_date)을 그대로 재사용한다. */}
+        {isOwner && !seedMode && (
+          <>
+            {!seedOnMode ? (
+              <button style={styles.seedOnBtn} onClick={() => setSeedOnMode(true)}>
+                🌱 씨드 켜기
+              </button>
+            ) : (
+              <div style={styles.seedOnBox}>
+                <div style={styles.seedOffDesc}>🌸 꽃 피는 날 (선택)</div>
+                <input
+                  type="date"
+                  style={styles.dateInput}
+                  value={bloomDate}
+                  min={today}
+                  onChange={e => setBloomDate(e.target.value)}
+                />
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    style={{ ...styles.seedOffBtn, flex: 1, opacity: seedOn ? 0.5 : 1 }}
+                    onClick={handleSeedOn}
+                    disabled={seedOn}
+                  >
+                    {seedOn ? '켜는 중...' : '씨드 켜기'}
+                  </button>
+                  <button style={styles.cancelBtn} onClick={() => { setSeedOnMode(false); setBloomDate('') }}>취소</button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
         {/* 씨드 끄기 — owner 전용, seedMode가 켜져있을 때만.
             방을 지우는 게 아니라 씨드 뷰만 끄고 일반 방으로 돌아간다 —
             그래서 삭제처럼 확인 단계를 두지 않는다(스위치니까). */}
@@ -341,6 +404,21 @@ const styles: Record<string, React.CSSProperties> = {
   copyBtn: {
     padding: '8px', background: '#2C1810', color: 'white',
     border: 'none', borderRadius: 8, fontSize: 12, cursor: 'pointer',
+  },
+  seedOnBtn: {
+    width: '100%', padding: '12px',
+    background: 'rgba(74,124,63,0.08)', border: '1px solid rgba(74,124,63,0.25)',
+    borderRadius: 12, fontSize: 14, color: '#4A7C3F', fontWeight: 500, cursor: 'pointer',
+  },
+  seedOnBox: {
+    background: 'rgba(74,124,63,0.06)', borderRadius: 12, padding: 12,
+    display: 'flex', flexDirection: 'column', gap: 8,
+  },
+  dateInput: {
+    width: '100%', height: 40,
+    background: '#FEFCF8', border: '1px solid rgba(92,61,46,0.12)',
+    borderRadius: 8, padding: '0 12px',
+    fontSize: 14, color: '#1C1208', outline: 'none', boxSizing: 'border-box',
   },
   seedOffRow: {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
