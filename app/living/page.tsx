@@ -216,7 +216,7 @@ export default function LivingPage() {
         }}
         rooms={roomTabs}
         selectedRoomId={selectedRoomId}
-        onRoomSelect={setSelectedRoomId}
+        onRoomSelect={(roomId) => router.push(`/rooms/${roomId}`)}
         onCreateRoomClick={handleCreateRoom}
         visibilityFilters={VISIBILITY_FILTERS}
         selectedVisibility={selectedVisibility}
