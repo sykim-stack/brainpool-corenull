@@ -6,6 +6,7 @@ import { getDeviceId } from '@/lib/deviceId'
 import TopBar from '@/components/blocks/TopBar'
 import YardBlock from '@/components/blocks/YardBlock'
 import CoreNullLogo from '@/components/corenull/CoreNullLogo'
+import ShareModal from '@/components/corenull/ShareModal'
 import { PostBlockData } from '@/components/blocks/PostBlock'
 import { RingData } from '@/components/blocks/RingBlock'
 
@@ -47,6 +48,28 @@ export default function HouseYardPage() {
   const [bookmarks, setBookmarks] = useState<BookmarkRow[]>([])
   const [interestLoadingId, setInterestLoadingId] = useState<string | null>(null)
 
+  // 이웃 초대 — HouseClient가 이미 쓰던 ShareModal+invite API 패턴 재사용.
+  // room_id 없이 호출하면 house 전체 초대(참여 초대와 다름).
+  const [showShare, setShowShare] = useState(false)
+  const [inviteUrl, setInviteUrl] = useState('')
+  const [inviteLoading, setInviteLoading] = useState(false)
+
+  const handleInvite = async () => {
+    if (inviteLoading) return
+    setInviteLoading(true)
+    const res = await fetch('/api/corenull/invite', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ house_id: houseId, owner_key: ownerKey }),
+    })
+    const data = await res.json()
+    if (data.data?.invite_token) {
+      setInviteUrl(`https://corenull.vercel.app/invite/${data.data.invite_token}`)
+      setShowShare(true)
+    }
+    setInviteLoading(false)
+  }
+
   useEffect(() => {
     const key = getDeviceId()
     setOwnerKey(key)
@@ -84,6 +107,7 @@ export default function HouseYardPage() {
             media: p.meta?.media,
             created_at: p.created_at,
             comment_count: p.comment_count ?? 0,
+            view_meta: h.house?.title ? { house_name: h.house.title } : undefined,
           }))
         setPosts(merged)
       }
@@ -135,7 +159,11 @@ export default function HouseYardPage() {
         logo={<CoreNullLogo size="sm" />}
         title="마당"
         actions={[
-          { key: 'share', emoji: '🔗', label: '이웃 초대', onClick: () => {/* TODO: invite 연결 */} },
+          // TODO: 광장 구현되면 이 아이콘을 🏛️(광장)로 교체하고 목적지도 /plaza 등으로 변경.
+          // §13 Navigation Context — 나의 마당에 있을 땐 광장 아이콘이 맞지만
+          // 지금은 광장 자체가 없어서 우선 집아이콘(나의 마당, 지금 여기)으로 고정.
+          { key: 'home', emoji: '🏠', label: '나의 마당', onClick: () => router.push(`/houses/${houseId}/yard`) },
+          { key: 'share', emoji: '🔗', label: '이웃 초대', onClick: handleInvite, disabled: inviteLoading },
         ]}
       />
 
@@ -160,6 +188,14 @@ export default function HouseYardPage() {
         interestLoadingId={interestLoadingId}
         onInterestClick={handleInterestClick}
       />
+
+      {showShare && inviteUrl && (
+        <ShareModal
+          url={inviteUrl}
+          title={`${house?.title || '우리 집'} 초대`}
+          onClose={() => setShowShare(false)}
+        />
+      )}
     </div>
   )
 }
