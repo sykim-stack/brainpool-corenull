@@ -3,6 +3,9 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { getDeviceId } from '@/lib/deviceId'
+import FootprintRow from '@/components/blocks/FootprintRow'
+import PostCompactRow from '@/components/blocks/PostCompactRow'
+import { PostBlockData } from '@/components/blocks/PostBlock'
 
 type Tab = 'footprints' | 'saved' | 'posts' | 'fruits'
 
@@ -31,6 +34,15 @@ export default function LibraryPage() {
     { id: 'fruits',     label: '🍎 서재',   count: library?.harvested_fruits?.length || 0 },
   ]
 
+  // messages(post/fruit) → PostBlockData 변환. 서재 감사(2026-09-04)로
+  // PostCompactRow 연결 — 새 데이터 타입 안 만들고 기존 PostBlockData 그대로.
+  const toPostBlockData = (m: any): PostBlockData => ({
+    id: m.id,
+    content: m.content,
+    media: m.meta?.media,
+    created_at: m.created_at,
+  })
+
   return (
     <div>
       <div style={styles.header}>
@@ -54,32 +66,31 @@ export default function LibraryPage() {
 
       <div style={styles.body}>
 
-        {/* 발자취 탭 — house_name을 주정보로(FootprintRow와 동일한 판단),
-            room_name은 부정보. join이 없던 API 버그를 고친 뒤 실제 표시. */}
+        {/* 발자취 탭 — FootprintRow. "어디를 방문했는가"만, 글 내용 없음
+            (의도적 — 열람기록으로 바꾸지 않기로 확정, 2026-09-04). */}
         {activeTab === 'footprints' && (
           <div style={styles.list}>
             {(library?.footprints || []).length === 0 ? (
               <Empty emoji="👣" text="아직 방문한 곳이 없어요" />
             ) : (
               library.footprints.map((fp: any) => (
-                <div key={fp.id} style={styles.listItem} onClick={() => router.push(`/rooms/${fp.room_id}`)}>
-                  <div style={styles.listIcon}>🏡</div>
-                  <div style={styles.listInfo}>
-                    <div style={styles.listTitle}>
-                      {fp.corenull_rooms?.corenull_houses?.title || '알 수 없는 집'}
-                    </div>
-                    <div style={styles.listSub}>
-                      {fp.corenull_rooms?.room_name || '방'} · {new Date(fp.visited_at).toLocaleDateString('ko-KR')}
-                    </div>
-                  </div>
-                  <span style={styles.listArrow}>›</span>
-                </div>
+                <FootprintRow
+                  key={fp.id}
+                  footprint={{
+                    id: fp.id,
+                    house_name: fp.corenull_rooms?.corenull_houses?.title || null,
+                    room_name: fp.corenull_rooms?.room_name || null,
+                    visited_at: fp.visited_at,
+                  }}
+                  onClick={() => router.push(`/rooms/${fp.room_id}`)}
+                />
               ))
             )}
           </div>
         )}
 
-        {/* 관심 탭 — 하드코딩 대신 join된 실제 room_name/message content 사용 */}
+        {/* 관심 탭 — 방과 포스트가 섞여있어 맞는 기존 블록이 없음.
+            블록화를 위한 블록화를 하지 않는다 — 인라인 유지(확정, 2026-09-04). */}
         {activeTab === 'saved' && (
           <div>
             {(library?.saved_rooms || []).length > 0 && (
@@ -124,58 +135,42 @@ export default function LibraryPage() {
           </div>
         )}
 
-        {/* 내 글 탭 */}
+        {/* 내 글 탭 — PostCompactRow. badges는 archived/reborn_from 있을 때만. */}
         {activeTab === 'posts' && (
           <div style={styles.list}>
             {(library?.my_posts || []).length === 0 ? (
               <Empty emoji="📝" text="아직 쓴 이야기가 없어요" />
             ) : (
               library.my_posts.map((post: any) => (
-                <div key={post.id} style={styles.postItem} onClick={() => router.push(`/posts/${post.id}`)}>
-                  {post.meta?.media?.[0]?.type === 'image' && (
-                    <img src={post.meta.media[0].url} alt="" style={styles.postThumb} />
-                  )}
-                  <div style={styles.postInfo}>
-                    <div style={styles.postContent}>
-                      {post.content?.slice(0, 60)}{post.content?.length > 60 ? '...' : ''}
-                    </div>
-                    <div style={styles.postMeta}>
-                      {post.meta?.archived && <span style={styles.archivedBadge}>보관됨</span>}
-                      {post.meta?.reborn_from && <span style={styles.rebornBadge}>재탄생</span>}
-                      <span style={styles.listSub}>{new Date(post.created_at).toLocaleDateString('ko-KR')}</span>
-                    </div>
-                  </div>
-                  <span style={styles.listArrow}>›</span>
-                </div>
+                <PostCompactRow
+                  key={post.id}
+                  post={toPostBlockData(post)}
+                  thumbnailUrl={post.meta?.media?.find((m: any) => m.type === 'image')?.url}
+                  badges={[
+                    ...(post.meta?.archived ? ['보관됨'] : []),
+                    ...(post.meta?.reborn_from ? ['재탄생'] : []),
+                  ]}
+                  onClick={() => router.push(`/posts/${post.id}`)}
+                />
               ))
             )}
           </div>
         )}
 
-        {/* 서재(열매) 탭 */}
+        {/* 서재(열매) 탭 — PostCompactRow. 수확일을 뱃지로. */}
         {activeTab === 'fruits' && (
           <div style={styles.list}>
             {(library?.harvested_fruits || []).length === 0 ? (
               <Empty emoji="🍎" text="아직 수확된 열매가 없어요" />
             ) : (
               library.harvested_fruits.map((fruit: any) => (
-                <div key={fruit.id} style={styles.postItem} onClick={() => router.push(`/posts/${fruit.id}`)}>
-                  {fruit.meta?.media?.[0]?.type === 'image' && (
-                    <img src={fruit.meta.media[0].url} alt="" style={styles.postThumb} />
-                  )}
-                  <div style={styles.postInfo}>
-                    <div style={styles.postContent}>
-                      {fruit.content?.slice(0, 60)}{fruit.content?.length > 60 ? '...' : ''}
-                    </div>
-                    <div style={styles.postMeta}>
-                      <span style={styles.fruitBadge}>🍎 열매</span>
-                      <span style={styles.listSub}>
-                        {new Date(fruit.harvested_at).toLocaleDateString('ko-KR')} 수확
-                      </span>
-                    </div>
-                  </div>
-                  <span style={styles.listArrow}>›</span>
-                </div>
+                <PostCompactRow
+                  key={fruit.id}
+                  post={toPostBlockData(fruit)}
+                  thumbnailUrl={fruit.meta?.media?.find((m: any) => m.type === 'image')?.url}
+                  badges={['🍎 열매']}
+                  onClick={() => router.push(`/posts/${fruit.id}`)}
+                />
               ))
             )}
           </div>
@@ -238,15 +233,4 @@ const styles: Record<string, React.CSSProperties> = {
   listTitle: { fontSize: 13, fontWeight: 500, color: '#1C1208', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
   listSub: { fontSize: 11, color: '#9A8470', marginTop: 2 },
   listArrow: { fontSize: 16, color: '#9A8470' },
-  postItem: {
-    background: '#FEFCF8', borderRadius: 12, border: '1px solid rgba(92,61,46,0.12)',
-    padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', marginBottom: 8,
-  },
-  postThumb: { width: 48, height: 48, borderRadius: 8, objectFit: 'cover', flexShrink: 0 },
-  postInfo: { flex: 1, minWidth: 0 },
-  postContent: { fontSize: 13, color: '#1C1208', lineHeight: 1.5, overflow: 'hidden', display: '-webkit-box' },
-  postMeta: { display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 },
-  archivedBadge: { fontSize: 10, color: '#9A8470', background: 'rgba(92,61,46,0.08)', padding: '2px 6px', borderRadius: 6 },
-  rebornBadge: { fontSize: 10, color: '#C17F3C', background: 'rgba(193,127,60,0.1)', padding: '2px 6px', borderRadius: 6 },
-  fruitBadge: { fontSize: 10, color: '#4A7C3F', background: 'rgba(74,124,63,0.1)', padding: '2px 6px', borderRadius: 6 },
 }

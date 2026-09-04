@@ -78,9 +78,20 @@ const handleGet = async (req, traceId) => {
   const saved_rooms = (bookmarksRes.data || []).filter(b => b.room_id && !b.message_id)
   const saved_posts = (bookmarksRes.data || []).filter(b => b.message_id && !b.room_id)
 
+  // 발자취 dedup — room_id 기준 최근 방문 1건만. DB 기록 자체는 안 건드리고
+  // 조회 단계에서만 정리한다(독립 페이지 /api/corenull/footprints/route.js와
+  // 동일한 원칙). "어디를 방문했는가"가 발자취의 의미이지 "몇 번 방문했는가"가
+  // 아니므로, 같은 방을 반복 방문한 기록을 화면에 그대로 쌓아 보여주지 않는다.
+  const seenRoom = new Set()
+  const dedupedFootprints = (footprintsRes.data || []).filter(fp => {
+    if (seenRoom.has(fp.room_id)) return false
+    seenRoom.add(fp.room_id)
+    return true
+  })
+
   return Response.json({
     data: {
-      footprints:       footprintsRes.data     || [],
+      footprints:       dedupedFootprints,
       saved_rooms,
       saved_posts,
       my_posts:         myPostsRes.data        || [],
