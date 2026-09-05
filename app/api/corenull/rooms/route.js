@@ -1,11 +1,15 @@
 ﻿// CoreNull - Room API
 // 방 생성 / 조회 / 수정 (집주인만 가능)
+// GET ?room_id=        → 단건 조회
+// GET ?house_id=       → 특정 House의 방 목록
+// GET ?scope=plaza     → 광장 — 모든 House의 public 방 전역 조회
 //
-// NOTE(2026-08-30): PATCH에 action='close' 추가. 방을 만든 주인만
-// 폐쇄 가능(참여방/씨드방 공통, 별도 세드 전용 종료 액션 없음).
-// closed_at 세팅 시점부터 서재 View가 이 방의 포스팅을 포함한다.
-// 원본 message는 이동하지 않는다 (Anchor §13-1 Single Source of
-// Truth 원칙, harvested_at과 동일한 패턴).
+// NOTE(2026-09-04): 광장을 위해 새 API(/api/corenull/plaza)를 만들지 않고
+// 이 라우트에 scope=plaza로 조회 범위만 확장했다 (API 슬롯 절약 결정).
+// Master View §2/§3: 광장의 발견 단위는 House가 아니라 Room이므로,
+// House 목록이 아니라 public Room 목록을 반환한다. RoomCard가 바로 쓸 수
+// 있도록 room.stage/room.latest_message까지 lib/roomStage.js Adapter로
+// 붙여서 내려준다 — 계산 로직을 이 파일에 새로 만들지 않는다.
 
 export const dynamic = 'force-dynamic'
 
@@ -31,11 +35,13 @@ const handleGet = async (req, traceId) => {
   const { searchParams } = new URL(req.url)
   const house_id = searchParams.get('house_id')
   const room_id = searchParams.get('room_id')
+  const scope = searchParams.get('scope')
+
+  const { getSupabase } = await import('@/lib/supabase')
+  const supabase = getSupabase()
+  if (!supabase) return Response.json({ _error: 'supabase_init_failed', traceId }, { status: 500 })
 
   if (room_id) {
-    const { getSupabase } = await import('@/lib/supabase')
-    const supabase = getSupabase()
-    if (!supabase) return Response.json({ _error: 'supabase_init_failed', traceId }, { status: 500 })
     const { data, error } = await supabase
       .from('corenull_rooms')
       .select('*')
@@ -45,13 +51,37 @@ const handleGet = async (req, traceId) => {
     return Response.json({ room: data, traceId })
   }
 
-  if (!house_id) {
-    return Response.json({ _error: 'house_id_or_room_id_required', traceId }, { status: 500 })
+  // 광장 — 모든 House의 public 방 전역 조회
+  if (scope === 'plaza') {
+    const limit = parseInt(searchParams.get('limit') || '30')
+    const offset = parseInt(searchParams.get('offset') || '0')
+
+    const { data: rooms, error } = await supabase
+      .from('corenull_rooms')
+      .select('*, corenull_houses(id, title, primary_language)')
+      .eq('visibility', 'public')
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1)
+
+    if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
+    if (!rooms || rooms.length === 0) return Response.json({ data: [], traceId })
+
+    // RoomCard가 필요로 하는 stage/latest_message를 Adapter로 일괄 부착.
+    // 이 파일에서 직접 계산하지 않는다 — 중복 로직 금지(Anchor §7).
+    const { attachRoomStages, attachLatestMessages } = await import('@/lib/roomStage')
+    const withStage = await attachRoomStages(supabase, rooms)
+    const withLatest = await attachLatestMessages(supabase, withStage)
+
+    // RoomCard는 room.corenull_houses가 아니라 카드 자체엔 House 정보가
+    // 필요 없다(광장에서 클릭하면 House의 마당으로 이동 — 그 이동 목적지
+    // house_id만 있으면 됨). house 표시가 필요해지면 호출부가 이 필드를
+    // 그대로 꺼내 쓰면 된다 — 여기서 shape을 더 가공하지 않는다.
+    return Response.json({ data: withLatest, traceId })
   }
 
-  const { getSupabase } = await import('@/lib/supabase')
-  const supabase = getSupabase()
-  if (!supabase) return Response.json({ _error: 'supabase_init_failed', traceId }, { status: 500 })
+  if (!house_id) {
+    return Response.json({ _error: 'house_id_or_room_id_or_scope_required', traceId }, { status: 500 })
+  }
 
   const { data, error } = await supabase
     .from('corenull_rooms')

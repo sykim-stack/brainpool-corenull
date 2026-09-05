@@ -6,6 +6,7 @@ import { getDeviceId } from '@/lib/deviceId'
 import TopBar from '@/components/blocks/TopBar'
 import YardBlock from '@/components/blocks/YardBlock'
 import CoreNullLogo from '@/components/corenull/CoreNullLogo'
+import ShareModal from '@/components/corenull/ShareModal'
 import { PostBlockData } from '@/components/blocks/PostBlock'
 import { RingData } from '@/components/blocks/RingBlock'
 import { NeighborChip } from '@/components/blocks/NeighborContentBlock'
@@ -51,6 +52,30 @@ export default function HouseYardPage() {
 
   const [bookmarks, setBookmarks] = useState<BookmarkRow[]>([])
   const [interestLoadingId, setInterestLoadingId] = useState<string | null>(null)
+
+  // 참여자 초대 — HouseClient.tsx의 기존 handleInvite/ShareModal 로직 재사용.
+  // API/토큰 로직은 그대로, owner일 때만 노출되도록 게이트만 추가한다.
+  const [showShare, setShowShare] = useState(false)
+  const [inviteUrl, setInviteUrl] = useState('')
+  const [inviteLoading, setInviteLoading] = useState(false)
+
+  const isOwner = house?.owner_key === ownerKey
+
+  const handleInvite = async () => {
+    if (inviteLoading || !house) return
+    setInviteLoading(true)
+    const res = await fetch('/api/corenull/invite', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ house_id: house.id, owner_key: ownerKey }),
+    })
+    const data = await res.json()
+    if (data.data?.invite_token) {
+      setInviteUrl(`https://corenull.vercel.app/invite/${data.data.invite_token}`)
+      setShowShare(true)
+    }
+    setInviteLoading(false)
+  }
 
   useEffect(() => {
     const key = getDeviceId()
@@ -218,9 +243,15 @@ export default function HouseYardPage() {
       <TopBar
         logo={<CoreNullLogo size="sm" />}
         title="마당"
-        actions={[
-          { key: 'share', emoji: '🔗', label: '참여자 초대', onClick: () => {/* TODO: invite 연결 */} },
-        ]}
+        actions={isOwner ? [
+          {
+            key: 'share',
+            emoji: '🔗',
+            label: inviteLoading ? '초대 링크 생성 중...' : '참여자 초대',
+            onClick: handleInvite,
+            disabled: inviteLoading,
+          },
+        ] : []}
       />
 
       <YardBlock
@@ -246,6 +277,14 @@ export default function HouseYardPage() {
         neighbors={neighbors}
         onNeighborClick={(hId) => router.push(`/houses/${hId}/yard`)}
       />
+
+      {showShare && inviteUrl && (
+        <ShareModal
+          url={inviteUrl}
+          title={`${house?.title || '우리 집'} 초대`}
+          onClose={() => setShowShare(false)}
+        />
+      )}
     </div>
   )
 }
