@@ -2,6 +2,7 @@
 
 import HeroBlock, { HeroBackground, HeroDoorplate } from './HeroBlock'
 import MyContentBlock from './MyContentBlock'
+import NeighborContentBlock, { NeighborChip } from './NeighborContentBlock'
 import { RingData } from './RingBlock'
 import { PostBlockData } from './PostBlock'
 
@@ -11,17 +12,12 @@ import { PostBlockData } from './PostBlock'
 // §2(마당 Block 구성) 기준:
 //   HeroBlock (배경=외부) + Ring + Doorplate
 //   MyContentBlock (내 방 최신 콘텐츠)
-//   NeighborContentBlock (골목, public tier) — 자리만, OFF
-//
-// NeighborContentBlock은 실제로 만들지도, import하지도 않는다.
-// ADR-ACCESS-002가 없는 상태(404 확인됨)에서 골목을 render하면
-// ADR-NEIGHBOR-000 §5 게이트("formal 승인 전까지 코드로 옮기지
-// 않는다")를 우리 스스로 어기는 것이 된다. 승인 나면 이 자리에
-// NeighborContentBlock 컴포넌트 하나만 꽂으면 되도록 빈 슬롯만 둔다.
+//   NeighborContentBlock (골목, tier="public") — ADR-ACCESS-002 승인 완료로 조립
 //
 // 이 블록은 "마당 페이지" 그 자체이므로 데이터 로딩 책임을 진다
-// (HeroBlock/MyContentBlock 자체는 여전히 fetch하지 않는 순수
-// 컴포넌트다 — 여기서 가져온 데이터를 props로 내려줄 뿐).
+// (HeroBlock/MyContentBlock/NeighborContentBlock 자체는 여전히
+// fetch하지 않는 순수 컴포넌트다 — 여기서 가져온 데이터를 props로
+// 내려줄 뿐).
 // ─────────────────────────────────────────────────────────────
 
 export interface YardBlockProps {
@@ -38,6 +34,10 @@ export interface YardBlockProps {
   getInterestState?: (postId: string) => 'none' | 'active' | 'ended'
   interestLoadingId?: string | null
   onInterestClick?: (postId: string) => void
+
+  // ADR-ACCESS-002 — accepted 관계만 호출부가 걸러서 넘긴다.
+  neighbors?: NeighborChip[]
+  onNeighborClick?: (houseId: string) => void
 }
 
 export default function YardBlock({
@@ -53,6 +53,8 @@ export default function YardBlock({
   getInterestState,
   interestLoadingId = null,
   onInterestClick,
+  neighbors = [],
+  onNeighborClick,
 }: YardBlockProps) {
   if (loading) {
     return <div style={styles.loading}>🌳</div>
@@ -73,10 +75,11 @@ export default function YardBlock({
         onInterestClick={onInterestClick}
       />
 
-      {/*
-        NeighborContentBlock 자리 — ADR-ACCESS-002 승인 전까지 OFF.
-        게이트 풀리면 여기에 <NeighborContentBlock tier="public" .../> 하나만 추가.
-      */}
+      <NeighborContentBlock
+        tier="public"
+        neighbors={neighbors}
+        onNeighborClick={(houseId) => onNeighborClick?.(houseId)}
+      />
     </div>
   )
 }

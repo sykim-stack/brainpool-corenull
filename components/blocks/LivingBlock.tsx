@@ -2,6 +2,7 @@
 
 import HeroBlock, { HeroBackground, HeroDoorplate } from './HeroBlock'
 import MyContentBlock from './MyContentBlock'
+import NeighborContentBlock, { NeighborChip } from './NeighborContentBlock'
 import { RingData } from './RingBlock'
 import { PostBlockData } from './PostBlock'
 
@@ -12,19 +13,14 @@ import { PostBlockData } from './PostBlock'
 // 쓴다. 차이는 배경(외부→내부)과, 방 발견 대신 "방 관리"(방탭·
 // 필터탭·방만들기)가 붙는다는 것뿐이다. HeroBlock을 그대로 재사용.
 //
-// 원래 있던 문제(마당 화면에 방탭/필터탭/방만들기가 잘못 섞여
-// 들어갔던 것)의 해결책이 이 블록이다 — 이 기능들은 여기에만 있고
-// YardBlock에는 없다.
-//
-// 방탭/필터탭의 "의미"(무엇이 씨앗이고 무엇이 열매인지 등)는 이
-// 블록이 판단하지 않는다. 그냥 라벨+선택상태를 받아서 그릴 뿐이고,
-// 실제 필터링된 posts를 만드는 건 호출부(페이지) 책임이다.
+// NeighborContentBlock (복도, tier="invite") — ADR-ACCESS-002
+// 승인 완료로 조립.
 // ─────────────────────────────────────────────────────────────
 
 export interface RoomTab {
   id: string
   label: string
-  badge?: string // 예: 🌱 (seed_mode 표시 등), 없으면 표시 안 함
+  badge?: string
 }
 
 export interface FilterChip {
@@ -43,10 +39,6 @@ export interface LivingBlockProps {
   onRoomSelect: (roomId: string) => void
   onCreateRoomClick: () => void
 
-  // 두 개의 독립된 축 — 공개범위와 성장단계는 서로 무관하게 조합 가능
-  // (예: 공개+씨드, 이웃공개+참여, 비공개+열매 전부 유효한 조합).
-  // 참여(Participation)는 필터 축이 아니라 room 자체의 속성이라
-  // RoomTab의 badge로 표시한다 — 여기 필터 목록엔 없다.
   visibilityFilters: FilterChip[]
   selectedVisibility: string
   onVisibilityChange: (key: string) => void
@@ -64,6 +56,10 @@ export interface LivingBlockProps {
   getInterestState?: (postId: string) => 'none' | 'active' | 'ended'
   interestLoadingId?: string | null
   onInterestClick?: (postId: string) => void
+
+  // ADR-ACCESS-002 — accepted 관계만 호출부가 걸러서 넘긴다.
+  neighbors?: NeighborChip[]
+  onNeighborClick?: (houseId: string) => void
 }
 
 export default function LivingBlock({
@@ -89,6 +85,8 @@ export default function LivingBlock({
   getInterestState,
   interestLoadingId = null,
   onInterestClick,
+  neighbors = [],
+  onNeighborClick,
 }: LivingBlockProps) {
   if (loading) {
     return <div style={styles.loading}>🛋️</div>
@@ -165,11 +163,11 @@ export default function LivingBlock({
         onInterestClick={onInterestClick}
       />
 
-      {/*
-        NeighborContentBlock 자리 — ADR-ACCESS-002 승인 전까지 OFF.
-        게이트 풀리면 여기에 <NeighborContentBlock tier="invite" .../> 하나만 추가
-        (§5-6: 복도의 거주지는 거실).
-      */}
+      <NeighborContentBlock
+        tier="invite"
+        neighbors={neighbors}
+        onNeighborClick={(houseId) => onNeighborClick?.(houseId)}
+      />
     </div>
   )
 }

@@ -9,6 +9,7 @@ import LivingBlock, { RoomTab, FilterChip } from '@/components/blocks/LivingBloc
 import CoreNullLogo from '@/components/corenull/CoreNullLogo'
 import { PostBlockData } from '@/components/blocks/PostBlock'
 import { RingData } from '@/components/blocks/RingBlock'
+import { NeighborChip } from '@/components/blocks/NeighborContentBlock'
 
 const LANG_FLAG: Record<string, string> = {
   ko: '🇰🇷', vi: '🇻🇳', en: '🇺🇸', ja: '🇯🇵', zh: '🇨🇳',
@@ -63,6 +64,7 @@ export default function LivingPage() {
   const [selectedVisibility, setSelectedVisibility] = useState('all')
   const [selectedStage, setSelectedStage] = useState('all')
   const [posts, setPosts] = useState<PostBlockData[]>([])
+  const [neighbors, setNeighbors] = useState<NeighborChip[]>([])
   const [loading, setLoading] = useState(true)
   const [postsLoading, setPostsLoading] = useState(false)
 
@@ -88,6 +90,23 @@ export default function LivingPage() {
       }
       setHouse(myHouse)
       setRooms(myHouse.corenull_rooms || [])
+
+      // 골목/복도엔 accepted 관계만 보여준다 (ADR-ACCESS-002 §1-2).
+      // house.id가 있어야 조회 가능해서 이 시점에 별도로 걸어준다.
+      fetch(`/api/corenull/houses?action=neighbors&house_id=${myHouse.id}`)
+        .then(r => r.json())
+        .then((nb) => {
+          const acceptedNeighbors: NeighborChip[] = (nb.data || [])
+            .filter((n: any) => n.status === 'accepted' && n.house)
+            .map((n: any) => ({
+              neighborId: n.id,
+              houseId: n.house.id,
+              title: n.house.title,
+              langFlag: LANG_FLAG[n.house.primary_language] || '🌐',
+            }))
+          setNeighbors(acceptedNeighbors)
+        })
+
       setLoading(false)
     })
   }, [])
@@ -231,6 +250,8 @@ export default function LivingPage() {
         getInterestState={getInterestState}
         interestLoadingId={interestLoadingId}
         onInterestClick={handleInterestClick}
+        neighbors={neighbors}
+        onNeighborClick={(houseId) => router.push(`/houses/${houseId}/yard`)}
       />
     </div>
   )

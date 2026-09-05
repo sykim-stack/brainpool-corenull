@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { getDeviceId } from '@/lib/deviceId'
 import TopBar from '@/components/blocks/TopBar'
 import YardBlock from '@/components/blocks/YardBlock'
@@ -9,6 +9,7 @@ import CoreNullLogo from '@/components/corenull/CoreNullLogo'
 import ShareModal from '@/components/corenull/ShareModal'
 import { PostBlockData } from '@/components/blocks/PostBlock'
 import { RingData } from '@/components/blocks/RingBlock'
+import { NeighborChip } from '@/components/blocks/NeighborContentBlock'
 
 const LANG_FLAG: Record<string, string> = {
   ko: '🇰🇷', vi: '🇻🇳', en: '🇺🇸', ja: '🇯🇵', zh: '🇨🇳',
@@ -32,35 +33,33 @@ function formatSince(iso: string) {
 
 type BookmarkRow = { id: string; message_id: string | null; ended_at: string | null }
 
-export default function HouseYardPage() {
-  const { houseId } = useParams()
+export default function YardPage() {
   const router = useRouter()
 
   const [ownerKey, setOwnerKey] = useState('')
   const [house, setHouse] = useState<any>(null)
   const [rooms, setRooms] = useState<any[]>([])
-  const [neighborCount, setNeighborCount] = useState(0)
+  const [neighbors, setNeighbors] = useState<NeighborChip[]>([])
   const [posts, setPosts] = useState<PostBlockData[]>([])
   const [loading, setLoading] = useState(true)
 
-  // 관심(북마크) — post별로 개별 fetch하지 않고 목록 한 번만 불러와서
-  // message_id 기준으로 매핑. 예전 yard 페이지의 N+1 문제를 반복하지 않는다.
   const [bookmarks, setBookmarks] = useState<BookmarkRow[]>([])
   const [interestLoadingId, setInterestLoadingId] = useState<string | null>(null)
 
-  // 이웃 초대 — HouseClient가 이미 쓰던 ShareModal+invite API 패턴 재사용.
-  // room_id 없이 호출하면 house 전체 초대(참여 초대와 다름).
+  // 이웃 초대 — 지금은 house 멤버(참여자) 초대 링크 생성. Neighbor(ADR-ACCESS-002)
+  // 요청/수락 흐름과는 별개 기능이다 — 라벨이 같아 헷갈릴 수 있어 남겨두지만
+  // 나중에 "참여자 초대"로 문구를 분리하는 걸 검토할 것.
   const [showShare, setShowShare] = useState(false)
   const [inviteUrl, setInviteUrl] = useState('')
   const [inviteLoading, setInviteLoading] = useState(false)
 
   const handleInvite = async () => {
-    if (inviteLoading) return
+    if (inviteLoading || !house) return
     setInviteLoading(true)
     const res = await fetch('/api/corenull/invite', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ house_id: houseId, owner_key: ownerKey }),
+      body: JSON.stringify({ house_id: house.id, owner_key: ownerKey }),
     })
     const data = await res.json()
     if (data.data?.invite_token) {
@@ -70,51 +69,71 @@ export default function HouseYardPage() {
     setInviteLoading(false)
   }
 
+  // `/yard`는 dynamic segment가 없는 최상위 라우트라 useParams()로는
+  // houseId를 얻을 수 없다 (기존 known bug). 1인1집 원칙에 따라
+  // living/page.tsx와 동일하게 owner_key로 내 house를 조회해서 얻는다.
   useEffect(() => {
     const key = getDeviceId()
     setOwnerKey(key)
-    if (!houseId) return
+    if (!key) return
 
-    Promise.all([
-      fetch(`/api/corenull/houses?house_id=${houseId}`).then(r => r.json()),
-      fetch(`/api/corenull/rooms?house_id=${houseId}`).then(r => r.json()),
-      key ? fetch(`/api/corenull/bookmarks?owner_key=${key}`).then(r => r.json()) : Promise.resolve({ data: [] }),
-      // 이웃 수 — house 전체 멤버(room_id IS NULL)만 센다. room 한정
-      // 참여자는 "이웃"이 아니라 "참여자"라 여기 포함하지 않는다.
-      fetch(`/api/corenull/members?house_id=${houseId}`).then(r => r.json()),
-    ]).then(async ([h, r, b, m]) => {
-      setHouse(h.house || null)
-      const roomList = r.data || []
-      setRooms(roomList)
-      setBookmarks(b.data || [])
-      const memberRows = m.data || []
-      setNeighborCount(memberRows.filter((row: any) => row.room_id === null).length)
+    fetch(`/api/corenull/houses?owner_key=${key}`)
+      .then(r => r.json())
+      .then(async (d) => {
+        const myHouse = d.data?.[0]
+        if (!myHouse) {
+          setLoading(false)
+          return
+        }
+        setHouse(myHouse)
 
-      const publicRoomIds = roomList.filter((rm: any) => rm.visibility === 'public').map((rm: any) => rm.id)
-      if (publicRoomIds.length > 0) {
-        const postResults = await Promise.all(
-          publicRoomIds.map((rid: string) =>
-            fetch(`/api/corenull/posts?room_id=${rid}`).then(res => res.json())
-          )
-        )
-        const merged = postResults
-          .flatMap((res) => res.data || [])
-          .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-          .slice(0, 10)
-          .map((p: any): PostBlockData => ({
-            id: p.id,
-            content: p.content,
-            media: p.meta?.media,
-            created_at: p.created_at,
-            comment_count: p.comment_count ?? 0,
-            view_meta: h.house?.title ? { house_name: h.house.title } : undefined,
+        const [r, b, nb] = await Promise.all([
+          fetch(`/api/corenull/rooms?house_id=${myHouse.id}`).then(res => res.json()),
+          fetch(`/api/corenull/bookmarks?owner_key=${key}`).then(res => res.json()),
+          fetch(`/api/corenull/houses?action=neighbors&house_id=${myHouse.id}`).then(res => res.json()),
+        ])
+
+        const roomList = r.data || []
+        setRooms(roomList)
+        setBookmarks(b.data || [])
+
+        // 골목엔 accepted 관계만 보여준다 (ADR-ACCESS-002 §1-2).
+        // "참여자"(house 멤버) 수가 아니라 실제 Neighbor 관계 수를 쓴다.
+        const acceptedNeighbors: NeighborChip[] = (nb.data || [])
+          .filter((n: any) => n.status === 'accepted' && n.house)
+          .map((n: any) => ({
+            neighborId: n.id,
+            houseId: n.house.id,
+            title: n.house.title,
+            langFlag: LANG_FLAG[n.house.primary_language] || '🌐',
           }))
-        setPosts(merged)
-      }
+        setNeighbors(acceptedNeighbors)
 
-      setLoading(false)
-    })
-  }, [houseId])
+        const publicRoomIds = roomList.filter((rm: any) => rm.visibility === 'public').map((rm: any) => rm.id)
+        if (publicRoomIds.length > 0) {
+          const postResults = await Promise.all(
+            publicRoomIds.map((rid: string) =>
+              fetch(`/api/corenull/posts?room_id=${rid}`).then(res => res.json())
+            )
+          )
+          const merged = postResults
+            .flatMap((res) => res.data || [])
+            .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+            .slice(0, 10)
+            .map((p: any): PostBlockData => ({
+              id: p.id,
+              content: p.content,
+              media: p.meta?.media,
+              created_at: p.created_at,
+              comment_count: p.comment_count ?? 0,
+              view_meta: myHouse.title ? { house_name: myHouse.title } : undefined,
+            }))
+          setPosts(merged)
+        }
+
+        setLoading(false)
+      })
+  }, [])
 
   const getInterestState = (postId: string): 'none' | 'active' | 'ended' => {
     const b = bookmarks.find((bm) => bm.message_id === postId)
@@ -158,19 +177,16 @@ export default function HouseYardPage() {
       <TopBar
         logo={<CoreNullLogo size="sm" />}
         title="마당"
-        actions={[
-          // TODO: 광장 구현되면 이 아이콘을 🏛️(광장)로 교체하고 목적지도 /plaza 등으로 변경.
-          // §13 Navigation Context — 나의 마당에 있을 땐 광장 아이콘이 맞지만
-          // 지금은 광장 자체가 없어서 우선 집아이콘(나의 마당, 지금 여기)으로 고정.
-          { key: 'home', emoji: '🏠', label: '나의 마당', onClick: () => router.push(`/houses/${houseId}/yard`) },
-          { key: 'share', emoji: '🔗', label: '이웃 초대', onClick: handleInvite, disabled: inviteLoading },
-        ]}
+        actions={house ? [
+          { key: 'home', emoji: '🏠', label: '나의 마당', onClick: () => router.push(`/houses/${house.id}/yard`) },
+          { key: 'share', emoji: '🔗', label: '참여자 초대', onClick: handleInvite, disabled: inviteLoading },
+        ] : []}
       />
 
       <YardBlock
         loading={loading}
         background={{ gradient: undefined }}
-        ring={buildRingData(rooms.length, neighborCount)}
+        ring={buildRingData(rooms.length, neighbors.length)}
         avatar={<span style={{ fontSize: 20 }}>🏡</span>}
         doorplate={{
           langFlag,
@@ -178,7 +194,7 @@ export default function HouseYardPage() {
           description: house?.description,
           since: house?.created_at ? formatSince(house.created_at) : undefined,
           roomCount: rooms.length,
-          neighborCount,
+          neighborCount: neighbors.length,
         }}
         posts={posts}
         onPostClick={(postId) => router.push(`/posts/${postId}`)}
@@ -187,6 +203,8 @@ export default function HouseYardPage() {
         getInterestState={getInterestState}
         interestLoadingId={interestLoadingId}
         onInterestClick={handleInterestClick}
+        neighbors={neighbors}
+        onNeighborClick={(houseId) => router.push(`/houses/${houseId}/yard`)}
       />
 
       {showShare && inviteUrl && (
