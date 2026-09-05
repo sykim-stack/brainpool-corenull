@@ -9,6 +9,7 @@ export default function MePage() {
   const [ownerKey, setOwnerKey] = useState('')
   const [loading, setLoading] = useState(true)
   const [myHouses, setMyHouses] = useState<any[]>([])
+  const [pendingReceived, setPendingReceived] = useState(0)
   const [syncCode, setSyncCode] = useState('')
   const [syncExpiry, setSyncExpiry] = useState<Date | null>(null)
   const [inputCode, setInputCode] = useState('')
@@ -26,6 +27,16 @@ export default function MePage() {
       setLibrary(lib.data)
       setMyHouses(h.data || [])
       setLoading(false)
+
+      const myHouse = h.data?.[0]
+      if (myHouse) {
+        fetch(`/api/corenull/houses?action=neighbors&house_id=${myHouse.id}`)
+          .then(r => r.json())
+          .then((nb) => {
+            const count = (nb.data || []).filter((n: any) => n.status === 'pending' && n.direction === 'incoming').length
+            setPendingReceived(count)
+          })
+      }
     })
   }, [])
 
@@ -141,6 +152,14 @@ export default function MePage() {
             <div style={{ ...styles.menuIcon, background: 'rgba(193,127,60,0.12)' }}>🏡</div>
             <span style={styles.menuLabel}>내 집 관리</span>
             <span style={styles.menuBadge}>{myHouses.length > 0 ? myHouses.length : ''}</span>
+            <span style={styles.menuArrow}>›</span>
+          </div>
+          <div style={styles.menuItem} onClick={() => router.push('/me/neighbors')}>
+            <div style={{ ...styles.menuIcon, background: 'rgba(193,127,60,0.12)' }}>🏘️</div>
+            <span style={styles.menuLabel}>이웃</span>
+            {pendingReceived > 0 && (
+              <span style={{ ...styles.menuBadge, color: '#C17F3C', fontWeight: 600 }}>{pendingReceived}</span>
+            )}
             <span style={styles.menuArrow}>›</span>
           </div>
           <div style={styles.menuItem}>
