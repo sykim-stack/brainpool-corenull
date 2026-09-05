@@ -25,6 +25,11 @@ function buildRingData(roomCount: number, neighborCount: number): RingData {
   return { rings }
 }
 
+function formatSince(iso: string) {
+  const d = new Date(iso)
+  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')} 부터`
+}
+
 type BookmarkRow = { id: string; message_id: string | null; ended_at: string | null }
 
 // ADR-ACCESS-002 §1-1 — 방문 중인 house와 내 house 사이의 관계 상태.
@@ -143,6 +148,7 @@ export default function HouseYardPage() {
             media: p.meta?.media,
             created_at: p.created_at,
             comment_count: p.comment_count ?? 0,
+            view_meta: h.house?.title ? { house_name: h.house.title } : undefined,
           }))
         setPosts(merged)
       }
@@ -243,15 +249,19 @@ export default function HouseYardPage() {
       <TopBar
         logo={<CoreNullLogo size="sm" />}
         title="마당"
-        actions={isOwner ? [
-          {
+        actions={[
+          // §13 Navigation Context: 나의 마당 화면에서는 🏛️(광장)로 이동.
+          // 거실/HouseClient 등 다른 화면은 여전히 🏠(나의 마당)로 고정 —
+          // 클로3 원안 그대로. /plaza는 아직 미구현(추후 작업).
+          { key: 'plaza', emoji: '🏛️', label: '광장', onClick: () => router.push('/plaza') },
+          ...(isOwner ? [{
             key: 'share',
             emoji: '🔗',
             label: inviteLoading ? '초대 링크 생성 중...' : '참여자 초대',
             onClick: handleInvite,
             disabled: inviteLoading,
-          },
-        ] : []}
+          }] : []),
+        ]}
       />
 
       <YardBlock
@@ -263,6 +273,7 @@ export default function HouseYardPage() {
           langFlag,
           title: house?.title || '',
           description: house?.description,
+          since: house?.created_at ? formatSince(house.created_at) : undefined,
           roomCount: rooms.length,
           neighborCount: neighbors.length,
           cta: relationCta,
