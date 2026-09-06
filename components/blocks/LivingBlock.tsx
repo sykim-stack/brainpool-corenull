@@ -11,10 +11,10 @@ import { PostBlockData } from './PostBlock'
 //
 // §3 결정: 거실은 마당과 완전히 동일한 Hero+Doorplate+Ring 구조를
 // 쓴다. 차이는 배경(외부→내부)과, 방 발견 대신 "방 관리"(방탭·
-// 필터탭·방만들기)가 붙는다는 것뿐이다. HeroBlock을 그대로 재사용.
+// 필터탭·방만들기)가 붙는다는 것, 그리고 골목 대신 복도
+// (NeighborContentBlock tier='invite')라는 것.
 //
-// NeighborContentBlock (복도, tier="invite") — ADR-ACCESS-002
-// 승인 완료로 조립.
+// NOTE(2026-09-05): ADR-ACCESS-002 승인 완료 — 복도 연결.
 // ─────────────────────────────────────────────────────────────
 
 export interface RoomTab {
@@ -57,7 +57,7 @@ export interface LivingBlockProps {
   interestLoadingId?: string | null
   onInterestClick?: (postId: string) => void
 
-  // ADR-ACCESS-002 — accepted 관계만 호출부가 걸러서 넘긴다.
+  // 복도 — accepted 상태만 걸러서 페이지가 내려준다.
   neighbors?: NeighborChip[]
   onNeighborClick?: (houseId: string) => void
 }
@@ -163,11 +163,13 @@ export default function LivingBlock({
         onInterestClick={onInterestClick}
       />
 
-      <NeighborContentBlock
-        tier="invite"
-        neighbors={neighbors}
-        onNeighborClick={(houseId) => onNeighborClick?.(houseId)}
-      />
+      {onNeighborClick && (
+        <NeighborContentBlock
+          tier="invite"
+          neighbors={neighbors}
+          onNeighborClick={onNeighborClick}
+        />
+      )}
     </div>
   )
 }
