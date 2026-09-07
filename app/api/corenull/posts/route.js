@@ -167,16 +167,17 @@ const handlePost = async (req, traceId) => {
 
   if (messageType !== 'comment') {
     const isOwner = house?.owner_key === owner_key
-    let isMember = false
-    if (!isOwner) {
-      const { data: member } = await supabase
-        .from('corenull_house_members')
-        .select('device_id')
-        .eq('house_id', room.house_id)
-        .eq('device_id', owner_key)
-        .single()
-      isMember = !!member
-    }
+let isMember = false
+if (!isOwner) {
+  const { data: member } = await supabase
+    .from('corenull_house_members')
+    .select('device_id')
+    .eq('house_id', room.house_id)
+    .eq('room_id', room_id)        // ← 추가: 이 방에 초대된 참여자인지까지 확인
+    .eq('device_id', owner_key)
+    .single()
+  isMember = !!member
+}
 
     if (!isOwner && !isMember) {
       return Response.json({ _error: 'not_authorized', traceId }, { status: 500 })
