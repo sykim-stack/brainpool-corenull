@@ -2,7 +2,7 @@
 
 export type OwnerKey = string // 현재: device_id / 미래: user_id
 
-export type Visibility = 'public' | 'friend' | 'family'
+export type Visibility = 'public' | 'invite' | 'private'
 export type RoomType = 'normal' | 'seed'
 export type MessageType = 'post' | 'comment' | 'chat' | 'seed'
 

@@ -157,7 +157,7 @@ export default function WritePage() {
     const data = await res.json()
     if (data.data) {
       router.refresh()
-      router.push('/yard')
+      router.push('/')
     } else {
       setSubmitError(data._error || '올리기에 실패했어요')
     }

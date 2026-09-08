@@ -3,19 +3,13 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { getDeviceId } from '@/lib/deviceId'
-import ShareModal from '@/components/corenull/ShareModal'
-import PostBlock from '@/components/corenull/PostBlock'
+import TopBar from '@/components/blocks/TopBar'
+import YardBlock, { DiscoveryItem } from '@/components/blocks/YardBlock'
 import CoreNullLogo from '@/components/corenull/CoreNullLogo'
-
-// ─────────────────────────────────────────────────────────────
-// 거실 (Living) — "House 안으로 들어온 곳", 나만의 흐름.
-//
-// 마당과 같은 Hero Master를 쓰되 레이어를 덜 켠다 (큰 배경 이미지 없이
-// 문패+Ring만). 콘텐츠는 마당과 동일하게 PostBlock — 다만 마당은
-// public 방만 보여주고, 거실은 내 공간이라 비공개 방까지 전부 보여준다.
-// 방 배열(관리) 섹션은 거실에만 있다 — 마당은 "밖에서 보는" 곳이라
-// 방 만들기 같은 관리 기능이 없다.
-// ─────────────────────────────────────────────────────────────
+import ShareModal from '@/components/corenull/ShareModal'
+import { PostBlockData } from '@/components/blocks/PostBlock'
+import { RingData } from '@/components/blocks/RingBlock'
+import { NeighborChip } from '@/components/blocks/NeighborContentBlock'
 
 const LANG_FLAG: Record<string, string> = {
   ko: '🇰🇷', vi: '🇻🇳', en: '🇺🇸', ja: '🇯🇵', zh: '🇨🇳',
@@ -28,91 +22,46 @@ const ACTION_LABEL: Record<string, string> = {
   'suggest.corering':          '💬 번역 도움이 필요하신가요?',
 }
 
-export default function LivingPage() {
+function buildRingData(roomCount: number, neighborCount: number): RingData {
+  return {
+    rings: [
+      { index: 0, weight: Math.min(roomCount / 6, 1) },
+      { index: 1, weight: Math.min(neighborCount / 12, 1) },
+      { index: 2, weight: 0.5 },
+    ],
+  }
+}
+
+function formatSince(iso: string) {
+  const d = new Date(iso)
+  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')} 부터`
+}
+
+type BookmarkRow = { id: string; message_id: string | null; ended_at: string | null }
+
+// app/page.tsx — 루트("/") = 사용자 마당.
+// houseId를 URL에서 받지 않는다 — 항상 "나"의 마당이다. 남의 집(또는
+// URL로 특정 house를 지정한) 마당은 /houses/[houseId]/yard가 담당한다.
+// 그쪽은 방문자 여부(isOwner)에 따라 UI가 갈리지만 여기는 항상 소유자
+// 관점이라 그 분기 자체가 없다 — 억지로 로직을 공유하지 않고 각
+// 화면에 맞게 단순화했다.
+export default function HomePage() {
   const router = useRouter()
+
   const [ownerKey, setOwnerKey] = useState('')
   const [house, setHouse] = useState<any>(null)
   const [rooms, setRooms] = useState<any[]>([])
-  const [posts, setPosts] = useState<any[]>([])
-  const [footprints, setFootprints] = useState<any[]>([])
-  const [discoveries, setDiscoveries] = useState<any[]>([])
+  const [posts, setPosts] = useState<PostBlockData[]>([])
+  const [neighbors, setNeighbors] = useState<NeighborChip[]>([])
+  const [discoveries, setDiscoveries] = useState<DiscoveryItem[]>([])
   const [loading, setLoading] = useState(true)
 
+  const [bookmarks, setBookmarks] = useState<BookmarkRow[]>([])
+  const [interestLoadingId, setInterestLoadingId] = useState<string | null>(null)
+
   const [showShare, setShowShare] = useState(false)
-  const [shareMode, setShareMode] = useState<'house' | 'invite'>('house')
   const [inviteUrl, setInviteUrl] = useState('')
   const [inviteLoading, setInviteLoading] = useState(false)
-
-  useEffect(() => {
-    const key = getDeviceId()
-    if (!key) return
-    setOwnerKey(key)
-
-    fetch(`/api/corenull/houses?owner_key=${key}`)
-      .then((r) => r.json())
-      .then(async (d) => {
-        const myHouse = (d.data || [])[0] || null
-        setHouse(myHouse)
-        if (!myHouse) {
-          setLoading(false)
-          return
-        }
-
-        const [rRes, fRes] = await Promise.all([
-          fetch(`/api/corenull/rooms?house_id=${myHouse.id}&owner_key=${key}`).then((r) => r.json()),
-          fetch(`/api/corenull/footprints?owner_key=${key}`).then((r) => r.json()),
-        ])
-        const myRooms = rRes.data || []
-        setRooms(myRooms)
-        setFootprints(fRes.data || [])
-
-        // 거실 콘텐츠 = 내 방(공개/비공개 전부) 최신 글. PostBlock으로 통일.
-        const postsByRoom = await Promise.all(
-          myRooms.map((room: any) =>
-            fetch(`/api/corenull/posts?room_id=${room.id}&owner_key=${key}`)
-              .then((r) => r.json())
-              .then((pd) => (pd.data || []).slice(0, 8).map((p: any) => ({ ...p, _room: room })))
-          )
-        )
-        const merged = postsByRoom
-          .flat()
-          .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-          .map((p: any) => ({
-            id: p.id,
-            content: p.content,
-            media: p.meta?.media || [],
-            created_at: p.created_at,
-            view_meta: {
-              room_name: p._room.room_name,
-              relation: '나',
-              stage_emoji: emojiForStage(p._room.stage),
-            },
-          }))
-        setPosts(merged)
-
-        fetch(`${COREHUB_URL}?owner_key=${key}`)
-          .then((r) => r.json())
-          .then((dd) => setDiscoveries((Array.isArray(dd.data) ? dd.data : []).slice(0, 3)))
-          .catch(() => null)
-
-        setLoading(false)
-      })
-  }, [])
-
-  const handleDiscoveryDismiss = async (opportunityId: string) => {
-    setDiscoveries((prev) => prev.filter((d) => d.id !== opportunityId))
-    fetch(COREHUB_URL, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ opportunity_id: opportunityId, outcome: 'shown' }),
-    }).catch(() => null)
-  }
-
-  const handleShareHouse = () => {
-    setShareMode('house')
-    setInviteUrl(`https://corenull.vercel.app/houses/${house.id}`)
-    setShowShare(true)
-  }
 
   const handleInvite = async () => {
     if (inviteLoading || !house) return
@@ -124,207 +73,200 @@ export default function LivingPage() {
     })
     const data = await res.json()
     if (data.data?.invite_token) {
-      setShareMode('invite')
       setInviteUrl(`https://corenull.vercel.app/invite/${data.data.invite_token}`)
       setShowShare(true)
     }
     setInviteLoading(false)
   }
 
-  if (loading) return <div style={styles.loading}>🏠</div>
+  useEffect(() => {
+    const key = getDeviceId()
+    setOwnerKey(key)
+    if (!key) return
 
-  if (!house) {
+    fetch(`/api/corenull/houses?owner_key=${key}`)
+      .then(r => r.json())
+      .then(async (d) => {
+        const myHouse = d.data?.[0]
+        if (!myHouse) {
+          setLoading(false)
+          return
+        }
+        setHouse(myHouse)
+
+        const [r, b, nb] = await Promise.all([
+          fetch(`/api/corenull/rooms?house_id=${myHouse.id}`).then(res => res.json()),
+          fetch(`/api/corenull/bookmarks?owner_key=${key}`).then(res => res.json()),
+          fetch(`/api/corenull/houses?action=neighbors&house_id=${myHouse.id}`).then(res => res.json()),
+        ])
+
+        const roomList = r.data || []
+        setRooms(roomList)
+        setBookmarks(b.data || [])
+
+        const acceptedNeighbors: NeighborChip[] = (nb.data || [])
+          .filter((n: any) => n.status === 'accepted' && n.house)
+          .map((n: any) => ({
+            neighborId: n.id,
+            houseId: n.house.id,
+            title: n.house.title,
+            langFlag: LANG_FLAG[n.house.primary_language] || '🌐',
+          }))
+        setNeighbors(acceptedNeighbors)
+
+        // 마당 = 공개 방 피드만 (Master Prompt §8). 비공개 방 글은
+        // 거실(/living)의 역할이라 여기선 안 섞는다.
+        const publicRoomIds = roomList.filter((rm: any) => rm.visibility === 'public').map((rm: any) => rm.id)
+        if (publicRoomIds.length > 0) {
+          const postResults = await Promise.all(
+            publicRoomIds.map((rid: string) =>
+              fetch(`/api/corenull/posts?room_id=${rid}`).then(res => res.json())
+            )
+          )
+          const merged = postResults
+            .flatMap((res) => res.data || [])
+            .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+            .slice(0, 10)
+            .map((p: any): PostBlockData => ({
+              id: p.id,
+              content: p.content,
+              media: p.meta?.media,
+              created_at: p.created_at,
+              comment_count: p.comment_count ?? 0,
+            }))
+          setPosts(merged)
+        }
+
+        setLoading(false)
+      })
+  }, [])
+
+  // 오늘의 발견 — 루트는 항상 내 집이므로 게이트 없이 바로 조회.
+  useEffect(() => {
+    const key = getDeviceId()
+    if (!key) return
+    fetch(`${COREHUB_URL}?owner_key=${key}`)
+      .then(r => r.json())
+      .then(d => {
+        const items = Array.isArray(d.data) ? d.data : []
+        const mapped: DiscoveryItem[] = items.slice(0, 3).map((item: any) => ({
+          id: item.id,
+          label: ACTION_LABEL[item.action_type] || item.payload?.message || '새로운 연결을 발견했어요',
+        }))
+        setDiscoveries(mapped)
+      })
+      .catch(() => null)
+  }, [])
+
+  const handleDiscoveryDismiss = (id: string) => {
+    setDiscoveries((prev) => prev.filter((d) => d.id !== id))
+    fetch(COREHUB_URL, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ opportunity_id: id, outcome: 'shown' }),
+    }).catch(() => null)
+  }
+
+  const getInterestState = (postId: string): 'none' | 'active' | 'ended' => {
+    const b = bookmarks.find((bm) => bm.message_id === postId)
+    if (!b) return 'none'
+    return b.ended_at ? 'ended' : 'active'
+  }
+
+  const handleInterestClick = async (postId: string) => {
+    if (interestLoadingId) return
+    setInterestLoadingId(postId)
+
+    const existing = bookmarks.find((bm) => bm.message_id === postId)
+
+    if (!existing) {
+      const res = await fetch('/api/corenull/bookmarks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ owner_key: ownerKey, message_id: postId }),
+      })
+      const data = await res.json()
+      if (data.data) setBookmarks((prev) => [...prev, data.data])
+    } else {
+      const action = existing.ended_at ? 'resume' : 'end'
+      const res = await fetch('/api/corenull/bookmarks', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: existing.id, owner_key: ownerKey, action }),
+      })
+      const data = await res.json()
+      if (data.data) {
+        setBookmarks((prev) => prev.map((bm) => (bm.id === existing.id ? data.data : bm)))
+      }
+    }
+    setInterestLoadingId(null)
+  }
+
+  const langFlag = house?.primary_language ? (LANG_FLAG[house.primary_language] || '🌐') : '🌐'
+
+  if (!loading && !house) {
     return (
-      <div>
-        <div style={styles.header}>
-          <span style={styles.logo}>Core<span style={{ color: '#C17F3C' }}>Null</span></span>
-        </div>
-        <div style={styles.body}>
-          <div style={styles.emptyCard}>
-            <div style={{ fontSize: 32, marginBottom: 8 }}>🏡</div>
-            <div style={styles.emptyText}>아직 집이 없어요</div>
-            <button style={styles.createBtn} onClick={() => router.push('/houses/create')}>
-              집 만들기
-            </button>
-          </div>
-        </div>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '70vh', gap: 16 }}>
+        <div style={{ fontSize: 40 }}>🏡</div>
+        <p style={{ fontSize: 14, color: '#9A8470' }}>아직 집이 없어요</p>
+        <button
+          onClick={() => router.push('/houses/create')}
+          style={{ padding: '10px 24px', background: '#2C1810', color: 'white', border: 'none', borderRadius: 12, fontSize: 14, cursor: 'pointer' }}
+        >집 만들기</button>
       </div>
     )
   }
 
-  const langFlag = LANG_FLAG[house.primary_language] || '🌐'
-
   return (
     <div>
-      {/* 헤더 — 큰 Hero 이미지 없이 로고+공유만 (거실은 레이어를 덜 켠다) */}
-      <div style={styles.header}>
-        <CoreNullLogo />
-        <button style={styles.iconBtn} onClick={handleShareHouse}>🔗</button>
-      </div>
+      <TopBar
+        logo={<CoreNullLogo size="sm" />}
+        title="마당"
+        actions={[
+          { key: 'plaza', emoji: '🏛️', label: '광장', onClick: () => router.push('/plaza') },
+          {
+            key: 'share',
+            emoji: '🔗',
+            label: inviteLoading ? '초대 링크 생성 중...' : '참여자 초대',
+            onClick: handleInvite,
+            disabled: inviteLoading,
+          },
+        ]}
+      />
 
-      {/* 가벼운 문패 — Ring + 이름 + 컨텍스트 텍스트("나의 생활 공간") */}
-      <div style={styles.doorplateWrap}>
-        <div style={styles.ringSmall}>🏠</div>
-        <div>
-          <div style={styles.houseName}>{house.title}</div>
-          <div style={styles.context}>{langFlag} 나의 생활 공간</div>
-        </div>
-      </div>
+      <YardBlock
+        loading={loading}
+        background={{ gradient: undefined }}
+        ring={buildRingData(rooms.length, neighbors.length)}
+        avatar={<span style={{ fontSize: 20 }}>🏡</span>}
+        doorplate={{
+          langFlag,
+          title: house?.title || '',
+          description: house?.description,
+          since: house?.created_at ? formatSince(house.created_at) : undefined,
+          roomCount: rooms.length,
+          neighborCount: neighbors.length,
+        }}
+        posts={posts}
+        onPostClick={(postId) => router.push(`/posts/${postId}`)}
+        onCommentClick={(postId) => router.push(`/posts/${postId}`)}
+        showInterest
+        getInterestState={getInterestState}
+        interestLoadingId={interestLoadingId}
+        onInterestClick={handleInterestClick}
+        neighbors={neighbors}
+        onNeighborClick={(hId) => router.push(`/houses/${hId}/yard`)}
+        discoveries={discoveries}
+        onDiscoveryDismiss={handleDiscoveryDismiss}
+      />
 
-      <div style={styles.body}>
-        {discoveries.length > 0 && (
-          <div style={{ marginBottom: 20 }}>
-            <div style={styles.sectionTitle}>💡 오늘의 발견</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {discoveries.map((d: any) => {
-                const label = ACTION_LABEL[d.action_type] || d.payload?.message || '새로운 연결을 발견했어요'
-                return (
-                  <div key={d.id} style={styles.discoveryCard}>
-                    <span style={styles.discoveryText}>{label}</span>
-                    <button style={styles.discoveryDismiss} onClick={() => handleDiscoveryDismiss(d.id)}>✕</button>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* 방 배열 — 거실에만 있는 관리 기능 (마당엔 없음) */}
-        <div style={styles.sectionTitle}>방</div>
-        <div style={styles.roomChipRow}>
-          {rooms.map((room: any) => (
-            <button key={room.id} style={styles.roomChip} onClick={() => router.push(`/rooms/${room.id}`)}>
-              {room.seed_mode ? '🌱 ' : ''}{room.room_name}
-            </button>
-          ))}
-          <button style={styles.roomChipAdd} onClick={() => router.push('/write')}>+ 방 만들기</button>
-        </div>
-
-        {/* 콘텐츠 목록 — PostBlock, 마당과 동일 단위 재사용 */}
-        <div style={{ ...styles.sectionTitle, marginTop: 20 }}>내 이야기</div>
-        {posts.length === 0 ? (
-          <div style={styles.emptyCard}>
-            <div style={{ fontSize: 32, marginBottom: 8 }}>📝</div>
-            <div style={styles.emptyText}>아직 남긴 이야기가 없어요</div>
-          </div>
-        ) : (
-          <div style={styles.postList}>
-            {posts.map((post) => (
-              <PostBlock key={post.id} post={post} onClick={() => router.push(`/posts/${post.id}`)} />
-            ))}
-          </div>
-        )}
-
-        <button style={styles.inviteBtn} onClick={handleInvite} disabled={inviteLoading}>
-          {inviteLoading ? '초대 링크 생성 중...' : '🔗 이웃 초대하기'}
-        </button>
-
-        {footprints.length > 0 && (
-          <>
-            <div style={{ ...styles.sectionTitle, marginTop: 24 }}>최근 방문</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {footprints.slice(0, 5).map((fp: any) => (
-                <div key={fp.id} style={styles.visitItem} onClick={() => router.push(`/rooms/${fp.room_id}`)}>
-                  <div style={styles.visitIcon}>👣</div>
-                  <div style={{ flex: 1 }}>
-                    <div style={styles.visitRoom}>{fp.corenull_rooms?.room_name || '방'}</div>
-                    <div style={styles.visitTime}>{new Date(fp.visited_at).toLocaleDateString('ko-KR')}</div>
-                  </div>
-                  <span style={{ fontSize: 16, color: '#9A8470' }}>›</span>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-      </div>
-
-      {showShare && (
+      {showShare && inviteUrl && (
         <ShareModal
           url={inviteUrl}
-          title={shareMode === 'invite' ? `${house.title} 초대` : house.title}
+          title={`${house?.title || '우리 집'} 초대`}
           onClose={() => setShowShare(false)}
         />
       )}
     </div>
   )
-}
-
-function emojiForStage(stage: any): string | null {
-  if (!stage) return null
-  if (stage.harvested) return '🍎'
-  if (!stage.seed_started_at) return null
-  if (!stage.seed_target_date) return '🌿'
-  const start = new Date(stage.seed_started_at).getTime()
-  const target = new Date(stage.seed_target_date).getTime()
-  const ratio = target > start ? (Date.now() - start) / (target - start) : 1
-  if (ratio <= 0) return '🌱'
-  if (ratio < 0.8) return '🌿'
-  if (ratio < 1) return '🌸'
-  return '🍎'
-}
-
-const styles: Record<string, React.CSSProperties> = {
-  loading: { display: 'flex', alignItems: 'center', justifyContent: 'center', height: '50vh', fontSize: 40 },
-  header: {
-    position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)',
-    width: '100%', maxWidth: '430px', height: 56,
-    background: 'rgba(254,252,248,0.95)', borderBottom: '1px solid rgba(92,61,46,0.12)',
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '0 20px', zIndex: 100, backdropFilter: 'blur(12px)',
-  },
-  logo: { fontFamily: "'Noto Serif KR', serif", fontSize: 18, fontWeight: 600, color: '#2C1810' },
-  iconBtn: { width: 36, height: 36, borderRadius: '50%', background: '#F5F0E8', border: 'none', fontSize: 16, cursor: 'pointer' },
-  doorplateWrap: {
-    marginTop: 56, padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 12,
-  },
-  ringSmall: {
-    width: 44, height: 44, borderRadius: '50%', background: '#F5F0E8',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20,
-    border: '2px solid rgba(92,61,46,0.12)',
-  },
-  houseName: { fontFamily: "'Noto Serif KR', serif", fontSize: 17, fontWeight: 600, color: '#2C1810' },
-  context: { fontSize: 12, color: '#9A8470', marginTop: 2 },
-  body: { padding: '0 16px 16px' },
-  sectionTitle: {
-    fontSize: 11, color: '#9A8470', letterSpacing: '1px',
-    textTransform: 'uppercase', marginBottom: 10,
-  },
-  discoveryCard: {
-    background: 'linear-gradient(135deg, rgba(193,127,60,0.08), rgba(74,82,64,0.06))',
-    border: '1px solid rgba(193,127,60,0.2)', borderRadius: 12, padding: '12px 14px',
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-  },
-  discoveryText: { fontSize: 13, color: '#2C1810', lineHeight: 1.5, flex: 1 },
-  discoveryDismiss: { background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#9A8470', padding: '0 0 0 8px', flexShrink: 0 },
-  roomChipRow: { display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 },
-  roomChip: {
-    fontSize: 12.5, padding: '8px 14px', borderRadius: 20,
-    background: '#FEFCF8', border: '1px solid rgba(92,61,46,0.15)', color: '#5C4A35', cursor: 'pointer',
-  },
-  roomChipAdd: {
-    fontSize: 12.5, padding: '8px 14px', borderRadius: 20,
-    background: 'none', border: '1px dashed rgba(92,61,46,0.25)', color: '#9A8470', cursor: 'pointer',
-  },
-  emptyCard: {
-    background: '#FEFCF8', borderRadius: 16, border: '1px dashed rgba(92,61,46,0.2)',
-    padding: '28px 20px', textAlign: 'center', marginBottom: 12,
-  },
-  emptyText: { fontSize: 13, color: '#9A8470' },
-  createBtn: { padding: '10px 24px', background: '#2C1810', color: 'white', border: 'none', borderRadius: 12, fontSize: 14, cursor: 'pointer', marginTop: 12 },
-  postList: { display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 12 },
-  inviteBtn: {
-    width: '100%', padding: '14px', background: 'rgba(74,82,64,0.08)',
-    border: '1px solid rgba(74,82,64,0.2)', borderRadius: 14, fontSize: 14,
-    color: '#4A5240', fontWeight: 500, cursor: 'pointer',
-  },
-  visitItem: {
-    background: '#FEFCF8', borderRadius: 12, border: '1px solid rgba(92,61,46,0.12)',
-    padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', marginBottom: 8,
-  },
-  visitIcon: {
-    width: 40, height: 40, borderRadius: 10, background: 'linear-gradient(135deg, #7A8C6E, #C8D5B9)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
-  },
-  visitRoom: { fontSize: 13, color: '#1C1208', fontWeight: 500 },
-  visitTime: { fontSize: 11, color: '#9A8470', marginTop: 2 },
 }

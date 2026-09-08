@@ -27,8 +27,8 @@ import { computeStage } from '@/lib/roomStage'
 
 const VIS_LABEL: Record<string, string> = {
   public: '🌍 공개',
-  invite: '🤝 이웃',
-  family: '🔒 비공개',
+  invite: '👥 이웃공개',
+  private: '🔒 비공개',
 }
 
 // participants_preview의 device_id를 결정적으로 색상에 매핑한다.
@@ -58,7 +58,7 @@ export interface RoomCardProps {
   room: {
     id: string
     room_name: string
-    visibility: 'public' | 'invite' | 'family'
+    visibility: 'public' | 'invite' | 'private'
     stage: RoomStage
     latest_message?: LatestMessage
   }

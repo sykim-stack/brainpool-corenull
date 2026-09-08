@@ -10,7 +10,7 @@ import RoomSettingsModal from '@/components/corenull/RoomSettingsModal'
 type Room = {
   id: string
   room_name: string
-  visibility: 'public' | 'invite' | 'family'
+  visibility: 'public' | 'invite' | 'private'
   seed_mode: boolean
   bloom_date: string | null
   slug: string | null
@@ -146,7 +146,7 @@ export default function RoomPage() {
               {room.room_name}
             </h1>
             <span style={visibilityBadge(room.visibility)}>
-              {room.visibility === 'public' ? '공개' : room.visibility === 'invite' ? '이웃공개' : '가족'}
+              {room.visibility === 'public' ? '공개' : room.visibility === 'invite' ? '이웃공개' : '비공개'}
             </span>
             {room.seed_mode && <span style={seedBadge}>🌱 씨앗</span>}
           </div>
@@ -324,10 +324,13 @@ const imgWrap: React.CSSProperties = {
   width: '100%', height: '180px', marginBottom: '12px', overflow: 'hidden',
 }
 function visibilityBadge(v: string): React.CSSProperties {
+  const tone =
+    v === 'public' ? { bg: '#E8EFE3', fg: '#4A5240' } :
+    v === 'invite' ? { bg: '#FBEEDD', fg: '#8A5423' } :
+    { bg: '#EFE6E1', fg: '#5C3D2E' } // private
   return {
     fontSize: '10px', padding: '2px 7px', borderRadius: '10px',
-    background: v === 'public' ? '#e8f0e4' : v === 'invite' ? '#e8edf4' : '#f0ece8',
-    color: v === 'public' ? '#4A5240' : v === 'invite' ? '#3A5278' : '#5C3D2E', fontWeight: 600,
+    background: tone.bg, color: tone.fg, fontWeight: 600,
   }
 }
 const seedBadge: React.CSSProperties = {

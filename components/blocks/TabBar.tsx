@@ -1,16 +1,15 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
-import { getDeviceId } from '@/lib/deviceId'
 
 // 기본 탭바 — 항상 최하단, 3개 고정 (§7: 글쓰기·내정보는 FloatingActions로 분리)
 // 공간 계층(마당/거실/서재) 그대로 반영 — '홈'은 이 계층에 없는 개념이라 제거.
 //
-// '마당'만 동적 경로(/houses/[내 houseId]/yard)라 house_id 조회가 필요하다.
-// 다른 페이지들(write 등)이 이미 쓰던 패턴(getDeviceId → houses 조회, 1인1집이라
-// 첫 번째 House 사용) 그대로 재사용 — 별도 개념 새로 안 만든다.
-const STATIC_TABS = [
+// '마당' = 루트("/"). 예전엔 house_id를 몰라 owner_key로 조회한 뒤
+// /houses/[id]/yard로 보내는 우회가 필요했는데, 루트 자체가 "내 마당"이
+// 되면서 그 조회가 통째로 필요 없어졌다.
+const TABS = [
+  { id: 'yard',    href: '/',           emoji: '🌳', label: '마당' },
   { id: 'living',  href: '/living',     emoji: '🛋️', label: '거실' },
   { id: 'library', href: '/me/library', emoji: '📚', label: '서재' },
 ]
@@ -18,23 +17,8 @@ const STATIC_TABS = [
 export default function TabBar() {
   const pathname = usePathname()
   const router = useRouter()
-  const [myHouseId, setMyHouseId] = useState<string | null>(null)
 
-  useEffect(() => {
-    const key = getDeviceId()
-    if (!key) return
-    fetch(`/api/corenull/houses?owner_key=${key}`)
-      .then(r => r.json())
-      .then(d => setMyHouseId(d.data?.[0]?.id || null))
-  }, [])
-
-  const yardHref = myHouseId ? `/houses/${myHouseId}/yard` : null
-  const tabs = [
-    { id: 'yard', href: yardHref, emoji: '🌳', label: '마당' },
-    ...STATIC_TABS,
-  ]
-
-  const isActive = (href: string | null) => !!href && pathname.startsWith(href)
+  const isActive = (href: string) => (href === '/' ? pathname === '/' : pathname.startsWith(href))
 
   return (
     <nav style={{
@@ -52,11 +36,10 @@ export default function TabBar() {
       zIndex: 100,
       backdropFilter: 'blur(12px)',
     }}>
-      {tabs.map((tab) => (
+      {TABS.map((tab) => (
         <button
           key={tab.id}
-          onClick={() => tab.href && router.push(tab.href)}
-          disabled={!tab.href}
+          onClick={() => router.push(tab.href)}
           style={{
             flex: 1,
             display: 'flex',
@@ -66,8 +49,7 @@ export default function TabBar() {
             gap: '4px',
             border: 'none',
             background: 'none',
-            cursor: tab.href ? 'pointer' : 'default',
-            opacity: tab.href ? 1 : 0.4,
+            cursor: 'pointer',
             padding: '8px 0',
             WebkitTapHighlightColor: 'transparent',
           }}

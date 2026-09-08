@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 
-type Visibility = 'public' | 'invite' | 'family'
+type Visibility = 'public' | 'invite' | 'private'
 
 interface Participant {
   device_id: string
@@ -191,21 +191,24 @@ export default function RoomSettingsModal({
             />
 
             <div style={styles.sectionLabel}>공개 범위</div>
-            {([
-              { value: 'public', label: '🌍 공개', desc: '마당에 노출됩니다' },
-              { value: 'invite', label: '👥 이웃공개', desc: '초대한 이웃만 볼 수 있어요' },
-              { value: 'family', label: '👨‍👩‍👧 가족', desc: '초대한 가족만 볼 수 있어요' },
+           {([
+              { value: 'public',  label: '🌍 공개',     desc: '마당에 노출됩니다',           bg: '#E8EFE3', fg: '#4A5240' },
+              { value: 'invite',  label: '👥 이웃공개', desc: '이웃에게 공개돼요',           bg: '#FBEEDD', fg: '#8A5423' },
+              { value: 'private', label: '🔒 비공개',   desc: '초대받은 참여자만 볼 수 있어요', bg: '#EFE6E1', fg: '#5C3D2E' },
             ] as const).map(opt => (
               <div
                 key={opt.value}
-                style={{ ...styles.visOption, ...(vis === opt.value ? styles.visOptionActive : {}) }}
+                style={{
+                  ...styles.visOption,
+                  ...(vis === opt.value ? { border: `1.5px solid ${opt.fg}`, background: opt.bg } : {}),
+                }}
                 onClick={() => setVis(opt.value)}
               >
                 <div>
-                  <div style={styles.visLabel}>{opt.label}</div>
+                  <div style={{ ...styles.visLabel, color: vis === opt.value ? opt.fg : styles.visLabel.color }}>{opt.label}</div>
                   <div style={styles.visDesc}>{opt.desc}</div>
                 </div>
-                <div style={{ ...styles.radio, ...(vis === opt.value ? styles.radioActive : {}) }} />
+                <div style={{ ...styles.radio, ...(vis === opt.value ? { border: `6px solid ${opt.fg}` } : {}) }} />
               </div>
             ))}
 
@@ -393,8 +396,8 @@ const styles: Record<string, React.CSSProperties> = {
   },
   inviteBtn: {
     width: '100%', padding: '12px',
-    background: 'rgba(74,82,64,0.08)', border: '1px solid rgba(74,82,64,0.2)',
-    borderRadius: 12, fontSize: 14, color: '#4A5240', fontWeight: 500, cursor: 'pointer',
+    background: 'rgba(58,82,120,0.08)', border: '1px solid rgba(58,82,120,0.25)',
+    borderRadius: 12, fontSize: 14, color: '#3A5278', fontWeight: 500, cursor: 'pointer',
   },
   inviteBox: {
     background: '#F5F0E8', borderRadius: 10, padding: '10px 12px',

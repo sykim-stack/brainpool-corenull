@@ -1,4 +1,4 @@
-﻿﻿// CoreNull - Posts API
+﻿// CoreNull - Posts API
 // Message type: post | comment | fruit
 // GET  ?post_id=   → 단건 조회
 // GET  ?room_id=   → 방 포스트 목록
@@ -16,48 +16,6 @@ const pushFact = async (fact) => {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(fact),
   }).catch(() => null) // fire-and-forget
-}
-
-// ── CoreRing 번역 연동 ──────────────────────────────────────────────
-// 예전 코드는 { message_id }만 보내고 끝났는데, CoreRing의 실제
-// /api/translate는 그런 파라미터를 모른다(동기식 text-in/translated-out
-// API이고 message_id/messages 테이블 자체를 모름). 그래서 번역이
-// 조용히 아무 일도 안 하고 있었다 — 이번에 진짜 계약으로 교체한다.
-//
-// source_lang이 'ko'가 아니면 CoreRing의 resolveDirection 기본 분기가
-// 항상 targetLang='KO'라, vi/en/ja/zh 등 어떤 언어를 보내도 한국어로
-// 번역돼서 돌아온다(DeepL이 source는 자동 감지).
-//
-// 이 호출 자체가 CoreRing의 tb_trans_logs에 한 줄씩 쌓인다 — CoreNull에
-// 입력된 글/댓글이 CoreRing의 데이터 자산이 되는 지점이 바로 여기다.
-// CoreRing 쪽 코드는 전혀 수정하지 않는다.
-const CORERING_TRANSLATE_TIMEOUT_MS = 8000
-
-const translateViaCoreRing = async ({ text, sourceLang, ownerKey }) => {
-  if (sourceLang === 'ko') return { translated: null, logId: null }
-
-  const coreringUrl = process.env.CORERING_API_URL
-  if (!coreringUrl) return { translated: null, logId: null }
-
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), CORERING_TRANSLATE_TIMEOUT_MS)
-
-  try {
-    const res = await fetch(`${coreringUrl}/api/translate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, source_lang: sourceLang, user_id: ownerKey }),
-      signal: controller.signal,
-    })
-    if (!res.ok) return { translated: null, logId: null }
-    const data = await res.json()
-    return { translated: data.translated || null, logId: data.log_id || null }
-  } catch {
-    // 타임아웃/네트워크 실패 — 번역 없이 진행. 게시 자체는 막지 않는다.
-    return { translated: null, logId: null }
-  } finally {
-    clearTimeout(timeout)
-  }
 }
 
 const handler = async (req) => {
@@ -143,64 +101,49 @@ const handlePost = async (req, traceId) => {
     relations: relations || {},
   }
 
-  // room/house 조회 — house_id/primary_language는 post든 comment든 똑같이
-  // 필요하다(번역 대상 언어를 house 기준으로 판단하므로). 예전엔 이 조회
-  // 자체가 댓글에서 통째로 스킵돼서 댓글엔 house_id도 안 붙어 있었다.
-  //
-  // 주의: 집주인/멤버 인증 체크는 기존 그대로 post류에만 적용한다(아래).
-  // 댓글의 인증 체크 부재는 이번 변경의 범위가 아니다 — 별도로 짚어야 할
-  // 사안이라 여기서 조용히 확장하지 않는다.
-  const { data: room, error: roomError } = await supabase
-    .from('corenull_rooms')
-    .select('house_id')
-    .eq('id', room_id)
-    .single()
-  if (roomError || !room) {
-    return Response.json({ _error: 'room_not_found', traceId }, { status: 500 })
-  }
-
-  const { data: house } = await supabase
-    .from('corenull_houses')
-    .select('owner_key, primary_language')
-    .eq('id', room.house_id)
-    .single()
-
   if (messageType !== 'comment') {
+    const { data: room, error: roomError } = await supabase
+      .from('corenull_rooms')
+      .select('house_id')
+      .eq('id', room_id)
+      .single()
+    if (roomError || !room) {
+      return Response.json({ _error: 'room_not_found', traceId }, { status: 500 })
+    }
+
+    const { data: house } = await supabase
+      .from('corenull_houses')
+      .select('owner_key, primary_language')
+      .eq('id', room.house_id)
+      .single()
+
     const isOwner = house?.owner_key === owner_key
-let isMember = false
-if (!isOwner) {
-  const { data: member } = await supabase
-    .from('corenull_house_members')
-    .select('device_id')
-    .eq('house_id', room.house_id)
-    .eq('room_id', room_id)        // ← 추가: 이 방에 초대된 참여자인지까지 확인
-    .eq('device_id', owner_key)
-    .single()
-  isMember = !!member
-}
+    let isMember = false
+    if (!isOwner) {
+      // BUGFIX (2026-09-07): room_id 필터 추가.
+      // 기존에는 house_id로만 확인해서, 집에 한 번 초대되면
+      // 그 집 안의 모든 방에 글을 쓸 수 있는 상태였음.
+      // 참여(Participant)는 House↔House 관계가 아니라 House↔Room 단위 권한이므로
+      // 반드시 해당 room_id에 매핑된 멤버인지까지 확인해야 한다.
+      const { data: member } = await supabase
+        .from('corenull_house_members')
+        .select('device_id')
+        .eq('house_id', room.house_id)
+        .eq('room_id', room_id)
+        .eq('device_id', owner_key)
+        .single()
+      isMember = !!member
+    }
 
     if (!isOwner && !isMember) {
       return Response.json({ _error: 'not_authorized', traceId }, { status: 500 })
     }
-  }
 
-  const sourceLang = house?.primary_language || 'ko'
-  insertPayload.house_id = room.house_id
-  insertPayload.language = sourceLang
-
-  // CoreRing 번역 — post/comment 공통. insert 전에 동기 호출해서
-  // 한 번의 insert로 끝낸다(응답을 오래 붙잡는 대신 insert→update
-  // 왕복을 줄임). 실패해도 content 저장 자체는 항상 진행된다.
-  const { translated, logId } = await translateViaCoreRing({
-    text: content,
-    sourceLang,
-    ownerKey: owner_key,
-  })
-  insertPayload.translated_ko = translated
-  insertPayload.translation_status =
-    sourceLang === 'ko' ? 'completed' : (translated ? 'completed' : 'failed')
-  if (logId) {
-    insertPayload.meta = { ...insertPayload.meta, corering_log_id: logId }
+    const sourceLang = house?.primary_language || 'ko'
+    insertPayload.house_id = room.house_id
+    insertPayload.language = sourceLang
+    insertPayload.translated_ko = null
+    insertPayload.translation_status = sourceLang === 'ko' ? 'completed' : 'pending'
   }
 
   const { data, error } = await supabase
@@ -210,7 +153,7 @@ if (!isOwner) {
     .single()
   if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
 
-  // CoreHub Fact Push — fruit 생성 시
+  // CoreHub Fact Push — fruit 생성 시 (await로 응답 전 실행)
   if (messageType === 'fruit') {
     await pushFact({
       source: 'CoreNull',
@@ -225,8 +168,15 @@ if (!isOwner) {
     })
   }
 
-  // 댓글 작성 시 원글 작성자에게 푸시
   const coreringUrl = process.env.CORERING_API_URL
+  if (insertPayload.translation_status === 'pending' && coreringUrl) {
+    fetch(`${coreringUrl}/api/translate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message_id: data.id }),
+    }).catch(() => {})
+  }
+
   if (messageType === 'comment' && coreringUrl) {
     const parentId = relations?.parent_id
     if (parentId) {
@@ -359,6 +309,7 @@ const handlePatch = async (req, traceId) => {
       .single()
     if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
 
+    // CoreHub Fact Push — harvest 성공 시
     await pushFact({
       source: 'CoreNull',
       fact_type: 'space.fruit.harvested',
