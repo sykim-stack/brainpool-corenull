@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import './globals.css'
 import TabBar from '@/components/blocks/TabBar'
 import FloatingActions from '@/components/blocks/FloatingActions'
 
@@ -17,26 +18,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
         />
       </head>
-      <body style={{
-        margin: 0,
-        padding: 0,
-        background: '#FBF8F2',
-        fontFamily: "'Noto Sans KR', sans-serif",
-        color: '#1C1208',
-        maxWidth: '430px',
-        marginLeft: 'auto',
-        marginRight: 'auto',
-        minHeight: '100vh',
-        overflowX: 'hidden',
-      }}>
-        <main style={{
-          paddingTop: '56px',
-          paddingBottom: '80px',
-          minHeight: '100vh',
-        }}>
-          {children}
-        </main>
+      <body>
         <TabBar />
+        <div className="app-shell">
+          <main className="app-shell-content" style={{
+            paddingTop: '56px',
+            paddingBottom: '80px',
+            minHeight: '100vh',
+          }}>
+            {children}
+          </main>
+        </div>
         <FloatingActions />
       </body>
     </html>

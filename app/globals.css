@@ -1,0 +1,89 @@
+:root {
+  --shell-mobile: 430px;
+  --shell-tablet: 720px;
+  --shell-desktop-content: 760px;
+  --shell-sidebar: 220px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 0;
+  background: #FBF8F2;
+  font-family: 'Noto Sans KR', sans-serif;
+  color: #1C1208;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* 문서 흐름 안의 셸 — main 콘텐츠를 감싼다 */
+.app-shell {
+  max-width: var(--shell-mobile);
+  margin: 0 auto;
+  min-height: 100vh;
+  position: relative;
+}
+
+@media (min-width: 768px) {
+  .app-shell { max-width: var(--shell-tablet); }
+}
+
+@media (min-width: 1200px) {
+  .app-shell {
+    max-width: none;
+    margin: 0;
+    padding-left: var(--shell-sidebar);
+  }
+  .app-shell-content {
+    max-width: var(--shell-desktop-content);
+    margin: 0 auto;
+  }
+}
+
+/* position:fixed 바(TopBar/TabBar-bottom/FloatingActions) 정렬용 —
+   .app-shell의 padding은 fixed 요소엔 안 먹으니 별도 클래스로 폭/좌표를 맞춘다 */
+.app-fixed-bar {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: var(--shell-mobile);
+}
+
+@media (min-width: 768px) {
+  .app-fixed-bar { max-width: var(--shell-tablet); }
+}
+
+@media (min-width: 1200px) {
+  .app-fixed-bar {
+    left: calc(50% + var(--shell-sidebar) / 2);
+    max-width: var(--shell-desktop-content);
+  }
+}
+
+/* 하단 탭바 ↔ 사이드바 전환 */
+.app-bottombar { display: flex; }
+.app-sidebar { display: none; }
+
+@media (min-width: 1200px) {
+  .app-bottombar { display: none; }
+  .app-sidebar {
+    display: flex;
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: var(--shell-sidebar);
+    height: 100vh;
+  }
+}
+
+/* FloatingActions — 하단 탭바가 있을 땐 그 위로 띄우고,
+   사이드바 전환 시(탭바 없음) 진짜 하단까지 내린다 */
+.app-fab-primary { bottom: 200px; }
+.app-fab-secondary { bottom: 132px; }
+
+@media (min-width: 1200px) {
+  .app-fab-primary { bottom: 96px; }
+  .app-fab-secondary { bottom: 28px; }
+}

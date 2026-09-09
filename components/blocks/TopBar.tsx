@@ -67,12 +67,7 @@ export default function TopBar({ onBack, logo, title, actions = [] }: TopBarProp
 
 const styles: Record<string, React.CSSProperties> = {
   bar: {
-    position: 'fixed',
     top: 0,
-    left: '50%',
-    transform: 'translateX(-50%)',
-    width: '100%',
-    maxWidth: '430px',
     height: '56px',
     background: 'rgba(254, 252, 248, 0.95)',
     borderBottom: '1px solid rgba(92, 61, 46, 0.12)',
