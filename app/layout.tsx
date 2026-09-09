@@ -20,15 +20,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <TabBar />
-        <div className="app-shell">
-          <main className="app-shell-content" style={{
-            paddingTop: '56px',
-            paddingBottom: '80px',
-            minHeight: '100vh',
-          }}>
-            {children}
-          </main>
-        </div>
+        <main className="app-shell-content" style={{
+          paddingTop: '56px',
+          paddingBottom: '80px',
+          minHeight: '100vh',
+        }}>
+          {children}
+        </main>
         <FloatingActions />
       </body>
     </html>

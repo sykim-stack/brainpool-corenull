@@ -9,19 +9,9 @@ import { PostBlockData } from './PostBlock'
 // ─────────────────────────────────────────────────────────────
 // YardBlock — 마당 화면을 조립하는 블록.
 //
-// §2(마당 Block 구성):
-//   HeroBlock (배경=외부) + Ring + Doorplate
-//   DiscoveryBlock (오늘의 발견, CoreHub 연동) — 옵션. 호출부가
-//     본인 집일 때만 데이터를 채워 넣는다(이 블록은 판단 안 함).
-//   MyContentBlock (내 방 최신 콘텐츠)
-//   NeighborContentBlock (골목, tier='public')
-//
-// NOTE(2026-09-06): HouseClient.tsx(구버전 /houses/[houseId])에만
-// 있던 CoreHub "오늘의 발견" 카드를 여기로 이식. 구버전 폐기로
-// 조용히 사라질 뻔한 유일한 실제 기능이었음.
-//
-// 이 블록은 여전히 fetch하지 않는다 — discoveries/neighbors 배열과
-// 클릭 핸들러를 페이지가 계산해서 내려준다.
+// 구조(위→아래): Hero(외부) → 오늘의 발견 → 골목(이웃) → 내 방 최신 콘텐츠.
+// 골목을 발견 카드 다음, 내 콘텐츠보다 위에 두는 게 마당의 맞는 순서라고
+// 확정됨 — "마당에 나가면 먼저 이웃이 보이고, 그다음 내 글이 보인다."
 // ─────────────────────────────────────────────────────────────
 
 export interface DiscoveryItem {
@@ -44,11 +34,11 @@ export interface YardBlockProps {
   interestLoadingId?: string | null
   onInterestClick?: (postId: string) => void
 
-  // 골목 — accepted 상태만 걸러서 페이지가 내려준다(이 블록은 필터링 안 함).
+  // 골목 — accepted 상태만 호출부가 걸러서 넘긴다.
   neighbors?: NeighborChip[]
   onNeighborClick?: (houseId: string) => void
 
-  // 오늘의 발견(CoreHub) — 본인 집이 아니면 페이지가 빈 배열을 내려준다.
+  // 오늘의 발견(CoreHub) — 본인 집이 아니면 호출부가 빈 배열을 내려준다.
   discoveries?: DiscoveryItem[]
   onDiscoveryDismiss?: (id: string) => void
 }
@@ -96,6 +86,14 @@ export default function YardBlock({
         </section>
       )}
 
+      {onNeighborClick && (
+        <NeighborContentBlock
+          tier="public"
+          neighbors={neighbors}
+          onNeighborClick={onNeighborClick}
+        />
+      )}
+
       <MyContentBlock
         title="내 방 최신 콘텐츠"
         posts={posts}
@@ -106,14 +104,6 @@ export default function YardBlock({
         interestLoadingId={interestLoadingId}
         onInterestClick={onInterestClick}
       />
-
-      {onNeighborClick && (
-        <NeighborContentBlock
-          tier="public"
-          neighbors={neighbors}
-          onNeighborClick={onNeighborClick}
-        />
-      )}
     </div>
   )
 }

@@ -13,6 +13,10 @@ import RingBlock, { RingData } from './RingBlock'
 //
 // Ring은 배경(green)과 정보영역(white) 경계선에 정확히 반씩
 // 걸치도록 배치한다 (Image 1 목업 기준).
+//
+// NOTE(반응형): 배경 div는 .bleed-full 클래스로 뷰포트 끝까지
+// 풀블리드 처리한다 — 부모(.app-shell-content)가 폭을 제한해도
+// 배경만 화면 끝까지 붙고, Ring/Doorplate는 그대로 중앙 폭 안에 있다.
 // ─────────────────────────────────────────────────────────────
 
 export interface HeroBackground {
@@ -54,8 +58,9 @@ export default function HeroBlock({ background, ring, avatar, doorplate }: HeroB
 
   return (
     <div style={styles.wrapper}>
-      {/* 배경 — 외부(마당)/내부(거실) 여부는 호출부 책임 */}
+      {/* 배경 — 외부(마당)/내부(거실) 여부는 호출부 책임. 풀블리드. */}
       <div
+        className="bleed-full"
         style={{
           ...styles.background,
           backgroundImage: background.imageUrl
