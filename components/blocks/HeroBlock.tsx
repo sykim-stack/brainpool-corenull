@@ -69,7 +69,10 @@ export default function HeroBlock({ background, ring, avatar, doorplate }: HeroB
           backgroundSize: 'cover',
           backgroundPosition: 'center',
         }}
-      />
+      >
+        <div style={styles.backgroundShade} />
+        <div style={styles.backgroundGlow} />
+      </div>
 
       {/* Ring — 배경/정보영역 경계선에 정확히 반씩 걸침 */}
       <div style={styles.ringHolder}>
@@ -107,7 +110,29 @@ const styles: Record<string, React.CSSProperties> = {
   },
   background: {
     height: BG_HEIGHT,
-    width: '100%',
+    width: '100vw',
+    left: '50%',
+    marginLeft: '-50vw',
+    position: 'relative',
+    overflow: 'hidden',
+    isolation: 'isolate',
+  },
+  backgroundShade: {
+    position: 'absolute',
+    inset: 0,
+    background: 'linear-gradient(180deg, rgba(15,25,20,0.08) 0%, rgba(15,25,20,0.02) 46%, rgba(15,25,20,0.32) 100%)',
+    pointerEvents: 'none',
+  },
+  backgroundGlow: {
+    position: 'absolute',
+    width: 220,
+    height: 220,
+    right: -70,
+    top: -100,
+    borderRadius: '50%',
+    background: 'rgba(255,244,194,0.18)',
+    filter: 'blur(18px)',
+    pointerEvents: 'none',
   },
   ringHolder: {
     position: 'absolute',
