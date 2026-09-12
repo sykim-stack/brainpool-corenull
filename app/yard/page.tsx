@@ -90,15 +90,52 @@ export default function YardPage() {
         setRooms(roomList)
         setBookmarks(b.data || [])
 
-        const acceptedNeighbors: NeighborChip[] = (nb.data || [])
+        // 골목 1|2|3: 이웃 커버·아바타 + 공개 방 최신글 (Message 복제 없음)
+        const baseNeighbors = (nb.data || [])
           .filter((n: any) => n.status === 'accepted' && n.house)
-          .map((n: any) => ({
-            neighborId: n.id,
-            houseId: n.house.id,
-            title: n.house.title,
-            langFlag: LANG_FLAG[n.house.primary_language] || '🌐',
-          }))
-        setNeighbors(acceptedNeighbors)
+
+        const enriched: NeighborChip[] = await Promise.all(
+          baseNeighbors.map(async (n: any) => {
+            const h = n.house
+            let rooms: NeighborChip['rooms'] = []
+            try {
+              const rd = await fetch(`/api/corenull/rooms?house_id=${h.id}`).then(res => res.json())
+              const publicRooms = (rd.data || []).filter((rm: any) => rm.visibility === 'public')
+              rooms = await Promise.all(
+                publicRooms.slice(0, 6).map(async (rm: any) => {
+                  const pd = await fetch(`/api/corenull/posts?room_id=${rm.id}`).then(res => res.json())
+                  const latest = (pd.data || [])[0]
+                  return {
+                    roomId: rm.id,
+                    roomName: rm.room_name,
+                    latestPost: latest
+                      ? {
+                          id: latest.id,
+                          content: latest.content,
+                          media: latest.meta?.media,
+                          created_at: latest.created_at,
+                          comment_count: latest.comment_count ?? 0,
+                          view_meta: { room_name: rm.room_name, house_name: h.title },
+                        }
+                      : null,
+                  }
+                })
+              )
+            } catch {
+              rooms = []
+            }
+            return {
+              neighborId: n.id,
+              houseId: h.id,
+              title: h.title,
+              langFlag: LANG_FLAG[h.primary_language] || '🌐',
+              avatarUrl: h.avatar_url || null,
+              coverUrl: h.yard_image_url || null,
+              rooms,
+            }
+          })
+        )
+        setNeighbors(enriched)
 
         const publicRoomIds = roomList.filter((rm: any) => rm.visibility === 'public').map((rm: any) => rm.id)
         if (publicRoomIds.length > 0) {
