@@ -1,10 +1,15 @@
 // CoreNull - House API
 // 집 생성 / 조회 / 이미지 갱신
 // action=neighbors|neighbor-request|neighbor-accept|neighbor-remove → ADR-ACCESS-002 Neighbor 기능 (슬롯 재사용)
-// PATCH (action 없음) → House image slots (avatar_url, yard_image_url, living_image_url)
+//
+// [feat/house-images] PATCH (action 없음)
+//   → handleHousePatch: avatar_url / yard_image_url / living_image_url
+//   → 업로드 자체는 /api/corenull/upload (write와 동일). 여기선 URL만 저장.
+//   → 사전조건: supabase/migrations/20260912_house_images.sql 실행
 
 export const dynamic = 'force-dynamic'
 
+// House가 소유하는 이미지 슬롯 (View 표면). Message 복제 아님.
 const HOUSE_IMAGE_FIELDS = ['avatar_url', 'yard_image_url', 'living_image_url']
 
 const handler = async (req) => {
@@ -22,6 +27,7 @@ const handler = async (req) => {
   }
   if (req.method === 'PATCH') {
     if (action === 'neighbor-accept') return handleNeighborAccept(req, traceId)
+    // action 없음 = House 이미지/기본정보 패치 (feat/house-images)
     return handleHousePatch(req, traceId)
   }
   if (req.method === 'DELETE') {
@@ -103,7 +109,13 @@ const handlePost = async (req, traceId) => {
   return Response.json({ data: house, traceId })
 }
 
-// House 이미지 / 기본 정보 갱신 — owner만. 업로드는 /api/corenull/upload 재사용.
+// ─────────────────────────────────────────────────────────────
+// [feat/house-images] House 이미지 / 기본 정보 갱신
+// body: { house_id, owner_key, avatar_url?, yard_image_url?, living_image_url?, title?, description? }
+// - owner만 가능
+// - 빈 문자열 → null (기본 그라데이션/🏡 로 복귀)
+// - 컬럼 없으면 Supabase 에러 → UI에 "DB 마이그레이션 확인"
+// ─────────────────────────────────────────────────────────────
 const handleHousePatch = async (req, traceId) => {
   const body = JSON.parse(await req.text())
   const { house_id, owner_key } = body
@@ -184,6 +196,7 @@ const handleNeighborsList = async (req, traceId) => {
   const otherIds = (rows || []).map(r => r.house_a_id === house_id ? r.house_b_id : r.house_a_id)
   let housesMap = {}
   if (otherIds.length > 0) {
+    // avatar_url 포함 — 골목/복도 칩에서 프로필 이미지 쓸 때 (1|2|3 이후)
     const { data: houses } = await supabase
       .from('corenull_houses')
       .select('id, title, primary_language, avatar_url')
