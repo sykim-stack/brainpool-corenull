@@ -1,8 +1,11 @@
 // CoreNull - House API
-// 집 생성 / 조회
+// 집 생성 / 조회 / 이미지 갱신
 // action=neighbors|neighbor-request|neighbor-accept|neighbor-remove → ADR-ACCESS-002 Neighbor 기능 (슬롯 재사용)
+// PATCH (action 없음) → House image slots (avatar_url, yard_image_url, living_image_url)
 
 export const dynamic = 'force-dynamic'
+
+const HOUSE_IMAGE_FIELDS = ['avatar_url', 'yard_image_url', 'living_image_url']
 
 const handler = async (req) => {
   const traceId = crypto.randomUUID()
@@ -19,7 +22,7 @@ const handler = async (req) => {
   }
   if (req.method === 'PATCH') {
     if (action === 'neighbor-accept') return handleNeighborAccept(req, traceId)
-    return Response.json({ _error: 'invalid_action', traceId }, { status: 500 })
+    return handleHousePatch(req, traceId)
   }
   if (req.method === 'DELETE') {
     if (action === 'neighbor-remove') return handleNeighborRemove(req, traceId)
@@ -29,7 +32,7 @@ const handler = async (req) => {
   return Response.json({ _error: 'method_not_allowed', traceId }, { status: 500 })
 }
 
-// ─── 기존 House 로직 (변경 없음) ────────────────────────────
+// ─── 기존 House 로직 ────────────────────────────────────────
 
 const handleGet = async (req, traceId) => {
   const { searchParams } = new URL(req.url)
@@ -100,9 +103,64 @@ const handlePost = async (req, traceId) => {
   return Response.json({ data: house, traceId })
 }
 
+// House 이미지 / 기본 정보 갱신 — owner만. 업로드는 /api/corenull/upload 재사용.
+const handleHousePatch = async (req, traceId) => {
+  const body = JSON.parse(await req.text())
+  const { house_id, owner_key } = body
+
+  if (!house_id || !owner_key) {
+    return Response.json({ _error: 'house_id_owner_key_required', traceId }, { status: 500 })
+  }
+
+  const { getSupabase } = await import('@/lib/supabase')
+  const supabase = getSupabase()
+  if (!supabase) return Response.json({ _error: 'supabase_init_failed', traceId }, { status: 500 })
+
+  const { data: owned } = await supabase
+    .from('corenull_houses')
+    .select('id')
+    .eq('id', house_id)
+    .eq('owner_key', owner_key)
+    .single()
+
+  if (!owned) {
+    return Response.json({ _error: 'not_house_owner', traceId }, { status: 500 })
+  }
+
+  const patch = {}
+  for (const key of HOUSE_IMAGE_FIELDS) {
+    if (Object.prototype.hasOwnProperty.call(body, key)) {
+      const v = body[key]
+      patch[key] = v === '' || v === undefined ? null : v
+    }
+  }
+  if (Object.prototype.hasOwnProperty.call(body, 'title') && body.title != null) {
+    patch.title = String(body.title).trim() || null
+  }
+  if (Object.prototype.hasOwnProperty.call(body, 'description')) {
+    patch.description = body.description === '' ? null : body.description
+  }
+
+  if (Object.keys(patch).length === 0) {
+    return Response.json({ _error: 'no_fields_to_update', traceId }, { status: 500 })
+  }
+
+  patch.updated_at = new Date().toISOString()
+
+  const { data, error } = await supabase
+    .from('corenull_houses')
+    .update(patch)
+    .eq('id', house_id)
+    .eq('owner_key', owner_key)
+    .select()
+    .single()
+
+  if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
+  return Response.json({ data, traceId })
+}
+
 // ─── Neighbor (ADR-ACCESS-002) ─────────────────────────────
 
-// 목록 조회 — 골목(NeighborContentBlock)용. 방향(outgoing/incoming) 표시
 const handleNeighborsList = async (req, traceId) => {
   const { searchParams } = new URL(req.url)
   const house_id = searchParams.get('house_id')
@@ -123,13 +181,12 @@ const handleNeighborsList = async (req, traceId) => {
 
   if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
 
-  // 상대방 House 정보 join (마당/거실 어디서든 재사용하는 House select 패턴)
   const otherIds = (rows || []).map(r => r.house_a_id === house_id ? r.house_b_id : r.house_a_id)
   let housesMap = {}
   if (otherIds.length > 0) {
     const { data: houses } = await supabase
       .from('corenull_houses')
-      .select('id, title, primary_language')
+      .select('id, title, primary_language, avatar_url')
       .in('id', otherIds)
     housesMap = Object.fromEntries((houses || []).map(h => [h.id, h]))
   }
@@ -150,7 +207,6 @@ const handleNeighborsList = async (req, traceId) => {
   return Response.json({ data, traceId })
 }
 
-// 신청 — house_a(요청자) owner만 가능
 const handleNeighborRequest = async (req, traceId) => {
   const body = JSON.parse(await req.text())
   const { house_a_id, owner_key, house_b_id } = body
@@ -166,7 +222,6 @@ const handleNeighborRequest = async (req, traceId) => {
   const supabase = getSupabase()
   if (!supabase) return Response.json({ _error: 'supabase_init_failed', traceId }, { status: 500 })
 
-  // 요청자 House 소유 검증
   const { data: houseA } = await supabase
     .from('corenull_houses')
     .select('id')
@@ -177,7 +232,6 @@ const handleNeighborRequest = async (req, traceId) => {
     return Response.json({ _error: 'not_house_owner', traceId }, { status: 500 })
   }
 
-  // 대상 House 존재 검증
   const { data: houseB } = await supabase
     .from('corenull_houses')
     .select('id')
@@ -194,7 +248,6 @@ const handleNeighborRequest = async (req, traceId) => {
     .single()
 
   if (error) {
-    // idx_neighbors_unique_pair 위반 — 이미 pending/accepted 관계 존재
     if (error.code === '23505') {
       return Response.json({ _error: 'already_requested_or_neighbors', traceId }, { status: 500 })
     }
@@ -204,7 +257,6 @@ const handleNeighborRequest = async (req, traceId) => {
   return Response.json({ data, traceId })
 }
 
-// 수락 — house_b(수신자) owner만 가능
 const handleNeighborAccept = async (req, traceId) => {
   const body = JSON.parse(await req.text())
   const { neighbor_id, owner_key } = body
@@ -229,7 +281,6 @@ const handleNeighborAccept = async (req, traceId) => {
     return Response.json({ _error: 'not_pending', traceId }, { status: 500 })
   }
 
-  // 수신자(house_b) 소유 검증 — 신청 보낸 쪽은 수락 불가
   const { data: houseB } = await supabase
     .from('corenull_houses')
     .select('id')
@@ -251,7 +302,6 @@ const handleNeighborAccept = async (req, traceId) => {
   return Response.json({ data, traceId })
 }
 
-// 제거 — reject / cancel / 해지 전부 이 하나로 통합 (요청자·수신자 누구든 가능)
 const handleNeighborRemove = async (req, traceId) => {
   const { searchParams } = new URL(req.url)
   const neighbor_id = searchParams.get('neighbor_id')
