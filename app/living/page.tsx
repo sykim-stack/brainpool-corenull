@@ -10,6 +10,7 @@ import CoreNullLogo from '@/components/corenull/CoreNullLogo'
 import { PostBlockData } from '@/components/blocks/PostBlock'
 import { RingData } from '@/components/blocks/RingBlock'
 import { NeighborChip } from '@/components/blocks/NeighborContentBlock'
+import { houseHeroBackground, houseAvatarUrl } from '@/lib/houseImages'
 
 const LANG_FLAG: Record<string, string> = {
   ko: '🇰🇷', vi: '🇻🇳', en: '🇺🇸', ja: '🇯🇵', zh: '🇨🇳',
@@ -22,11 +23,6 @@ const VISIBILITY_FILTERS: FilterChip[] = [
   { key: 'family', label: '비공개' },
 ]
 
-// NOTE(2026-08-31): '열매'를 Room 필터에서 뺐다 — 열매는 Room의 상태가
-// 아니라 Room 안에 생기는 Message(type='fruit')다. computeStage()가
-// 반환하는 stage가 'fruit'인 경우는 있지만(목표일을 지났거나 harvested
-// 됐을 때), 그건 "이 방을 지금 찾아볼 이유"라기보다 "다 끝난 방"이라
-// 목록 필터 축에서는 굳이 안 보여준다. 필요해지면 언제든 추가 가능.
 const STAGE_FILTERS: FilterChip[] = [
   { key: 'all', label: '전체' },
   { key: 'seed', label: '🌱 씨드' },
@@ -34,14 +30,6 @@ const STAGE_FILTERS: FilterChip[] = [
   { key: 'flower', label: '🌸 꽃' },
 ]
 
-// NOTE(2026-08-31): 로컬 stage 계산 함수를 지웠다. lib/roomStage.js의
-// computeStage()가 이미 정확한 계약(fruit 판정에 harvested OR 목표일
-// 초과 둘 다 반영)으로 존재하는데 모르고 새로 짰던 것 — Anchor §7
-// 중복 로직 금지 위반이었다. room.stage는 이제 houses API가
-// attachRoomStages로 미리 계산해서 내려준다.
-
-// Ring weight — YardBlock과 동일한 임시 계산. 계약만 지키면 되므로
-// 이 함수만 나중에 CoreHub 가중치로 교체해도 LivingBlock/HeroBlock은 안 바뀐다.
 function buildRingData(roomCount: number): RingData {
   return {
     rings: [
@@ -59,7 +47,7 @@ export default function LivingPage() {
 
   const [ownerKey, setOwnerKey] = useState('')
   const [house, setHouse] = useState<any>(null)
-  const [rooms, setRooms] = useState<any[]>([]) // 각 room에 .stage(RoomStage 계약) 포함
+  const [rooms, setRooms] = useState<any[]>([])
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null)
   const [selectedVisibility, setSelectedVisibility] = useState('all')
   const [selectedStage, setSelectedStage] = useState('all')
@@ -68,11 +56,9 @@ export default function LivingPage() {
   const [loading, setLoading] = useState(true)
   const [postsLoading, setPostsLoading] = useState(false)
 
-  // 관심(북마크) — post별 개별 fetch 대신 목록 한 번만 불러와서 매핑.
   const [bookmarks, setBookmarks] = useState<BookmarkRow[]>([])
   const [interestLoadingId, setInterestLoadingId] = useState<string | null>(null)
 
-  // 내 house + room 목록 로드 (1인1집, 첫 번째 House 사용)
   useEffect(() => {
     const key = getDeviceId()
     setOwnerKey(key)
@@ -91,8 +77,6 @@ export default function LivingPage() {
       setHouse(myHouse)
       setRooms(myHouse.corenull_rooms || [])
 
-      // 골목/복도엔 accepted 관계만 보여준다 (ADR-ACCESS-002 §1-2).
-      // house.id가 있어야 조회 가능해서 이 시점에 별도로 걸어준다.
       fetch(`/api/corenull/houses?action=neighbors&house_id=${myHouse.id}`)
         .then(r => r.json())
         .then((nb) => {
@@ -111,9 +95,6 @@ export default function LivingPage() {
     })
   }, [])
 
-  // 두 축(공개범위/성장단계) AND 조합으로 room 목록 필터링.
-  // stage 계산은 room.stage(API가 이미 붙여서 내려줌)를 computeStage()에
-  // 넣어서 얻는다 — 여기서 다시 계산하지 않는다.
   const filteredRooms = rooms.filter((r) => {
     if (selectedVisibility !== 'all' && r.visibility !== selectedVisibility) return false
     if (selectedStage !== 'all') {
@@ -123,8 +104,6 @@ export default function LivingPage() {
     return true
   })
 
-  // 필터링된 목록 안에 지금 선택된 room이 없으면(필터 바뀌어서 빠졌으면)
-  // 첫 번째 room으로 자동 이동. 필터링된 목록이 비면 선택 해제.
   useEffect(() => {
     if (filteredRooms.length === 0) {
       setSelectedRoomId(null)
@@ -135,8 +114,6 @@ export default function LivingPage() {
     }
   }, [selectedVisibility, selectedStage, rooms]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 선택된 room의 post 목록 로드. 필터는 room 선택 단계에서 이미
-  // 끝났으므로, 여기서는 그 room의 글을 있는 그대로 보여준다.
   useEffect(() => {
     if (!selectedRoomId) {
       setPosts([])
@@ -217,16 +194,19 @@ export default function LivingPage() {
         logo={<CoreNullLogo size="sm" />}
         title="거실"
         actions={house ? [
-          // TODO: 광장 구현되면 다른 화면들처럼 이 자리를 상황에 따라 교체할 수 있음.
           { key: 'home', emoji: '🏠', label: '나의 마당', onClick: () => router.push(`/houses/${house.id}/yard`) },
         ] : []}
       />
 
       <LivingBlock
         loading={loading}
-        background={{ gradient: 'linear-gradient(135deg, #5C4A35 0%, #8A6F52 60%, #D8C4A8 100%)' }}
+        background={houseHeroBackground(house, 'living')}
         ring={buildRingData(rooms.length)}
-        avatar={<span style={{ fontSize: 20 }}>🏡</span>}
+        avatar={
+          houseAvatarUrl(house)
+            ? <img src={houseAvatarUrl(house)!} alt="" style={{ width: 48, height: 48, borderRadius: '50%', objectFit: 'cover' }} />
+            : <span style={{ fontSize: 20 }}>🏡</span>
+        }
         doorplate={{
           langFlag,
           title: house?.title || '',
