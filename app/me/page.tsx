@@ -87,7 +87,6 @@ export default function MePage() {
       </div>
 
       <div style={styles.body}>
-        {/* 프로필 */}
         <div style={styles.profileCard}>
           <div style={styles.profileAvatar}>🌱</div>
           <div>
@@ -96,7 +95,6 @@ export default function MePage() {
           </div>
         </div>
 
-        {/* 활동 요약 */}
         <div style={styles.statsRow}>
           <div style={styles.statItem}>
             <span style={styles.statNum}>{library?.my_posts?.length || 0}</span>
@@ -114,7 +112,6 @@ export default function MePage() {
           </div>
         </div>
 
-        {/* 메뉴 1 */}
         <div style={styles.menuSection}>
           <div style={styles.menuItem} onClick={() => router.push('/me/library')}>
             <div style={{ ...styles.menuIcon, background: 'rgba(74,82,64,0.12)' }}>📚</div>
@@ -146,8 +143,13 @@ export default function MePage() {
           </div>
         </div>
 
-        {/* 메뉴 2 */}
         <div style={styles.menuSection}>
+          {/* [feat/house-images] 등록 UI 진입점 — 이미지 없으면 Hero는 예전과 동일(그라데이션) */}
+          <div style={styles.menuItem} onClick={() => router.push('/me/house')}>
+            <div style={{ ...styles.menuIcon, background: 'rgba(193,127,60,0.12)' }}>🖼️</div>
+            <span style={styles.menuLabel}>집 이미지</span>
+            <span style={styles.menuArrow}>›</span>
+          </div>
           <div style={styles.menuItem} onClick={handleHouseManage}>
             <div style={{ ...styles.menuIcon, background: 'rgba(193,127,60,0.12)' }}>🏡</div>
             <span style={styles.menuLabel}>내 집 관리</span>
@@ -169,7 +171,6 @@ export default function MePage() {
           </div>
         </div>
 
-        {/* 기기 동기화 */}
         <div style={styles.menuSection}>
           <div style={styles.syncHeader}>
             <span style={styles.syncTitle}>📱 기기 동기화</span>
