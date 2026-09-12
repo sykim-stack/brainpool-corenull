@@ -9,9 +9,8 @@ import { PostBlockData } from './PostBlock'
 // ─────────────────────────────────────────────────────────────
 // YardBlock — 마당 화면을 조립하는 블록.
 //
-// 구조(위→아래): Hero(외부) → 오늘의 발견 → 골목(이웃) → 내 방 최신 콘텐츠.
-// 골목을 발견 카드 다음, 내 콘텐츠보다 위에 두는 게 마당의 맞는 순서라고
-// 확정됨 — "마당에 나가면 먼저 이웃이 보이고, 그다음 내 글이 보인다."
+// 구조: Hero → 오늘의 발견 → 골목 1|2|3 → 내 방 최신 콘텐츠
+// 골목: NeighborContentBlock (화살표=이웃, 점=방)
 // ─────────────────────────────────────────────────────────────
 
 export interface DiscoveryItem {
@@ -34,11 +33,9 @@ export interface YardBlockProps {
   interestLoadingId?: string | null
   onInterestClick?: (postId: string) => void
 
-  // 골목 — accepted 상태만 호출부가 걸러서 넘긴다.
   neighbors?: NeighborChip[]
   onNeighborClick?: (houseId: string) => void
 
-  // 오늘의 발견(CoreHub) — 본인 집이 아니면 호출부가 빈 배열을 내려준다.
   discoveries?: DiscoveryItem[]
   onDiscoveryDismiss?: (id: string) => void
 }
@@ -91,6 +88,7 @@ export default function YardBlock({
           tier="public"
           neighbors={neighbors}
           onNeighborClick={onNeighborClick}
+          onPostClick={onPostClick}
         />
       )}
 
