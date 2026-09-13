@@ -3,27 +3,14 @@
 import { useEffect, useState } from 'react'
 import PostBlock, { PostBlockData } from '@/components/blocks/PostBlock'
 
-// ─────────────────────────────────────────────────────────────
-// NeighborContentBlock — 골목(마당)/복도(거실) 공용 블록.
-//
-// [feat/house-images · 골목 v2]
-// 1 | 2 | 3 레이아웃 (새 파일 없음, 이 블록 확장)
-//   1 = 골목/복도 이미지 + 이웃 프로필 히어로 + ←→ (이웃 전환)
-//   2 = 이웃 방 최신글 ① (PostBlock 재사용)
-//   3 = 이웃 방 최신글 ② (PostBlock 재사용)
-//   · · · = 방 전환 (현재 이웃 안에서만)
-//
-// 화살표 = "누구를 만날 것인가"  → 1·2·3 전체 교체
-// 점     = "그 사람의 어느 방을 볼 것인가" → 2·3만 교체
-//
-// Poster(6요소 현관)는 이번 범위 아님. 2·3은 기존 PostBlock View.
-// fetch 없음 — 호출부가 neighbors(+rooms/posts)를 내려준다.
-// ─────────────────────────────────────────────────────────────
+// NeighborContentBlock — 골목/복도 공용 1|2|3
+// mode=recommend: 시스템 발견 후보 + 이웃 신청
+// mode=neighbor: 연결 이웃
+// Poster 아님 — Room View(PostBlock)
 
 export interface NeighborRoomSlot {
   roomId: string
   roomName: string
-  /** 이 방의 최신 원본 1건 — 없으면 빈 칸 */
   latestPost?: PostBlockData | null
 }
 
@@ -32,40 +19,40 @@ export interface NeighborChip {
   houseId: string
   title: string
   langFlag?: string
-  /** House.avatar_url */
   avatarUrl?: string | null
-  /** tier=public → yard_image_url / tier=invite → living_image_url */
   coverUrl?: string | null
   rooms?: NeighborRoomSlot[]
+  requestPending?: boolean
 }
 
 export interface NeighborContentBlockProps {
   tier: 'public' | 'invite'
+  mode?: 'recommend' | 'neighbor'
   neighbors: NeighborChip[]
   onNeighborClick: (houseId: string) => void
-  onPostClick?: (postId: string) => void
+  onPostClick?: (postId: string, roomId?: string) => void
+  onApplyNeighbor?: (houseId: string) => void
+  applyLoadingHouseId?: string | null
 }
 
-const TIER_LABEL: Record<NeighborContentBlockProps['tier'], string> = {
-  public: '골목',
-  invite: '복도',
-}
-
-const COVER_GRADIENT: Record<NeighborContentBlockProps['tier'], string> = {
+const TIER_LABEL: Record<string, string> = { public: '골목', invite: '복도' }
+const COVER_GRADIENT: Record<string, string> = {
   public: 'linear-gradient(135deg, #4A5240 0%, #7A8C6E 60%, #C8D5B9 100%)',
   invite: 'linear-gradient(135deg, #5C4A35 0%, #8A6F52 60%, #D8C4A8 100%)',
 }
 
 export default function NeighborContentBlock({
   tier,
+  mode = 'neighbor',
   neighbors,
   onNeighborClick,
   onPostClick,
+  onApplyNeighbor,
+  applyLoadingHouseId = null,
 }: NeighborContentBlockProps) {
   const [neighborIdx, setNeighborIdx] = useState(0)
   const [roomIdx, setRoomIdx] = useState(0)
 
-  // 이웃 목록이 바뀌면 인덱스 클램프
   useEffect(() => {
     if (neighborIdx >= neighbors.length) setNeighborIdx(Math.max(0, neighbors.length - 1))
   }, [neighbors.length, neighborIdx])
@@ -75,37 +62,43 @@ export default function NeighborContentBlock({
 
   useEffect(() => {
     setRoomIdx(0)
-  }, [neighborIdx, current?.neighborId])
+  }, [neighborIdx, current?.neighborId, current?.houseId])
 
   useEffect(() => {
     if (roomIdx >= rooms.length) setRoomIdx(Math.max(0, rooms.length - 1))
   }, [rooms.length, roomIdx])
 
-  // 점 = 방. 2·3열은 연속된 두 방의 최신글
   const postA = rooms[roomIdx]?.latestPost || null
   const postB = rooms[roomIdx + 1]?.latestPost || null
-  const roomNameA = rooms[roomIdx]?.roomName
-  const roomNameB = rooms[roomIdx + 1]?.roomName
+  const roomA = rooms[roomIdx]
+  const roomB = rooms[roomIdx + 1]
 
   const goNeighbor = (dir: -1 | 1) => {
     if (neighbors.length === 0) return
     setNeighborIdx((i) => (i + dir + neighbors.length) % neighbors.length)
   }
 
+  const title =
+    mode === 'recommend'
+      ? tier === 'public'
+        ? '골목 · 발견'
+        : '복도 · 발견'
+      : TIER_LABEL[tier]
+
   return (
     <section style={styles.section}>
       <div style={styles.header}>
-        <span style={styles.title}>{TIER_LABEL[tier]}</span>
+        <span style={styles.title}>{title}</span>
         {neighbors.length > 0 && <span style={styles.count}>{neighbors.length}</span>}
       </div>
 
       {neighbors.length === 0 ? (
-        <div style={styles.empty}>아직 이웃이 없어요</div>
+        <div style={styles.empty}>
+          {mode === 'recommend' ? '아직 발견할 집이 없어요' : '아직 이웃이 없어요'}
+        </div>
       ) : (
         <>
-          {/* 1 | 2 | 3 */}
           <div style={styles.row}>
-            {/* ── 1: 골목/복도 + 프로필 ── */}
             <div style={styles.col1}>
               <div
                 style={{
@@ -123,11 +116,7 @@ export default function NeighborContentBlock({
                 <div style={styles.profileWrap}>
                   <div style={styles.avatar}>
                     {current?.avatarUrl ? (
-                      <img
-                        src={current.avatarUrl}
-                        alt=""
-                        style={styles.avatarImg}
-                      />
+                      <img src={current.avatarUrl} alt="" style={styles.avatarImg} />
                     ) : (
                       <span style={{ fontSize: 22 }}>{current?.langFlag || '🏡'}</span>
                     )}
@@ -135,65 +124,67 @@ export default function NeighborContentBlock({
                   <div style={styles.profileName}>{current?.title}</div>
                 </div>
               </div>
-              <div style={styles.arrows}>
+
+              {mode === 'recommend' && current && (
                 <button
                   type="button"
-                  style={styles.arrowBtn}
-                  onClick={() => goNeighbor(-1)}
-                  aria-label="이전 이웃"
+                  style={{
+                    ...styles.applyBtn,
+                    opacity: current.requestPending || applyLoadingHouseId === current.houseId ? 0.55 : 1,
+                  }}
+                  disabled={!!current.requestPending || applyLoadingHouseId === current.houseId}
+                  onClick={() => onApplyNeighbor?.(current.houseId)}
                 >
+                  {current.requestPending
+                    ? '신청중'
+                    : applyLoadingHouseId === current.houseId
+                      ? '…'
+                      : '이웃 신청'}
+                </button>
+              )}
+
+              <div style={styles.arrows}>
+                <button type="button" style={styles.arrowBtn} onClick={() => goNeighbor(-1)}>
                   ←
                 </button>
                 <span style={styles.arrowHint}>
                   {neighborIdx + 1}/{neighbors.length}
                 </span>
-                <button
-                  type="button"
-                  style={styles.arrowBtn}
-                  onClick={() => goNeighbor(1)}
-                  aria-label="다음 이웃"
-                >
+                <button type="button" style={styles.arrowBtn} onClick={() => goNeighbor(1)}>
                   →
                 </button>
               </div>
             </div>
 
-            {/* ── 2: 방 최신글 ① ── */}
             <div style={styles.colPost}>
-              {roomNameA && <div style={styles.roomTag}>{roomNameA}</div>}
+              {roomA && <div style={styles.roomTag}>{roomA.roomName}</div>}
               {postA ? (
                 <PostBlock
                   post={postA}
                   showViewMeta={false}
                   showComments={false}
-                  onClick={() => onPostClick?.(postA.id)}
+                  onClick={() => onPostClick?.(postA.id, roomA?.roomId)}
                 />
               ) : (
-                <div style={styles.postEmpty}>
-                  {rooms.length === 0 ? '공개 방 없음' : '글 없음'}
-                </div>
+                <div style={styles.postEmpty}>{rooms.length === 0 ? '공개 방 없음' : '글 없음'}</div>
               )}
             </div>
 
-            {/* ── 3: 방 최신글 ② ── */}
             <div style={styles.colPost}>
-              {roomNameB && <div style={styles.roomTag}>{roomNameB}</div>}
+              {roomB && <div style={styles.roomTag}>{roomB.roomName}</div>}
               {postB ? (
                 <PostBlock
                   post={postB}
                   showViewMeta={false}
                   showComments={false}
-                  onClick={() => onPostClick?.(postB.id)}
+                  onClick={() => onPostClick?.(postB.id, roomB?.roomId)}
                 />
               ) : (
-                <div style={styles.postEmpty}>
-                  {rooms.length <= 1 ? '—' : '글 없음'}
-                </div>
+                <div style={styles.postEmpty}>{rooms.length <= 1 ? '—' : '글 없음'}</div>
               )}
             </div>
           </div>
 
-          {/* 점 = 방 이동 (2칸 슬라이드 시작 인덱스) */}
           {rooms.length > 0 && (
             <div style={styles.dots}>
               {rooms.map((r, i) => (
@@ -205,7 +196,6 @@ export default function NeighborContentBlock({
                     background: i === roomIdx ? '#2C1810' : 'rgba(92,61,46,0.2)',
                   }}
                   onClick={() => setRoomIdx(i)}
-                  aria-label={r.roomName}
                   title={r.roomName}
                 />
               ))}
@@ -258,12 +248,7 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 8,
     alignItems: 'stretch',
   },
-  col1: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 6,
-    minWidth: 0,
-  },
+  col1: { display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 },
   cover: {
     position: 'relative',
     flex: 1,
@@ -301,11 +286,7 @@ const styles: Record<string, React.CSSProperties> = {
     overflow: 'hidden',
     border: '2px solid rgba(254,252,248,0.9)',
   },
-  avatarImg: {
-    width: '100%',
-    height: '100%',
-    objectFit: 'cover',
-  },
+  avatarImg: { width: '100%', height: '100%', objectFit: 'cover' },
   profileName: {
     fontSize: 11,
     fontWeight: 600,
@@ -317,12 +298,18 @@ const styles: Record<string, React.CSSProperties> = {
     whiteSpace: 'nowrap',
     maxWidth: '100%',
   },
-  arrows: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 4,
+  applyBtn: {
+    width: '100%',
+    padding: '8px 0',
+    borderRadius: 10,
+    border: 'none',
+    background: '#2C1810',
+    color: '#FEFCF8',
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: 'pointer',
   },
+  arrows: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4 },
   arrowBtn: {
     width: 32,
     height: 28,
@@ -333,16 +320,8 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 14,
     cursor: 'pointer',
   },
-  arrowHint: {
-    fontSize: 10,
-    color: '#9A8470',
-  },
-  colPost: {
-    minWidth: 0,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 4,
-  },
+  arrowHint: { fontSize: 10, color: '#9A8470' },
+  colPost: { minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 },
   roomTag: {
     fontSize: 10,
     color: '#9A8470',
@@ -363,18 +342,6 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 12,
     color: '#9A8470',
   },
-  dots: {
-    display: 'flex',
-    justifyContent: 'center',
-    gap: 6,
-    marginTop: 12,
-  },
-  dot: {
-    width: 7,
-    height: 7,
-    borderRadius: '50%',
-    border: 'none',
-    padding: 0,
-    cursor: 'pointer',
-  },
+  dots: { display: 'flex', justifyContent: 'center', gap: 6, marginTop: 12 },
+  dot: { width: 7, height: 7, borderRadius: '50%', border: 'none', padding: 0, cursor: 'pointer' },
 }
