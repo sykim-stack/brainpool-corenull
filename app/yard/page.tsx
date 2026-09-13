@@ -9,7 +9,7 @@ import CoreNullLogo from '@/components/corenull/CoreNullLogo'
 import ShareModal from '@/components/corenull/ShareModal'
 import { PostBlockData } from '@/components/blocks/PostBlock'
 import { RingData } from '@/components/blocks/RingBlock'
-import { NeighborChip } from '@/components/blocks/NeighborContentBlock'
+import { NeighborChip, NeighborRoomSlot } from '@/components/blocks/NeighborContentBlock'
 import { houseHeroBackground, houseAvatarUrl } from '@/lib/houseImages'
 
 const LANG_FLAG: Record<string, string> = {
@@ -35,7 +35,7 @@ function formatSince(iso: string) {
   return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')} 부터`
 }
 
-async function loadHouseRoomSlots(h: any): Promise<NeighborChip['rooms']> {
+async function loadHouseRoomSlots(h: any): Promise<NeighborRoomSlot[]> {
   try {
     const rd = await fetch(`/api/corenull/rooms?house_id=${h.id}`).then((r) => r.json())
     const list = (rd.data || []).filter(isYardVisibleRoom).slice(0, 6)
@@ -164,7 +164,9 @@ export default function YardPage() {
     const feedChunks = await Promise.all(
       accepted.map(async (n: any) => {
         const slots = await loadHouseRoomSlots(n.house)
-        return slots.map((s) => s?.latestPost).filter(Boolean).map((p) => p as PostBlockData)
+        return (slots ?? [])
+          .map((s) => s?.latestPost)
+          .filter((p): p is PostBlockData => !!p)
       })
     )
     setNeighborFeed(
