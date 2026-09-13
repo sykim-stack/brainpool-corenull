@@ -17,9 +17,9 @@ const LANG_FLAG: Record<string, string> = {
 
 const COREHUB_URL = 'https://brainpool-corehub.vercel.app/api/corehub/opportunities'
 const ACTION_LABEL: Record<string, string> = {
-  'trigger.hajunai.nudge':     '🌱 씨앗이 기다리고 있어요',
+  'trigger.hajunai.nudge': '🌱 씨앗이 기다리고 있어요',
   'trigger.hajunai.celebrate': '🍎 씨앗이 열매가 됐어요',
-  'suggest.corering':          '💬 번역 도움이 필요하신가요?',
+  'suggest.corering': '💬 번역 도움이 필요하신가요?',
 }
 
 function buildRingData(roomCount: number, neighborCount: number): RingData {
@@ -39,12 +39,6 @@ function formatSince(iso: string) {
 
 type BookmarkRow = { id: string; message_id: string | null; ended_at: string | null }
 
-// app/page.tsx — 루트("/") = 사용자 마당.
-// houseId를 URL에서 받지 않는다 — 항상 "나"의 마당이다. 남의 집(또는
-// URL로 특정 house를 지정한) 마당은 /houses/[houseId]/yard가 담당한다.
-// 그쪽은 방문자 여부(isOwner)에 따라 UI가 갈리지만 여기는 항상 소유자
-// 관점이라 그 분기 자체가 없다 — 억지로 로직을 공유하지 않고 각
-// 화면에 맞게 단순화했다.
 export default function HomePage() {
   const router = useRouter()
 
@@ -85,7 +79,7 @@ export default function HomePage() {
     if (!key) return
 
     fetch(`/api/corenull/houses?owner_key=${key}`)
-      .then(r => r.json())
+      .then((r) => r.json())
       .then(async (d) => {
         const myHouse = d.data?.[0]
         if (!myHouse) {
@@ -95,9 +89,11 @@ export default function HomePage() {
         setHouse(myHouse)
 
         const [r, b, nb] = await Promise.all([
-          fetch(`/api/corenull/rooms?house_id=${myHouse.id}`).then(res => res.json()),
-          fetch(`/api/corenull/bookmarks?owner_key=${key}`).then(res => res.json()),
-          fetch(`/api/corenull/houses?action=neighbors&house_id=${myHouse.id}`).then(res => res.json()),
+          fetch(`/api/corenull/rooms?house_id=${myHouse.id}`).then((res) => res.json()),
+          fetch(`/api/corenull/bookmarks?owner_key=${key}`).then((res) => res.json()),
+          fetch(`/api/corenull/houses?action=neighbors&house_id=${myHouse.id}`).then((res) =>
+            res.json()
+          ),
         ])
 
         const roomList = r.data || []
@@ -114,26 +110,31 @@ export default function HomePage() {
           }))
         setNeighbors(acceptedNeighbors)
 
-        // 마당 = 공개 방 피드만 (Master Prompt §8). 비공개 방 글은
-        // 거실(/living)의 역할이라 여기선 안 섞는다.
-        const publicRoomIds = roomList.filter((rm: any) => rm.visibility === 'public').map((rm: any) => rm.id)
+        const publicRoomIds = roomList
+          .filter((rm: any) => rm.visibility === 'public')
+          .map((rm: any) => rm.id)
         if (publicRoomIds.length > 0) {
           const postResults = await Promise.all(
             publicRoomIds.map((rid: string) =>
-              fetch(`/api/corenull/posts?room_id=${rid}`).then(res => res.json())
+              fetch(`/api/corenull/posts?room_id=${rid}`).then((res) => res.json())
             )
           )
           const merged = postResults
             .flatMap((res) => res.data || [])
-            .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+            .sort(
+              (a: any, b: any) =>
+                new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+            )
             .slice(0, 10)
-            .map((p: any): PostBlockData => ({
-              id: p.id,
-              content: p.content,
-              media: p.meta?.media,
-              created_at: p.created_at,
-              comment_count: p.comment_count ?? 0,
-            }))
+            .map(
+              (p: any): PostBlockData => ({
+                id: p.id,
+                content: p.content,
+                media: p.meta?.media,
+                created_at: p.created_at,
+                comment_count: p.comment_count ?? 0,
+              })
+            )
           setPosts(merged)
         }
 
@@ -141,17 +142,19 @@ export default function HomePage() {
       })
   }, [])
 
-  // 오늘의 발견 — 루트는 항상 내 집이므로 게이트 없이 바로 조회.
   useEffect(() => {
     const key = getDeviceId()
     if (!key) return
     fetch(`${COREHUB_URL}?owner_key=${key}`)
-      .then(r => r.json())
-      .then(d => {
+      .then((r) => r.json())
+      .then((d) => {
         const items = Array.isArray(d.data) ? d.data : []
         const mapped: DiscoveryItem[] = items.slice(0, 3).map((item: any) => ({
           id: item.id,
-          label: ACTION_LABEL[item.action_type] || item.payload?.message || '새로운 연결을 발견했어요',
+          label:
+            ACTION_LABEL[item.action_type] ||
+            item.payload?.message ||
+            '새로운 연결을 발견했어요',
         }))
         setDiscoveries(mapped)
       })
@@ -202,17 +205,38 @@ export default function HomePage() {
     setInterestLoadingId(null)
   }
 
-  const langFlag = house?.primary_language ? (LANG_FLAG[house.primary_language] || '🌐') : '🌐'
+  const langFlag = house?.primary_language
+    ? LANG_FLAG[house.primary_language] || '🌐'
+    : '🌐'
 
   if (!loading && !house) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '70vh', gap: 16 }}>
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '70vh',
+          gap: 16,
+        }}
+      >
         <div style={{ fontSize: 40 }}>🏡</div>
         <p style={{ fontSize: 14, color: '#9A8470' }}>아직 집이 없어요</p>
         <button
           onClick={() => router.push('/houses/create')}
-          style={{ padding: '10px 24px', background: '#2C1810', color: 'white', border: 'none', borderRadius: 12, fontSize: 14, cursor: 'pointer' }}
-        >집 만들기</button>
+          style={{
+            padding: '10px 24px',
+            background: '#2C1810',
+            color: 'white',
+            border: 'none',
+            borderRadius: 12,
+            fontSize: 14,
+            cursor: 'pointer',
+          }}
+        >
+          집 만들기
+        </button>
       </div>
     )
   }
@@ -247,17 +271,17 @@ export default function HomePage() {
           roomCount: rooms.length,
           neighborCount: neighbors.length,
         }}
-        posts={posts}
+        discoveries={discoveries}
+        onDiscoveryDismiss={handleDiscoveryDismiss}
+        recommended={[]}
+        neighborFeed={[]}
+        myPosts={posts}
         onPostClick={(postId) => router.push(`/posts/${postId}`)}
         onCommentClick={(postId) => router.push(`/posts/${postId}`)}
         showInterest
         getInterestState={getInterestState}
         interestLoadingId={interestLoadingId}
         onInterestClick={handleInterestClick}
-        neighbors={neighbors}
-        onNeighborClick={(hId) => router.push(`/houses/${hId}/yard`)}
-        discoveries={discoveries}
-        onDiscoveryDismiss={handleDiscoveryDismiss}
       />
 
       {showShare && inviteUrl && (
