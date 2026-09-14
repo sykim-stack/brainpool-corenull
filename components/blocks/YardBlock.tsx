@@ -151,7 +151,7 @@ export default function YardBlock({
       <MyContentBlock
         title="이웃 공개 방 최신"
         posts={neighborFeed}
-        onPostClick={(id) => onPostClick?.(id)}
+        onPostClick={onPostClick}
         onCommentClick={onCommentClick}
         showInterest={showInterest}
         getInterestState={getInterestState}
@@ -165,7 +165,7 @@ export default function YardBlock({
       <MyContentBlock
         title="내 방 최신 콘텐츠"
         posts={myPosts}
-        onPostClick={(id) => onPostClick?.(id)}
+        onPostClick={onPostClick}
         onCommentClick={onCommentClick}
         showInterest={showInterest}
         getInterestState={getInterestState}
