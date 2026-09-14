@@ -211,8 +211,19 @@ export default function PostBlock({
   )
 }
 
-export function PostBlockGrid({ children }: { children: React.ReactNode }) {
-  return <div style={styles.grid}>{children}</div>
+export function PostBlockGrid({
+  children,
+  single = false,
+}: {
+  children: React.ReactNode
+  /** 방 1개일 때 풀폭 */
+  single?: boolean
+}) {
+  return (
+    <div style={single ? styles.gridSingle : styles.grid}>
+      {children}
+    </div>
+  )
 }
 
 const styles: Record<string, React.CSSProperties> = {
@@ -269,4 +280,5 @@ const styles: Record<string, React.CSSProperties> = {
     paddingTop: 8, borderTop: '1px solid rgba(92,61,46,0.08)',
   },
   grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 16 },
+  gridSingle: { display: 'grid', gridTemplateColumns: '1fr', gap: 16 },
 }
