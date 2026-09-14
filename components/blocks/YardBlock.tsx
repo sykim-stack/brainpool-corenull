@@ -6,10 +6,6 @@ import NeighborContentBlock, { NeighborChip } from './NeighborContentBlock'
 import { RingData } from './RingBlock'
 import { PostBlockData } from './PostBlock'
 
-// YardBlock — 마당
-// Hero → 오늘의 발견 → 골목 1|2|3(발견+신청) → 관계 관리 → 이웃 공개방 최신 → 내 방 최신
-// Poster 없음 (거실)
-
 export interface DiscoveryItem {
   id: string
   label: string
@@ -48,6 +44,9 @@ export interface YardBlockProps {
   getInterestState?: (postId: string) => 'none' | 'active' | 'ended'
   interestLoadingId?: string | null
   onInterestClick?: (postId: string) => void
+  enableInlineComment?: boolean
+  ownerKey?: string
+  onInterestGoLibrary?: () => void
 }
 
 export default function YardBlock({
@@ -75,6 +74,9 @@ export default function YardBlock({
   getInterestState,
   interestLoadingId = null,
   onInterestClick,
+  enableInlineComment = false,
+  ownerKey,
+  onInterestGoLibrary,
 }: YardBlockProps) {
   if (loading) return <div style={styles.loading}>🌳</div>
 
@@ -155,6 +157,9 @@ export default function YardBlock({
         getInterestState={getInterestState}
         interestLoadingId={interestLoadingId}
         onInterestClick={onInterestClick}
+        enableInlineComment={enableInlineComment}
+        ownerKey={ownerKey}
+        onInterestGoLibrary={onInterestGoLibrary}
       />
 
       <MyContentBlock
@@ -166,6 +171,9 @@ export default function YardBlock({
         getInterestState={getInterestState}
         interestLoadingId={interestLoadingId}
         onInterestClick={onInterestClick}
+        enableInlineComment={enableInlineComment}
+        ownerKey={ownerKey}
+        onInterestGoLibrary={onInterestGoLibrary}
       />
     </div>
   )
