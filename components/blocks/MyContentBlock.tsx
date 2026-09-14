@@ -5,7 +5,7 @@ import PostBlock, { PostBlockData, PostBlockGrid } from './PostBlock'
 export interface MyContentBlockProps {
   title?: string
   posts: PostBlockData[]
-  onPostClick?: (postId: string) => void
+  onPostClick?: (postId: string, roomId?: string) => void
   onCommentClick?: (postId: string) => void
   emptyLabel?: string
   showInterest?: boolean
@@ -47,7 +47,7 @@ export default function MyContentBlock({
             <PostBlock
               key={post.id}
               post={post}
-              onClick={() => onPostClick?.(post.id)}
+              onClick={() => onPostClick?.(post.id, post.room_id)}
               onCommentClick={() => onCommentClick?.(post.id)}
               showInterest={showInterest}
               interestState={getInterestState?.(post.id) ?? 'none'}
