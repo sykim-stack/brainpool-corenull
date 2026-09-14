@@ -20,6 +20,15 @@ function isYardVisibleRoom(rm: any) {
   return rm.visibility === 'public' || rm.visibility === 'invite'
 }
 
+function roomStatusLabel(rm: any): string {
+  const parts: string[] = []
+  if (rm.visibility === 'public') parts.push('공개')
+  else if (rm.visibility === 'invite') parts.push('이웃공개')
+  else if (rm.visibility === 'private') parts.push('비공개')
+  if (rm.seed_mode || rm.room_type === 'seed') parts.push('씨드')
+  return parts.filter((v, i, a) => a.indexOf(v) === i).join(' · ') || '방'
+}
+
 function buildRingData(roomCount: number, neighborCount: number): RingData {
   return {
     rings: [
@@ -53,7 +62,13 @@ async function loadHouseRoomSlots(h: any): Promise<NeighborRoomSlot[]> {
                 media: latest.meta?.media,
                 created_at: latest.created_at,
                 comment_count: latest.comment_count ?? 0,
-                view_meta: { room_name: rm.room_name, house_name: h.title },
+                room_id: rm.id,
+                view_meta: {
+                  room_name: rm.room_name,
+                  house_name: h.title,
+                  status: roomStatusLabel(rm),
+                  stage_emoji: rm.seed_mode || rm.room_type === 'seed' ? '🌱' : undefined,
+                },
               }
             : null,
         }
@@ -160,13 +175,12 @@ export default function YardPage() {
     )
     setRecommended(rec)
 
+    // 이웃 피드: 방마다 최신 1개
     const accepted = nbRows.filter((n: any) => n.status === 'accepted' && n.house)
     const feedChunks = await Promise.all(
       accepted.map(async (n: any) => {
         const slots = await loadHouseRoomSlots(n.house)
-        return (slots ?? [])
-          .map((s) => s?.latestPost)
-          .filter((p): p is PostBlockData => !!p)
+        return (slots ?? []).map((s) => s?.latestPost).filter((p): p is PostBlockData => !!p)
       })
     )
     setNeighborFeed(
@@ -176,28 +190,34 @@ export default function YardPage() {
         .slice(0, 12)
     )
 
-    const myVisible = roomList.filter(isYardVisibleRoom).map((rm: any) => rm.id)
-    if (myVisible.length > 0) {
-      const postResults = await Promise.all(
-        myVisible.map((rid: string) =>
-          fetch(`/api/corenull/posts?room_id=${rid}`).then((res) => res.json())
-        )
+    // 내 방 최신: 방마다 최신 글 1개만 + 집·방·상태
+    const myRooms = roomList.filter(isYardVisibleRoom)
+    if (myRooms.length > 0) {
+      const perRoom = await Promise.all(
+        myRooms.map(async (rm: any) => {
+          const res = await fetch(`/api/corenull/posts?room_id=${rm.id}`).then((r) => r.json())
+          const latest = (res.data || [])[0]
+          if (!latest) return null
+          return {
+            id: latest.id,
+            content: latest.content,
+            media: latest.meta?.media,
+            created_at: latest.created_at,
+            comment_count: latest.comment_count ?? 0,
+            room_id: rm.id,
+            view_meta: {
+              house_name: myHouse.title,
+              room_name: rm.room_name,
+              status: roomStatusLabel(rm),
+              stage_emoji: rm.seed_mode || rm.room_type === 'seed' ? '🌱' : undefined,
+            },
+          } as PostBlockData
+        })
       )
       setMyPosts(
-        postResults
-          .flatMap((res) => res.data || [])
-          .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-          .slice(0, 10)
-          .map(
-            (p: any): PostBlockData => ({
-              id: p.id,
-              content: p.content,
-              media: p.meta?.media,
-              created_at: p.created_at,
-              comment_count: p.comment_count ?? 0,
-              view_meta: myHouse.title ? { house_name: myHouse.title } : undefined,
-            })
-          )
+        perRoom
+          .filter((p): p is PostBlockData => !!p)
+          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
       )
     } else {
       setMyPosts([])
@@ -360,6 +380,9 @@ export default function YardPage() {
         getInterestState={getInterestState}
         interestLoadingId={interestLoadingId}
         onInterestClick={handleInterestClick}
+        enableInlineComment
+        ownerKey={ownerKey}
+        onInterestGoLibrary={() => router.push('/me/library')}
       />
 
       {showShare && inviteUrl && (
