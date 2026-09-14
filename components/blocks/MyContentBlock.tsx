@@ -2,31 +2,20 @@
 
 import PostBlock, { PostBlockData, PostBlockGrid } from './PostBlock'
 
-// ─────────────────────────────────────────────────────────────
-// MyContentBlock — "내 방 최신 콘텐츠" / "최근 이야기" 섹션.
-//
-// PostBlock을 그대로 쓰는 얇은 래퍼일 뿐이다. 새 카드 디자인을
-// 만들지 않는다 — Post 표현은 Card(PostBlock)/Compact 2종류로
-// 이미 확정했고, 이 섹션은 Card를 쓴다.
-//
-// fetch 없음. posts 배열은 호출부(마당/거실 페이지)가 API에서
-// 가져와서 내려준다. 이 블록은 "무엇을 보여줄지"만 안다.
-// ─────────────────────────────────────────────────────────────
-
 export interface MyContentBlockProps {
-  title?: string // 예: '내 방 최신 콘텐츠', '최근 이야기'
+  title?: string
   posts: PostBlockData[]
   onPostClick?: (postId: string) => void
   onCommentClick?: (postId: string) => void
-  emptyLabel?: string // posts가 비었을 때 문구
-
-  // 관심(북마크) — PostBlock의 showInterest 계약을 그대로 통과시킨다.
-  // 이 블록 자체는 여전히 fetch하지 않고, 호출부가 post_id별 상태를
-  // 계산해서 넘겨준다.
+  emptyLabel?: string
   showInterest?: boolean
   getInterestState?: (postId: string) => 'none' | 'active' | 'ended'
   interestLoadingId?: string | null
   onInterestClick?: (postId: string) => void
+  onInterestGoLibrary?: () => void
+  enableInlineComment?: boolean
+  ownerKey?: string
+  showHouseName?: boolean
 }
 
 export default function MyContentBlock({
@@ -39,6 +28,10 @@ export default function MyContentBlock({
   getInterestState,
   interestLoadingId = null,
   onInterestClick,
+  onInterestGoLibrary,
+  enableInlineComment = false,
+  ownerKey,
+  showHouseName = true,
 }: MyContentBlockProps) {
   return (
     <section style={styles.section}>
@@ -60,6 +53,10 @@ export default function MyContentBlock({
               interestState={getInterestState?.(post.id) ?? 'none'}
               interestLoading={interestLoadingId === post.id}
               onInterestClick={() => onInterestClick?.(post.id)}
+              onInterestGoLibrary={onInterestGoLibrary}
+              enableInlineComment={enableInlineComment}
+              ownerKey={ownerKey}
+              showHouseName={showHouseName}
             />
           ))}
         </PostBlockGrid>
@@ -69,22 +66,17 @@ export default function MyContentBlock({
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  section: {
-    padding: '16px',
-  },
-  header: {
-    display: 'flex',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
+  section: { padding: '16px' },
+  header: { display: 'flex', alignItems: 'center', marginBottom: 10 },
   title: {
-    fontSize: 12,
-    color: '#9A8470',
-    letterSpacing: '0.5px',
+    fontFamily: "'Noto Serif KR', serif",
+    fontSize: 15,
+    fontWeight: 600,
+    color: '#2C1810',
   },
   empty: {
     textAlign: 'center',
-    padding: '32px 16px',
+    padding: '28px 16px',
     fontSize: 13,
     color: '#9A8470',
     background: '#FEFCF8',
