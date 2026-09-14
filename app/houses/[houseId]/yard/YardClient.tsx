@@ -15,6 +15,15 @@ const LANG_FLAG: Record<string, string> = {
   ko: '🇰🇷', vi: '🇻🇳', en: '🇺🇸', ja: '🇯🇵', zh: '🇨🇳',
 }
 
+function roomStatusLabel(rm: any): string {
+  const parts: string[] = []
+  if (rm.visibility === 'public') parts.push('공개')
+  else if (rm.visibility === 'invite') parts.push('이웃공개')
+  else if (rm.visibility === 'private') parts.push('비공개')
+  if (rm.seed_mode || rm.room_type === 'seed') parts.push('씨드')
+  return parts.filter((v, i, a) => a.indexOf(v) === i).join(' · ') || '방'
+}
+
 const COREHUB_URL = 'https://brainpool-corehub.vercel.app/api/corehub/opportunities'
 const ACTION_LABEL: Record<string, string> = {
   'trigger.hajunai.nudge': '🌱 씨앗이 기다리고 있어요',
@@ -37,59 +46,38 @@ function formatSince(iso: string) {
   return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')} 부터`
 }
 
-type BookmarkRow = { id: string; message_id: string | null; ended_at: string | null }
-
-type NeighborRelation =
-  | { kind: 'none' }
+type RelationState =
   | { kind: 'self' }
+  | { kind: 'none' }
+  | { kind: 'accepted'; neighborId: string }
   | { kind: 'pending_outgoing'; neighborId: string }
   | { kind: 'pending_incoming'; neighborId: string }
-  | { kind: 'accepted'; neighborId: string }
 
 export default function YardClient() {
-  const { houseId } = useParams()
+  const { houseId } = useParams<{ houseId: string }>()
   const router = useRouter()
 
-  const [ownerKey, setOwnerKey] = useState('')
-  const [myHouseId, setMyHouseId] = useState<string | null>(null)
   const [house, setHouse] = useState<any>(null)
   const [rooms, setRooms] = useState<any[]>([])
   const [myPosts, setMyPosts] = useState<PostBlockData[]>([])
-  const [neighborCount, setNeighborCount] = useState(0)
-  const [discoveries, setDiscoveries] = useState<DiscoveryItem[]>([])
-  const [relation, setRelation] = useState<NeighborRelation>({ kind: 'none' })
-  const [relationLoading, setRelationLoading] = useState(false)
   const [loading, setLoading] = useState(true)
-
-  const [bookmarks, setBookmarks] = useState<BookmarkRow[]>([])
+  const [ownerKey, setOwnerKey] = useState('')
+  const [myHouseId, setMyHouseId] = useState<string | null>(null)
+  const [relation, setRelation] = useState<RelationState>({ kind: 'none' })
+  const [neighborCount, setNeighborCount] = useState(0)
+  const [bookmarks, setBookmarks] = useState<any[]>([])
   const [interestLoadingId, setInterestLoadingId] = useState<string | null>(null)
-
+  const [discoveries, setDiscoveries] = useState<DiscoveryItem[]>([])
   const [showShare, setShowShare] = useState(false)
   const [inviteUrl, setInviteUrl] = useState('')
   const [inviteLoading, setInviteLoading] = useState(false)
+  const [relationActing, setRelationActing] = useState(false)
 
-  const isOwner = house?.owner_key === ownerKey
-
-  const handleInvite = async () => {
-    if (inviteLoading || !house) return
-    setInviteLoading(true)
-    const res = await fetch('/api/corenull/invite', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ house_id: house.id, owner_key: ownerKey }),
-    })
-    const data = await res.json()
-    if (data.data?.invite_token) {
-      setInviteUrl(`https://corenull.vercel.app/invite/${data.data.invite_token}`)
-      setShowShare(true)
-    }
-    setInviteLoading(false)
-  }
+  const isOwner = relation.kind === 'self'
 
   useEffect(() => {
     const key = getDeviceId()
-    setOwnerKey(key)
-    if (!houseId) return
+    setOwnerKey(key || '')
 
     Promise.all([
       fetch(`/api/corenull/houses?house_id=${houseId}`).then((r) => r.json()),
@@ -131,34 +119,36 @@ export default function YardClient() {
         }
       }
 
-      // 이 집 마당: 공개 + 이웃공개 Room View
-      const visibleIds = roomList
-        .filter((rm: any) => rm.visibility === 'public' || rm.visibility === 'invite')
-        .map((rm: any) => rm.id)
-      if (visibleIds.length > 0) {
-        const postResults = await Promise.all(
-          visibleIds.map((rid: string) =>
-            fetch(`/api/corenull/posts?room_id=${rid}`).then((res) => res.json())
-          )
+      const visibleRooms = roomList.filter(
+        (rm: any) => rm.visibility === 'public' || rm.visibility === 'invite'
+      )
+      if (visibleRooms.length > 0) {
+        const perRoom = await Promise.all(
+          visibleRooms.map(async (rm: any) => {
+            const res = await fetch(`/api/corenull/posts?room_id=${rm.id}`).then((r) => r.json())
+            const latest = (res.data || [])[0]
+            if (!latest) return null
+            return {
+              id: latest.id,
+              content: latest.content,
+              media: latest.meta?.media,
+              created_at: latest.created_at,
+              comment_count: latest.comment_count ?? 0,
+              room_id: rm.id,
+              view_meta: {
+                house_name: h.house?.title,
+                room_name: rm.room_name,
+                status: roomStatusLabel(rm),
+                stage_emoji: rm.seed_mode || rm.room_type === 'seed' ? '🌱' : undefined,
+              },
+            } as PostBlockData
+          })
         )
-        const merged = postResults
-          .flatMap((res) => res.data || [])
-          .sort(
-            (a: any, b: any) =>
-              new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-          )
-          .slice(0, 10)
-          .map(
-            (p: any): PostBlockData => ({
-              id: p.id,
-              content: p.content,
-              media: p.meta?.media,
-              created_at: p.created_at,
-              comment_count: p.comment_count ?? 0,
-              view_meta: h.house?.title ? { house_name: h.house.title } : undefined,
-            })
-          )
-        setMyPosts(merged)
+        setMyPosts(
+          perRoom
+            .filter((x): x is PostBlockData => !!x)
+            .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        )
       }
 
       setLoading(false)
@@ -178,32 +168,39 @@ export default function YardClient() {
           label:
             ACTION_LABEL[item.action_type] ||
             item.payload?.message ||
-            '새로운 연결을 발견했어요',
+            '발견',
         }))
         setDiscoveries(mapped)
       })
-      .catch(() => null)
+      .catch(() => {})
   }, [isOwner])
 
-  const handleDiscoveryDismiss = (id: string) => {
-    setDiscoveries((prev) => prev.filter((d) => d.id !== id))
-    fetch(COREHUB_URL, {
-      method: 'PATCH',
+  const handleInvite = async () => {
+    if (inviteLoading || !house) return
+    setInviteLoading(true)
+    const res = await fetch('/api/corenull/invite', {
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ opportunity_id: id, outcome: 'shown' }),
-    }).catch(() => null)
+      body: JSON.stringify({ house_id: house.id, owner_key: ownerKey }),
+    })
+    const data = await res.json()
+    if (data.data?.invite_token) {
+      setInviteUrl(`https://corenull.vercel.app/invite/${data.data.invite_token}`)
+      setShowShare(true)
+    }
+    setInviteLoading(false)
   }
 
   const getInterestState = (postId: string): 'none' | 'active' | 'ended' => {
-    const b = bookmarks.find((bm) => bm.message_id === postId)
+    const b = bookmarks.find((bm: any) => bm.message_id === postId)
     if (!b) return 'none'
     return b.ended_at ? 'ended' : 'active'
   }
 
   const handleInterestClick = async (postId: string) => {
-    if (interestLoadingId) return
+    if (interestLoadingId || !ownerKey) return
     setInterestLoadingId(postId)
-    const existing = bookmarks.find((bm) => bm.message_id === postId)
+    const existing = bookmarks.find((bm: any) => bm.message_id === postId)
     if (!existing) {
       const res = await fetch('/api/corenull/bookmarks', {
         method: 'POST',
@@ -211,7 +208,7 @@ export default function YardClient() {
         body: JSON.stringify({ owner_key: ownerKey, message_id: postId }),
       })
       const data = await res.json()
-      if (data.data) setBookmarks((prev) => [...prev, data.data])
+      if (data.data) setBookmarks((prev: any[]) => [...prev, data.data])
     } else {
       const action = existing.ended_at ? 'resume' : 'end'
       const res = await fetch('/api/corenull/bookmarks', {
@@ -221,93 +218,32 @@ export default function YardClient() {
       })
       const data = await res.json()
       if (data.data) {
-        setBookmarks((prev) => prev.map((bm) => (bm.id === existing.id ? data.data : bm)))
+        setBookmarks((prev: any[]) => prev.map((bm) => (bm.id === existing.id ? data.data : bm)))
       }
     }
     setInterestLoadingId(null)
   }
 
-  const handleNeighborRequest = async () => {
-    if (relationLoading || !myHouseId) return
-    setRelationLoading(true)
-    const res = await fetch('/api/corenull/houses?action=neighbor-request', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        house_a_id: myHouseId,
-        owner_key: ownerKey,
-        house_b_id: houseId,
-      }),
-    })
-    const data = await res.json()
-    if (data.data) {
-      setRelation({ kind: 'pending_outgoing', neighborId: data.data.id })
-    }
-    setRelationLoading(false)
-  }
-
-  const handleNeighborAccept = async () => {
-    if (relationLoading || relation.kind !== 'pending_incoming') return
-    setRelationLoading(true)
-    const res = await fetch('/api/corenull/houses?action=neighbor-accept', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ neighbor_id: relation.neighborId, owner_key: ownerKey }),
-    })
-    const data = await res.json()
-    if (data.data) {
-      setRelation({ kind: 'accepted', neighborId: relation.neighborId })
-    }
-    setRelationLoading(false)
-  }
-
-  const relationCta = (() => {
-    switch (relation.kind) {
-      case 'none':
-        return {
-          label: relationLoading ? '...' : '🏘️ 이웃 신청하기',
-          onClick: handleNeighborRequest,
-          disabled: relationLoading,
-        }
-      case 'pending_outgoing':
-        return { label: '요청 보냄', onClick: () => {}, disabled: true }
-      case 'pending_incoming':
-        return {
-          label: relationLoading ? '...' : '🤝 이웃 요청 수락하기',
-          onClick: handleNeighborAccept,
-          disabled: relationLoading,
-        }
-      case 'accepted':
-        return { label: '🏘️ 이웃이에요', onClick: () => {}, disabled: true }
-      case 'self':
-      default:
-        return undefined
-    }
-  })()
-
-  const langFlag = house?.primary_language
-    ? LANG_FLAG[house.primary_language] || '🌐'
-    : '🌐'
+  const langFlag = house?.primary_language ? LANG_FLAG[house.primary_language] || '🌐' : '🌐'
 
   return (
     <div>
       <TopBar
         logo={<CoreNullLogo size="sm" />}
-        title="마당"
-        actions={[
-          { key: 'plaza', emoji: '🏛️', label: '광장', onClick: () => router.push('/plaza') },
-          ...(isOwner
+        title={house?.title || '마당'}
+        actions={
+          isOwner
             ? [
                 {
                   key: 'share',
                   emoji: '🔗',
-                  label: inviteLoading ? '초대 링크 생성 중...' : '참여자 초대',
+                  label: '참여자 초대',
                   onClick: handleInvite,
                   disabled: inviteLoading,
                 },
               ]
-            : []),
-        ]}
+            : []
+        }
       />
 
       <YardBlock
@@ -332,19 +268,22 @@ export default function YardClient() {
           since: house?.created_at ? formatSince(house.created_at) : undefined,
           roomCount: rooms.length,
           neighborCount,
-          cta: relationCta,
         }}
-        discoveries={discoveries}
-        onDiscoveryDismiss={handleDiscoveryDismiss}
-        recommended={[]}
+        discoveries={isOwner ? discoveries : []}
+        onDiscoveryDismiss={(id) => setDiscoveries((prev) => prev.filter((d) => d.id !== id))}
         myPosts={myPosts}
-        neighborFeed={[]}
-        onPostClick={(postId) => router.push(`/posts/${postId}`)}
+        onPostClick={(postId, roomId) => {
+          if (roomId) router.push(`/rooms/${roomId}`)
+          else router.push(`/posts/${postId}`)
+        }}
         onCommentClick={(postId) => router.push(`/posts/${postId}`)}
         showInterest
         getInterestState={getInterestState}
         interestLoadingId={interestLoadingId}
         onInterestClick={handleInterestClick}
+        enableInlineComment
+        ownerKey={ownerKey}
+        onInterestGoLibrary={() => router.push('/me/library')}
       />
 
       {showShare && inviteUrl && (
