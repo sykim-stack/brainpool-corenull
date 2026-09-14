@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 export type MediaItem = {
   type: 'image' | 'video' | 'audio' | 'pdf' | 'file'
@@ -10,74 +10,126 @@ export type MediaItem = {
 
 interface MediaRendererProps {
   media: MediaItem[]
+  aspect?: '4 / 3' | '1 / 1'
 }
 
-export default function MediaRenderer({ media }: MediaRendererProps) {
-  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
+export default function MediaRenderer({ media, aspect = '4 / 3' }: MediaRendererProps) {
+  const [index, setIndex] = useState(0)
+  const [lightbox, setLightbox] = useState<number | null>(null)
+  const touchX = useRef<number | null>(null)
 
   if (!media || media.length === 0) return null
 
-  const images = media.filter(m => m.type === 'image')
-  const videos = media.filter(m => m.type === 'video')
-  const others = media.filter(m => m.type !== 'image' && m.type !== 'video')
+  const slides = media.filter((m) => m.type === 'image' || m.type === 'video')
+  const others = media.filter((m) => m.type !== 'image' && m.type !== 'video')
+  if (slides.length === 0 && others.length === 0) return null
 
-  const prevImage = () => setLightboxIndex(prev => (prev !== null && prev > 0 ? prev - 1 : prev))
-  const nextImage = () => setLightboxIndex(prev => (prev !== null && prev < images.length - 1 ? prev + 1 : prev))
+  const safeIndex = slides.length ? Math.min(index, slides.length - 1) : 0
+  const current = slides[safeIndex]
+
+  const go = (dir: -1 | 1) => {
+    if (slides.length < 2) return
+    setIndex((i) => (i + dir + slides.length) % slides.length)
+  }
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    touchX.current = e.touches[0].clientX
+  }
+  const onTouchEnd = (e: React.TouchEvent) => {
+    if (touchX.current == null) return
+    const dx = e.changedTouches[0].clientX - touchX.current
+    touchX.current = null
+    if (Math.abs(dx) < 40) return
+    go(dx < 0 ? 1 : -1)
+  }
+
+  useEffect(() => {
+    if (lightbox === null) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setLightbox(null)
+      if (e.key === 'ArrowLeft')
+        setLightbox((i) => (i === null ? i : (i - 1 + slides.length) % slides.length))
+      if (e.key === 'ArrowRight') setLightbox((i) => (i === null ? i : (i + 1) % slides.length))
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [lightbox, slides.length])
 
   return (
     <div style={styles.wrapper}>
-      {images.length === 1 && (
-        <div style={styles.single} onClick={() => setLightboxIndex(0)}>
-          <img src={images[0].url} alt="" style={styles.imgFull} />
+      {slides.length > 0 && current && (
+        <div
+          style={{ ...styles.stage, aspectRatio: aspect }}
+          onTouchStart={onTouchStart}
+          onTouchEnd={onTouchEnd}
+        >
+          {current.type === 'image' ? (
+            <img src={current.url} alt="" style={styles.cover} onClick={() => setLightbox(safeIndex)} />
+          ) : (
+            <video
+              src={current.url}
+              style={styles.cover}
+              muted
+              playsInline
+              autoPlay
+              loop
+              onClick={() => setLightbox(safeIndex)}
+            />
+          )}
+
+          {slides.length > 1 && (
+            <>
+              <button type="button" style={{ ...styles.chev, left: 6 }} onClick={(e) => { e.stopPropagation(); go(-1) }}>‹</button>
+              <button type="button" style={{ ...styles.chev, right: 6 }} onClick={(e) => { e.stopPropagation(); go(1) }}>›</button>
+              <div style={styles.dots}>
+                {slides.map((_, i) => (
+                  <span key={i} style={{ ...styles.dot, background: i === safeIndex ? '#FEFCF8' : 'rgba(254,252,248,0.4)' }} />
+                ))}
+              </div>
+              <div style={styles.count}>{safeIndex + 1}/{slides.length}</div>
+            </>
+          )}
         </div>
       )}
-
-      {images.length > 1 && (
-        <div style={styles.scrollRow}>
-          {images.map((m, idx) => (
-            <div key={idx} style={styles.scrollItem} onClick={() => setLightboxIndex(idx)}>
-              <img src={m.url} alt="" style={styles.scrollImg} />
-            </div>
-          ))}
-        </div>
-      )}
-
-      {videos.map((m, idx) => (
-        <div key={idx} style={styles.videoWrap}>
-          <video src={m.url} controls style={styles.video} />
-        </div>
-      ))}
 
       {others.map((m, idx) => (
         <a key={idx} href={m.url} target="_blank" rel="noopener noreferrer" style={styles.fileLink}>
-          <span style={styles.fileIcon}>
-            {m.type === 'audio' ? '🎵' : m.type === 'pdf' ? '📄' : '📎'}
-          </span>
+          <span>{m.type === 'audio' ? '🎵' : m.type === 'pdf' ? '📄' : '📎'}</span>
           <span style={styles.fileName}>{m.file || m.url.split('/').pop()}</span>
         </a>
       ))}
 
-      {lightboxIndex !== null && (
-        <div style={styles.lightboxOverlay} onClick={() => setLightboxIndex(null)}>
-          <button style={styles.lightboxClose} onClick={() => setLightboxIndex(null)}>✕</button>
-
-          {/* 왼쪽 버튼 */}
-          {images.length > 1 && lightboxIndex > 0 && (
-            <button style={styles.navLeft} onClick={e => { e.stopPropagation(); prevImage() }}>‹</button>
+      {lightbox !== null && slides[lightbox] && (
+        <div
+          style={styles.overlay}
+          onClick={() => setLightbox(null)}
+          onTouchStart={onTouchStart}
+          onTouchEnd={(e) => {
+            if (touchX.current == null) return
+            const dx = e.changedTouches[0].clientX - touchX.current
+            touchX.current = null
+            if (Math.abs(dx) < 40) return
+            setLightbox((i) => {
+              if (i === null) return i
+              return (i + (dx < 0 ? 1 : -1) + slides.length) % slides.length
+            })
+          }}
+        >
+          <button type="button" style={styles.close} onClick={() => setLightbox(null)}>✕</button>
+          {slides.length > 1 && (
+            <>
+              <button type="button" style={{ ...styles.nav, left: 12 }} onClick={(e) => { e.stopPropagation(); setLightbox((i) => (i === null ? 0 : (i - 1 + slides.length) % slides.length)) }}>‹</button>
+              <button type="button" style={{ ...styles.nav, right: 12 }} onClick={(e) => { e.stopPropagation(); setLightbox((i) => (i === null ? 0 : (i + 1) % slides.length)) }}>›</button>
+            </>
           )}
-
-          {/* 이미지 */}
-          <div style={styles.lightboxContent} onClick={e => e.stopPropagation()}>
-            <img src={images[lightboxIndex].url} alt="" style={styles.lightboxImg} />
-            {images.length > 1 && (
-              <span style={styles.navCount}>{lightboxIndex + 1} / {images.length}</span>
+          <div style={styles.lbContent} onClick={(e) => e.stopPropagation()}>
+            {slides[lightbox].type === 'image' ? (
+              <img src={slides[lightbox].url} alt="" style={styles.lbImg} />
+            ) : (
+              <video src={slides[lightbox].url} controls autoPlay playsInline style={styles.lbVideo} />
             )}
+            {slides.length > 1 && <div style={styles.lbCount}>{lightbox + 1} / {slides.length}</div>}
           </div>
-
-          {/* 오른쪽 버튼 */}
-          {images.length > 1 && lightboxIndex < images.length - 1 && (
-            <button style={styles.navRight} onClick={e => { e.stopPropagation(); nextImage() }}>›</button>
-          )}
         </div>
       )}
     </div>
@@ -85,58 +137,40 @@ export default function MediaRenderer({ media }: MediaRendererProps) {
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  wrapper: { marginBottom: 12 },
-  single: { width: '100%', cursor: 'pointer', borderRadius: 12, overflow: 'hidden' },
-  imgFull: { width: '100%', display: 'block' },
-  scrollRow: {
-    display: 'flex', gap: 8, overflowX: 'auto',
-    scrollSnapType: 'x mandatory', paddingBottom: 4,
-  } as any,
-  scrollItem: {
-    flexShrink: 0, width: 260, height: 260,
-    borderRadius: 12, overflow: 'hidden',
-    cursor: 'pointer', scrollSnapAlign: 'start',
+  wrapper: { display: 'flex', flexDirection: 'column', gap: 8 },
+  stage: { position: 'relative', width: '100%', borderRadius: 12, overflow: 'hidden', background: '#1C1208' },
+  cover: { width: '100%', height: '100%', objectFit: 'cover', display: 'block', cursor: 'pointer' },
+  chev: {
+    position: 'absolute', top: '50%', transform: 'translateY(-50%)', width: 28, height: 28,
+    borderRadius: '50%', border: 'none', background: 'rgba(0,0,0,0.35)', color: '#FEFCF8',
+    fontSize: 18, cursor: 'pointer', lineHeight: '28px', padding: 0,
   },
-  scrollImg: { width: '100%', height: '100%', objectFit: 'cover' },
-  videoWrap: { borderRadius: 12, overflow: 'hidden', marginTop: 4 },
-  video: { width: '100%', display: 'block' },
+  dots: { position: 'absolute', bottom: 8, left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: 5 },
+  dot: { width: 6, height: 6, borderRadius: '50%' },
+  count: {
+    position: 'absolute', top: 8, right: 8, fontSize: 10, color: '#FEFCF8',
+    background: 'rgba(0,0,0,0.4)', padding: '2px 7px', borderRadius: 999,
+  },
   fileLink: {
-    display: 'flex', alignItems: 'center', gap: 8,
-    padding: '10px 14px', marginTop: 4,
-    background: '#F5F0E8', borderRadius: 10,
-    textDecoration: 'none', color: '#1C1208',
+    display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#5C4A35',
+    textDecoration: 'none', padding: '8px 10px', background: 'rgba(92,61,46,0.06)', borderRadius: 10,
   },
-  fileIcon: { fontSize: 18 },
-  fileName: { fontSize: 13, color: '#5C4A35' },
-  lightboxOverlay: {
-    position: 'fixed', inset: 0, zIndex: 300,
-    background: 'rgba(0,0,0,0.92)',
+  fileName: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  overlay: {
+    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', zIndex: 9999,
     display: 'flex', alignItems: 'center', justifyContent: 'center',
   },
-  lightboxClose: {
-    position: 'absolute', top: 16, right: 16,
-    background: 'rgba(255,255,255,0.2)', border: 'none',
-    color: 'white', fontSize: 20, width: 40, height: 40,
-    borderRadius: '50%', cursor: 'pointer', zIndex: 301,
+  close: {
+    position: 'absolute', top: 16, right: 16, width: 36, height: 36, borderRadius: '50%', border: 'none',
+    background: 'rgba(255,255,255,0.15)', color: '#fff', fontSize: 16, cursor: 'pointer', zIndex: 1,
   },
-  navLeft: {
-    position: 'absolute', left: 16,
-    background: 'rgba(255,255,255,0.2)', border: 'none',
-    color: 'white', fontSize: 32, width: 44, height: 44,
-    borderRadius: '50%', cursor: 'pointer', zIndex: 301,
+  nav: {
+    position: 'absolute', top: '50%', transform: 'translateY(-50%)', width: 40, height: 40,
+    borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,0.12)', color: '#fff',
+    fontSize: 24, cursor: 'pointer', zIndex: 1,
   },
-  navRight: {
-    position: 'absolute', right: 16,
-    background: 'rgba(255,255,255,0.2)', border: 'none',
-    color: 'white', fontSize: 32, width: 44, height: 44,
-    borderRadius: '50%', cursor: 'pointer', zIndex: 301,
-  },
-  lightboxContent: {
-    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12,
-    maxWidth: '90vw', maxHeight: '90vh',
-  },
-  lightboxImg: {
-    maxWidth: '90vw', maxHeight: '80vh', objectFit: 'contain', borderRadius: 8,
-  },
-  navCount: { fontSize: 13, color: 'rgba(255,255,255,0.7)' },
+  lbContent: { maxWidth: '100%', maxHeight: '100%', padding: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 },
+  lbImg: { maxWidth: '100%', maxHeight: '85vh', objectFit: 'contain' },
+  lbVideo: { maxWidth: '100%', maxHeight: '85vh' },
+  lbCount: { color: 'rgba(255,255,255,0.7)', fontSize: 12 },
 }
