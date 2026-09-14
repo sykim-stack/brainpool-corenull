@@ -1,34 +1,14 @@
 'use client'
 
+import { useState } from 'react'
 import MediaRenderer from '@/components/corenull/MediaRenderer'
-
-// ─────────────────────────────────────────────────────────────
-// PostBlock — CoreNull의 기본 콘텐츠 단위.
-//
-// "CoreNull은 메시지-이미지-시간-댓글, 끝이다." 나머지는 전부 스위치와
-// 상위 레이어(Context)일 뿐이다. 이 블록이 마당/거실/서재/방 어디서든
-// 콘텐츠를 보여주는 유일한 단위이고, Room Card는 Room을 "탐색"할 때만
-// 쓰는 별개 컴포넌트다 (기본 콘텐츠 목록에는 쓰지 않는다).
-//
-// View Metadata([House]·[Room]·[관계]·[Stage])는 콘텐츠의 제목이 아니라
-// 하단에 작게 붙는 부가정보다. Post 본체(메시지/이미지/날짜/댓글)를
-// 절대 밀어내지 않는다.
-//
-// Access Policy와 무관 — 이 블록은 "보여줄 수 있는 데이터가 왔다"는
-// 전제 하에 그리기만 한다. 접근 제어는 API 레이어(canReadPost 등)에서
-// 이미 끝난 뒤의 결과만 여기로 온다.
-//
-// NOTE(폴더 이동, 2026-08-25): components/corenull/PostBlock.tsx →
-// components/blocks/PostBlock.tsx. MediaRenderer는 아직 블록화되지
-// 않은 순수 유틸이라 components/corenull/에 그대로 두고 절대경로로
-// 참조한다. 로직/스타일 변경 없음 — import 경로만 수정.
-// ─────────────────────────────────────────────────────────────
 
 export interface PostBlockViewMeta {
   house_name?: string | null
   room_name?: string | null
   relation?: '나' | '이웃' | '공개' | string | null
-  stage_emoji?: string | null // 🌱🌿🌸🍎, 없으면 표시 안 함
+  stage_emoji?: string | null
+  status?: string | null
 }
 
 export interface PostBlockData {
@@ -38,25 +18,24 @@ export interface PostBlockData {
   created_at: string
   comment_count?: number
   view_meta?: PostBlockViewMeta
+  room_id?: string
 }
 
 export interface PostBlockProps {
   post: PostBlockData
   onClick?: () => void
   onCommentClick?: () => void
-  // 컨텍스트별로 필요 없는 조각을 끌 수 있게 — 새 컴포넌트를 만들지 않고
-  // Block 표시 여부만 바꾸는 원칙(Display Policy)을 코드에도 그대로 반영.
   showViewMeta?: boolean
   showComments?: boolean
-
-  // 관심(북마크) — corenull_bookmarks API의 3단계 상태를 그대로 반영.
-  // 'none' = 아직 관심 등록 안 함 / 'active' = 관심중 / 'ended' = 관심종료.
-  // 실제 등록/토글 API 호출은 이 블록이 아니라 호출부(페이지) 책임 —
-  // PostBlock은 fetch하지 않는다는 원칙 유지. 상태와 핸들러만 받는다.
   showInterest?: boolean
   interestState?: 'none' | 'active' | 'ended'
   interestLoading?: boolean
   onInterestClick?: () => void
+  onInterestGoLibrary?: () => void
+  showHouseName?: boolean
+  enableInlineComment?: boolean
+  ownerKey?: string
+  onCommentSubmitted?: () => void
 }
 
 function formatDate(iso: string) {
@@ -70,12 +49,6 @@ function formatDate(iso: string) {
   return d.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })
 }
 
-function viewMetaLine(meta?: PostBlockViewMeta) {
-  if (!meta) return ''
-  const parts = [meta.house_name, meta.room_name, meta.relation].filter(Boolean)
-  return parts.join(' · ')
-}
-
 export default function PostBlock({
   post,
   onClick,
@@ -86,17 +59,80 @@ export default function PostBlock({
   interestState = 'none',
   interestLoading = false,
   onInterestClick,
+  onInterestGoLibrary,
+  showHouseName = true,
+  enableInlineComment = false,
+  ownerKey,
+  onCommentSubmitted,
 }: PostBlockProps) {
-  const metaLine = viewMetaLine(post.view_meta)
-  const stage = post.view_meta?.stage_emoji
+  const [commentOpen, setCommentOpen] = useState(false)
+  const [commentText, setCommentText] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [localCount, setLocalCount] = useState(post.comment_count ?? 0)
+
+  const meta = post.view_meta
+  const status = meta?.status
+  const metaParts = [showHouseName ? meta?.house_name : null, meta?.room_name, meta?.relation].filter(Boolean)
+  const metaLine = metaParts.join(' · ')
+  const stage = meta?.stage_emoji
+
+  const handleCommentBtn = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (enableInlineComment) {
+      setCommentOpen((v) => !v)
+      return
+    }
+    onCommentClick?.()
+  }
+
+  const submitComment = async (e: React.FormEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!commentText.trim() || !ownerKey || submitting) return
+    const roomId = post.room_id
+    if (!roomId) {
+      onCommentClick?.()
+      return
+    }
+    setSubmitting(true)
+    try {
+      const res = await fetch('/api/corenull/posts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          room_id: roomId,
+          owner_key: ownerKey,
+          content: commentText.trim(),
+          type: 'comment',
+          relations: { parent_id: post.id },
+        }),
+      })
+      const data = await res.json()
+      if (data.data) {
+        setCommentText('')
+        setLocalCount((c) => c + 1)
+        setCommentOpen(false)
+        onCommentSubmitted?.()
+      }
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   return (
     <div style={styles.card} onClick={onClick} role={onClick ? 'button' : undefined}>
+      {(status || stage) && (
+        <div style={styles.badgeRow}>
+          {status && <span style={styles.statusBadge}>{status}</span>}
+          {stage && <span style={styles.stageDot}>{stage}</span>}
+        </div>
+      )}
+
       <div style={styles.content}>{post.content}</div>
 
       {post.media && post.media.length > 0 && (
         <div onClick={(e) => e.stopPropagation()}>
-          <MediaRenderer media={post.media} />
+          <MediaRenderer media={post.media} aspect="4 / 3" />
         </div>
       )}
 
@@ -104,40 +140,70 @@ export default function PostBlock({
         <div style={styles.footerLeft}>
           <span style={styles.date}>{formatDate(post.created_at)}</span>
           {showComments && (
-            <button
-              style={styles.commentBtn}
-              onClick={(e) => {
-                e.stopPropagation()
-                onCommentClick?.()
-              }}
-            >
-              💬 {post.comment_count ?? 0}
+            <button type="button" style={styles.commentBtn} onClick={handleCommentBtn}>
+              💬 {localCount}
             </button>
           )}
         </div>
 
         {showInterest && (
           <button
-            style={{ ...styles.interestBtn, opacity: interestLoading ? 0.5 : 1 }}
+            type="button"
+            style={{
+              ...styles.interestBtn,
+              color: interestState === 'active' ? '#C17F3C' : '#9A8470',
+              opacity: interestLoading ? 0.5 : 1,
+            }}
             onClick={(e) => {
               e.stopPropagation()
               onInterestClick?.()
             }}
             disabled={interestLoading}
           >
-            <span style={{ fontSize: 16, color: interestState === 'active' ? '#C17F3C' : '#9A8470' }}>
-              {interestState === 'active' ? '◉' : '○'}
-            </span>
-            <span style={{ fontSize: 11, color: interestState === 'active' ? '#C17F3C' : '#9A8470' }}>
-              {interestState === 'active' ? '관심중' : interestState === 'ended' ? '관심종료' : '관심'}
-            </span>
+            {interestState === 'active' ? '● 관심' : interestState === 'ended' ? '○ 관심종료' : '○ 관심'}
           </button>
         )}
       </div>
 
-      {showViewMeta && (metaLine || stage) && (
+      {showInterest && interestState === 'active' && onInterestGoLibrary && (
+        <button
+          type="button"
+          style={styles.libraryLink}
+          onClick={(e) => {
+            e.stopPropagation()
+            onInterestGoLibrary()
+          }}
+        >
+          서재에서 보기 ›
+        </button>
+      )}
+
+      {commentOpen && enableInlineComment && (
+        <form style={styles.commentForm} onClick={(e) => e.stopPropagation()} onSubmit={submitComment}>
+          <textarea
+            style={styles.commentInput}
+            value={commentText}
+            onChange={(e) => setCommentText(e.target.value)}
+            placeholder="댓글 쓰기 (번역은 자동)"
+            rows={2}
+          />
+          <div style={styles.commentActions}>
+            <button type="button" style={styles.commentCancel} onClick={() => setCommentOpen(false)}>
+              닫기
+            </button>
+            <button
+              type="submit"
+              style={{ ...styles.commentSubmit, opacity: !commentText.trim() || submitting ? 0.45 : 1 }}
+              disabled={!commentText.trim() || submitting}
+            >
+              {submitting ? '…' : '등록'}
+            </button>
+          </div>
+        </form>
+      )}
+
+      {showViewMeta && metaLine && (
         <div style={styles.viewMeta}>
-          {stage && <span style={styles.stageDot}>{stage}</span>}
           <span>{metaLine}</span>
         </div>
       )}
@@ -145,28 +211,8 @@ export default function PostBlock({
   )
 }
 
-// ─────────────────────────────────────────────────────────────
-// PostBlockGrid — PostBlock 목록을 반응형으로 배치하는 컨테이너.
-// 모바일: 1열 · 태블릿: 2열 · 데스크톱: 4열 (minmax 그리드, 미디어쿼리 불필요)
-//
-// 주의: 지금 app/layout.tsx가 전체 앱을 max-width:430px 모바일 셸로
-// 고정하고 있어서, 이 그리드가 실제로 여러 열로 펼쳐지려면 그 상위
-// 제약이 이 화면에서 풀려야 한다. 이 컴포넌트 자체는 컨테이너 폭에
-// 맞춰 알아서 반응하도록 만들어뒀다 (상위 제약과 무관하게 동작).
-// ─────────────────────────────────────────────────────────────
 export function PostBlockGrid({ children }: { children: React.ReactNode }) {
-  return (
-    <div style={styles.grid}>
-      {children}
-      <style jsx>{`
-        div {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-          gap: 16px;
-        }
-      `}</style>
-    </div>
-  )
+  return <div style={styles.grid}>{children}</div>
 }
 
 const styles: Record<string, React.CSSProperties> = {
@@ -181,38 +227,46 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: 'column',
     gap: 10,
   },
-  content: {
-    fontSize: 14.5,
-    lineHeight: 1.7,
-    color: '#1C1208',
-    whiteSpace: 'pre-wrap',
+  badgeRow: { display: 'flex', alignItems: 'center', gap: 6 },
+  statusBadge: {
+    fontSize: 10,
+    color: '#5C4A35',
+    background: 'rgba(92,61,46,0.08)',
+    padding: '2px 8px',
+    borderRadius: 999,
   },
-  footerRow: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  footerLeft: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 12,
-  },
+  stageDot: { fontSize: 12 },
+  content: { fontSize: 14.5, lineHeight: 1.7, color: '#1C1208', whiteSpace: 'pre-wrap' },
+  footerRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
+  footerLeft: { display: 'flex', alignItems: 'center', gap: 12 },
   date: { fontSize: 11, color: '#9A8470' },
   commentBtn: {
-    display: 'flex', alignItems: 'center', gap: 4,
-    fontSize: 12, color: '#9A8470',
+    display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#9A8470',
     border: 'none', background: 'none', cursor: 'pointer', padding: 0,
   },
   interestBtn: {
-    display: 'flex', alignItems: 'center', gap: 4,
-    background: 'none', border: 'none', cursor: 'pointer',
-    padding: '4px 8px', borderRadius: 20, flexShrink: 0,
+    display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none',
+    cursor: 'pointer', padding: '4px 8px', borderRadius: 20, flexShrink: 0, fontSize: 12,
+  },
+  libraryLink: {
+    alignSelf: 'flex-end', border: 'none', background: 'none', color: '#C17F3C',
+    fontSize: 11, cursor: 'pointer', padding: 0,
+  },
+  commentForm: { display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 4 },
+  commentInput: {
+    width: '100%', borderRadius: 12, border: '1px solid rgba(92,61,46,0.15)',
+    padding: '10px 12px', fontSize: 13, fontFamily: 'inherit', resize: 'none',
+    background: '#fff', color: '#1C1208', boxSizing: 'border-box',
+  },
+  commentActions: { display: 'flex', justifyContent: 'flex-end', gap: 8 },
+  commentCancel: { border: 'none', background: 'none', color: '#9A8470', fontSize: 12, cursor: 'pointer' },
+  commentSubmit: {
+    border: 'none', background: '#2C1810', color: '#FEFCF8', fontSize: 12,
+    padding: '8px 14px', borderRadius: 10, cursor: 'pointer',
   },
   viewMeta: {
-    display: 'flex', alignItems: 'center', gap: 6,
-    fontSize: 11, color: '#9A8470',
+    display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#9A8470',
     paddingTop: 8, borderTop: '1px solid rgba(92,61,46,0.08)',
   },
-  stageDot: { fontSize: 12 },
-  grid: {},
+  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 16 },
 }
