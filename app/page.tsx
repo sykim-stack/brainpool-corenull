@@ -1,14 +1,5 @@
 'use client'
 
-function roomStatusLabel(rm: any): string {
-  const parts: string[] = []
-  if (rm.visibility === 'public') parts.push('공개')
-  else if (rm.visibility === 'invite') parts.push('이웃공개')
-  else if (rm.visibility === 'private') parts.push('비공개')
-  if (rm.seed_mode || rm.room_type === 'seed') parts.push('씨드')
-  return parts.filter((v, i, a) => a.indexOf(v) === i).join(' · ') || '방'
-}
-
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { getDeviceId } from '@/lib/deviceId'
@@ -20,6 +11,15 @@ import { PostBlockData } from '@/components/blocks/PostBlock'
 import { RingData } from '@/components/blocks/RingBlock'
 import { NeighborChip } from '@/components/blocks/NeighborContentBlock'
 import { houseHeroBackground, houseAvatarUrl } from '@/lib/houseImages'
+
+function roomStatusLabel(rm: any): string {
+  const parts: string[] = []
+  if (rm.visibility === 'public') parts.push('공개')
+  else if (rm.visibility === 'invite') parts.push('이웃공개')
+  else if (rm.visibility === 'private') parts.push('비공개')
+  if (rm.seed_mode || rm.room_type === 'seed') parts.push('씨드')
+  return parts.filter((v, i, a) => a.indexOf(v) === i).join(' · ') || '방'
+}
 
 const COREHUB_URL = 'https://brainpool-corehub.vercel.app/api/corehub/actions'
 
@@ -99,7 +99,6 @@ export default function HomePage() {
         }))
       setNeighbors(acceptedNeighbors)
 
-      // 방마다 최신 1개 (공개 방)
       const publicRooms = roomList.filter((rm: any) => rm.visibility === 'public')
       if (publicRooms.length > 0) {
         const perRoom = await Promise.all(
