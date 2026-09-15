@@ -211,6 +211,7 @@ export default function PostBlock({
   )
 }
 
+/** 모바일 1열 / 768px+ 1·2·3열 — globals .cn-post-grid */
 export function PostBlockGrid({
   children,
   count = 0,
@@ -218,9 +219,12 @@ export function PostBlockGrid({
   children: React.ReactNode
   count?: number
 }) {
-  const cols =
-    count <= 1 ? styles.grid1 : count === 2 ? styles.grid2 : count === 3 ? styles.grid3 : styles.grid
-  return <div style={cols}>{children}</div>
+  const dataCount = count <= 1 ? '1' : count === 2 ? '2' : count === 3 ? '3' : 'many'
+  return (
+    <div className="cn-post-grid" data-count={dataCount}>
+      {children}
+    </div>
+  )
 }
 
 const styles: Record<string, React.CSSProperties> = {
@@ -276,8 +280,4 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#9A8470',
     paddingTop: 8, borderTop: '1px solid rgba(92,61,46,0.08)',
   },
-  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 },
-  grid1: { display: 'grid', gridTemplateColumns: '1fr', gap: 12 },
-  grid2: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 },
-  grid3: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 },
 }
