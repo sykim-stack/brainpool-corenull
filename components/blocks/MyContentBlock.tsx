@@ -42,7 +42,7 @@ export default function MyContentBlock({
       {posts.length === 0 ? (
         <div style={styles.empty}>{emptyLabel}</div>
       ) : (
-        <PostBlockGrid single={posts.length === 1}>
+        <PostBlockGrid count={posts.length}>
           {posts.map((post) => (
             <PostBlock
               key={post.id}
