@@ -114,7 +114,8 @@ export default function NeighborContentBlock({
             </>
           )}
 
-          <div style={styles.row}>
+          {/* 모바일 세로 / 태블릿+ 1|2|3 가로 — globals .cn-alley-row */}
+          <div className="cn-alley-row">
             <div style={styles.col1}>
               <div
                 style={{
@@ -181,8 +182,8 @@ export default function NeighborContentBlock({
           </div>
 
           {rooms.length > 2 && (
-            <div style={styles.dotsRow}>
-              <div style={styles.dots}>
+            <div className="cn-alley-dots">
+              <div className="cn-alley-dots-inner" style={styles.dots}>
                 {Array.from({ length: roomPageCount }).map((_, i) => (
                   <button
                     key={i}
@@ -223,13 +224,6 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'rgba(254,252,248,0.95)', color: '#2C1810', fontSize: 20, lineHeight: '36px',
     padding: 0, cursor: 'pointer', boxShadow: '0 2px 8px rgba(44,24,16,0.08)',
   },
-  row: {
-    display: 'grid',
-    gridTemplateColumns: '1fr',
-    gap: 10,
-    alignItems: 'stretch',
-    padding: '0 14px',
-  },
   col1: { display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 },
   cover: {
     position: 'relative', flex: 1, minHeight: 200, borderRadius: 14, overflow: 'hidden', cursor: 'pointer',
@@ -263,7 +257,6 @@ const styles: Record<string, React.CSSProperties> = {
     background: '#FEFCF8', display: 'flex', alignItems: 'center', justifyContent: 'center',
     fontSize: 12, color: '#9A8470',
   },
-  dotsRow: { display: 'flex', justifyContent: 'center', marginTop: 10, padding: '0 14px' },
   dots: { display: 'flex', justifyContent: 'center', gap: 6 },
   dot: { width: 7, height: 7, borderRadius: '50%', border: 'none', padding: 0, cursor: 'pointer' },
 }
