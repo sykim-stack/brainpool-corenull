@@ -213,17 +213,15 @@ export default function PostBlock({
 
 export function PostBlockGrid({
   children,
-  single = false,
+  count = 0,
 }: {
   children: React.ReactNode
-  /** 방 1개일 때 풀폭 */
-  single?: boolean
+  /** 카드 개수 — 1/2/3에 따라 칸 너비 변경 */
+  count?: number
 }) {
-  return (
-    <div style={single ? styles.gridSingle : styles.grid}>
-      {children}
-    </div>
-  )
+  const cols =
+    count <= 1 ? styles.grid1 : count === 2 ? styles.grid2 : count === 3 ? styles.grid3 : styles.grid
+  return <div style={cols}>{children}</div>
 }
 
 const styles: Record<string, React.CSSProperties> = {
@@ -279,6 +277,8 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#9A8470',
     paddingTop: 8, borderTop: '1px solid rgba(92,61,46,0.08)',
   },
-  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 16 },
-  gridSingle: { display: 'grid', gridTemplateColumns: '1fr', gap: 16 },
+  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 },
+  grid1: { display: 'grid', gridTemplateColumns: '1fr', gap: 12 },
+  grid2: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 },
+  grid3: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 },
 }
