@@ -1,66 +1,196 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import TopBar from '@/components/blocks/TopBar'
-import YardBlock, { DiscoveryItem } from '@/components/blocks/YardBlock'
+import YardBlock, { DiscoveryItem, YardRelationRow } from '@/components/blocks/YardBlock'
 import CoreNullLogo from '@/components/corenull/CoreNullLogo'
 import { PostBlockData } from '@/components/blocks/PostBlock'
-import { NeighborChip } from '@/components/blocks/NeighborContentBlock'
 import { RingData } from '@/components/blocks/RingBlock'
+import { NeighborChip } from '@/components/blocks/NeighborContentBlock'
 
-const MOCK_POSTS: PostBlockData[] = [
-  {
-    id: 'mock-1',
-    content: '오늘은 집 앞의 빛이 조금 더 오래 머물렀다.\n누군가와 나누고 싶은 조용한 장면.',
-    created_at: new Date(Date.now() - 1000 * 60 * 18).toISOString(),
-    comment_count: 3,
-    view_meta: { house_name: '느린 오후의 집', room_name: '빛이 머무는 방', relation: '나', stage_emoji: '🌿' },
-  },
-  {
-    id: 'mock-2',
-    content: '베트남에서 보내온 안부를 오늘의 언어로 적어 둡니다.\n말보다 먼저 도착한 마음.',
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString(),
-    comment_count: 7,
-    view_meta: { house_name: '느린 오후의 집', room_name: '안부를 놓는 방', relation: '공개', stage_emoji: '🌱' },
-  },
-  {
-    id: 'mock-3',
-    content: '이번 주말에는 작은 식탁을 밖으로 꺼내 놓을 예정입니다. 지나가다 앉아도 좋아요.',
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 22).toISOString(),
-    comment_count: 1,
-    view_meta: { house_name: '느린 오후의 집', room_name: '마당의 약속', relation: '나', stage_emoji: '🌸' },
-  },
-]
-
-const MOCK_NEIGHBORS: NeighborChip[] = [
-  { neighborId: 'neighbor-1', houseId: 'house-2', title: '작은 강의 집', langFlag: '🇻🇳' },
-  { neighborId: 'neighbor-2', houseId: 'house-3', title: '바람이 부는 집', langFlag: '🇰🇷' },
-  { neighborId: 'neighbor-3', houseId: 'house-4', title: '초록 창의 집', langFlag: '🇺🇸' },
-]
-
-const MOCK_DISCOVERIES: DiscoveryItem[] = [
-  { id: 'discovery-1', label: '🌱 안부를 놓는 방에 새 씨앗이 도착했어요' },
-  { id: 'discovery-2', label: '💬 바람이 부는 집에서 번역 도움이 필요해요' },
-]
+/** 마당 화면 구성 확인용 임시 데이터 — /mockup */
 
 const MOCK_RING: RingData = {
   rings: [
-    { index: 0, weight: 0.82 },
-    { index: 1, weight: 0.56 },
-    { index: 2, weight: 0.38 },
+    { index: 0, weight: 0.85 },
+    { index: 1, weight: 0.55 },
+    { index: 2, weight: 0.35 },
   ],
 }
 
-export default function YardMockupPage() {
+const IMG = (seed: string) => `https://picsum.photos/seed/${seed}/800/600`
+
+function makePost(
+  id: string,
+  content: string,
+  opts: {
+    room: string
+    status: string
+    seed?: string
+    hoursAgo?: number
+    img?: string
+  }
+): PostBlockData {
+  return {
+    id,
+    content,
+    created_at: new Date(Date.now() - (opts.hoursAgo ?? 3) * 3600_000).toISOString(),
+    comment_count: id === 'p1' ? 2 : 0,
+    room_id: `room-${id}`,
+    media: opts.img
+      ? [{ type: 'image', url: opts.img }]
+      : [{ type: 'image', url: IMG(id) }],
+    view_meta: {
+      house_name: '여리 ♥ THI THI',
+      room_name: opts.room,
+      status: opts.status,
+      stage_emoji: opts.seed ? '🌱' : undefined,
+    },
+  }
+}
+
+const ALL_MY_POSTS: PostBlockData[] = [
+  makePost('p1', '하준이 100일', {
+    room: '하준이 성장일기',
+    status: '공개 · 씨드',
+    seed: '1',
+    hoursAgo: 2,
+    img: IMG('hajun100'),
+  }),
+  makePost('p2', '오늘 같이 만든 김치찌개, 완전 성공했다 ㅎㅎ', {
+    room: '일상',
+    status: '공개',
+    hoursAgo: 20,
+    img: IMG('kimchi'),
+  }),
+  makePost('p3', '주말에 다녀온 한강 피크닉', {
+    room: '여행',
+    status: '이웃공개',
+    hoursAgo: 48,
+    img: IMG('picnic'),
+  }),
+  makePost('p4', '테스트방에 올린 짧은 메모', {
+    room: '테스트방',
+    status: '공개',
+    hoursAgo: 72,
+    img: IMG('test'),
+  }),
+]
+
+const MOCK_NEIGHBOR_FEED: PostBlockData[] = [
+  {
+    id: 'nf1',
+    content: '반려동물 산책 다녀왔어요',
+    created_at: new Date(Date.now() - 5 * 3600_000).toISOString(),
+    comment_count: 1,
+    room_id: 'nr1',
+    media: [{ type: 'image', url: IMG('pet') }],
+    view_meta: {
+      house_name: '비단이네',
+      room_name: '반려동물',
+      status: '공개 · 씨드',
+      stage_emoji: '🌱',
+    },
+  },
+  {
+    id: 'nf2',
+    content: 'Hôm nay ăn gì nhỉ?',
+    created_at: new Date(Date.now() - 8 * 3600_000).toISOString(),
+    comment_count: 0,
+    room_id: 'nr2',
+    media: [{ type: 'image', url: IMG('vn') }],
+    view_meta: {
+      house_name: '베트남집',
+      room_name: '일상',
+      status: '공개',
+    },
+  },
+]
+
+const MOCK_RECOMMENDED: NeighborChip[] = [
+  {
+    neighborId: 'rec1',
+    houseId: 'h-silk',
+    title: '비단이네~~~♡♡♡',
+    langFlag: '🇰🇷',
+    coverUrl: IMG('yard1'),
+    rooms: [
+      {
+        roomId: 'r1',
+        roomName: '반려동물',
+        latestPost: MOCK_NEIGHBOR_FEED[0],
+      },
+      {
+        roomId: 'r2',
+        roomName: '일상',
+        latestPost: {
+          id: 'x1',
+          content: '오늘 날씨 좋다',
+          created_at: new Date().toISOString(),
+          media: [{ type: 'image', url: IMG('sky') }],
+        },
+      },
+    ],
+  },
+  {
+    neighborId: 'rec2',
+    houseId: 'h-vn',
+    title: '베트남집',
+    langFlag: '🇻🇳',
+    coverUrl: IMG('yard2'),
+    rooms: [
+      {
+        roomId: 'r3',
+        roomName: '일상',
+        latestPost: MOCK_NEIGHBOR_FEED[1],
+      },
+    ],
+  },
+]
+
+const MOCK_RELATIONS: YardRelationRow[] = [
+  {
+    id: 'rel1',
+    status: 'pending',
+    direction: 'incoming',
+    title: '민수네',
+    houseId: 'h-min',
+  },
+  {
+    id: 'rel2',
+    status: 'pending',
+    direction: 'outgoing',
+    title: '바다쪽 집',
+    houseId: 'h-sea',
+  },
+  {
+    id: 'rel3',
+    status: 'accepted',
+    direction: 'incoming',
+    title: '비단이네',
+    houseId: 'h-silk',
+  },
+]
+
+const MOCK_DISCOVERIES: DiscoveryItem[] = [
+  { id: 'd1', label: '🌱 하준이 성장일기 씨앗이 기다리고 있어요' },
+  { id: 'd2', label: '💬 번역이 필요한 이웃 글이 있어요' },
+]
+
+export default function MockupYardPage() {
   const router = useRouter()
+  const [cardCount, setCardCount] = useState<1 | 2 | 3 | 4>(2)
+  const [interestIds, setInterestIds] = useState<string[]>(['p1'])
   const [discoveries, setDiscoveries] = useState(MOCK_DISCOVERIES)
-  const [interestIds, setInterestIds] = useState<string[]>(['mock-2'])
+  const [fullSections, setFullSections] = useState(true)
+
+  const myPosts = useMemo(() => ALL_MY_POSTS.slice(0, cardCount), [cardCount])
 
   const toggleInterest = (postId: string) => {
-    setInterestIds((current) => current.includes(postId)
-      ? current.filter((id) => id !== postId)
-      : [...current, postId])
+    setInterestIds((prev) =>
+      prev.includes(postId) ? prev.filter((id) => id !== postId) : [...prev, postId]
+    )
   }
 
   return (
@@ -69,10 +199,37 @@ export default function YardMockupPage() {
         logo={<CoreNullLogo size="sm" />}
         title="마당 목업"
         actions={[
-          { key: 'back', emoji: '×', label: '목업 닫기', onClick: () => router.push('/') },
-          { key: 'write', emoji: '＋', label: '글쓰기', onClick: () => undefined },
+          { key: 'back', emoji: '×', label: '닫기', onClick: () => router.push('/') },
         ]}
       />
+
+      <div style={styles.toolbar}>
+        <span style={styles.toolbarLabel}>내 방 카드</span>
+        {([1, 2, 3, 4] as const).map((n) => (
+          <button
+            key={n}
+            type="button"
+            style={{
+              ...styles.chip,
+              ...(cardCount === n ? styles.chipOn : null),
+            }}
+            onClick={() => setCardCount(n)}
+          >
+            {n}개
+          </button>
+        ))}
+        <button
+          type="button"
+          style={{
+            ...styles.chip,
+            ...(fullSections ? styles.chipOn : null),
+            marginLeft: 'auto',
+          }}
+          onClick={() => setFullSections((v) => !v)}
+        >
+          {fullSections ? '전체 구간 ON' : '전체 구간 OFF'}
+        </button>
+      </div>
 
       <YardBlock
         loading={false}
@@ -82,34 +239,71 @@ export default function YardMockupPage() {
         ring={MOCK_RING}
         avatar={<span style={{ fontSize: 25 }}>🏡</span>}
         doorplate={{
-          langFlag: '🇰🇷 · 🇻🇳',
-          title: '느린 오후의 집',
-          description: '말보다 먼저 마음이 머무는 생활 공간',
-          since: '2026.03.14 부터',
-          roomCount: 6,
-          neighborCount: 3,
+          langFlag: '🇰🇷',
+          title: '여리 ♥ THI THI',
+          description: '여리와 티의 공간',
+          since: '2026.08.07 부터',
+          roomCount: 5,
+          neighborCount: 1,
         }}
-        posts={MOCK_POSTS}
+        discoveries={fullSections ? discoveries : []}
+        onDiscoveryDismiss={(id) =>
+          setDiscoveries((current) => current.filter((item) => item.id !== id))
+        }
+        recommended={fullSections ? MOCK_RECOMMENDED : []}
+        relations={fullSections ? MOCK_RELATIONS : []}
+        neighborFeed={fullSections ? MOCK_NEIGHBOR_FEED : []}
+        myPosts={myPosts}
         onPostClick={() => undefined}
         onCommentClick={() => undefined}
         showInterest
-        getInterestState={(postId) => interestIds.includes(postId) ? 'active' : 'none'}
+        getInterestState={(postId) => (interestIds.includes(postId) ? 'active' : 'none')}
         onInterestClick={toggleInterest}
-        neighbors={MOCK_NEIGHBORS}
-        onNeighborClick={() => undefined}
-        discoveries={discoveries}
-        onDiscoveryDismiss={(id) => setDiscoveries((current) => current.filter((item) => item.id !== id))}
+        onInterestGoLibrary={() => undefined}
+        enableInlineComment
+        ownerKey="mock-owner"
       />
 
       <div style={styles.note}>
         <span style={styles.noteDot} />
-        <span>실제 데이터 연결 전 · CoreNull 마당 화면 목업</span>
+        <span>
+          임시 데이터 · 카드 {cardCount}개 그리드 ·{' '}
+          {fullSections ? '골목·관계·이웃피드 채움' : '내 방만'}
+        </span>
       </div>
     </div>
   )
 }
 
 const styles: Record<string, React.CSSProperties> = {
+  toolbar: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    padding: '10px 16px',
+    borderBottom: '1px solid rgba(92,61,46,0.08)',
+    background: '#FEFCF8',
+    flexWrap: 'wrap',
+  },
+  toolbarLabel: {
+    fontSize: 11,
+    color: '#9A8470',
+    marginRight: 4,
+  },
+  chip: {
+    border: '1px solid rgba(92,61,46,0.15)',
+    background: '#fff',
+    color: '#5C4A35',
+    fontSize: 12,
+    padding: '5px 10px',
+    borderRadius: 999,
+    cursor: 'pointer',
+  },
+  chipOn: {
+    background: '#2C1810',
+    color: '#FEFCF8',
+    borderColor: '#2C1810',
+  },
   note: {
     margin: '4px 16px 24px',
     padding: '10px 12px',
@@ -119,7 +313,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 11,
     display: 'flex',
     alignItems: 'center',
-    gap: 7,
+    gap: 8,
   },
   noteDot: {
     width: 6,

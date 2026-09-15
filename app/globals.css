@@ -75,3 +75,63 @@ body {
   margin-left: -50vw;
   margin-right: -50vw;
 }
+
+/* ── CoreNull 반응형 유틸 (마당/골목/카드) ── */
+.cn-alley-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  align-items: stretch;
+  padding: 0 14px;
+}
+@media (min-width: 768px) {
+  .cn-alley-row {
+    grid-template-columns: minmax(140px, 1.1fr) minmax(0, 1fr) minmax(0, 1fr);
+    gap: 12px;
+  }
+}
+
+.cn-alley-dots {
+  display: flex;
+  justify-content: center;
+  margin-top: 10px;
+  padding: 0 14px;
+}
+@media (min-width: 768px) {
+  .cn-alley-dots {
+    display: grid;
+    grid-template-columns: minmax(140px, 1.1fr) minmax(0, 2fr);
+    gap: 12px;
+  }
+  .cn-alley-dots-inner {
+    grid-column: 2;
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+  }
+}
+
+.cn-post-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+@media (min-width: 768px) {
+  .cn-post-grid[data-count="1"] { grid-template-columns: 1fr; }
+  .cn-post-grid[data-count="2"] { grid-template-columns: 1fr 1fr; }
+  .cn-post-grid[data-count="3"] { grid-template-columns: 1fr 1fr 1fr; }
+  .cn-post-grid[data-count="many"] {
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  }
+}
+
+.cn-relation-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+@media (min-width: 768px) {
+  .cn-relation-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}

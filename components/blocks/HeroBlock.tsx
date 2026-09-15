@@ -2,35 +2,16 @@
 
 import RingBlock, { RingData } from './RingBlock'
 
-// ─────────────────────────────────────────────────────────────
-// HeroBlock — 마당/거실 공통 상단 블록.
-//
-// §3 결정: 마당과 거실은 완전히 동일한 Hero+Doorplate+Ring 구조를
-// 쓴다. 차이는 배경(외부/내부)과 그 아래 이어지는 NeighborBlock의
-// tier(public/invite)뿐이며, 그 차이는 이 블록의 관심사가 아니다.
-// 이 블록은 자기가 마당인지 거실인지 몰라야 한다 — background와
-// ring, doorplate 값을 전부 호출부가 결정해서 내려준다.
-//
-// Ring은 배경(green)과 정보영역(white) 경계선에 정확히 반씩
-// 걸치도록 배치한다 (Image 1 목업 기준).
-//
-// NOTE(반응형): 배경 div는 .bleed-full 클래스로 뷰포트 끝까지
-// 풀블리드 처리한다 — 부모(.app-shell-content)가 폭을 제한해도
-// 배경만 화면 끝까지 붙고, Ring/Doorplate는 그대로 중앙 폭 안에 있다.
-// ─────────────────────────────────────────────────────────────
-
 export interface HeroBackground {
-  // 이미지 URL이 있으면 이미지, 없으면 gradient 기본값 사용.
-  // 외부(마당)/내부(거실) 중 무엇을 넣을지는 호출부가 결정.
   imageUrl?: string | null
-  gradient?: string // CSS gradient 문자열, imageUrl 없을 때 fallback
+  gradient?: string
 }
 
 export interface HeroDoorplate {
-  langFlag?: string       // 예: '🇰🇷'
+  langFlag?: string
   title: string
   description?: string | null
-  since?: string | null    // 이미 포맷된 문자열 (예: '2026.03.14 부터')
+  since?: string | null
   roomCount?: number
   neighborCount?: number
   cta?: {
@@ -43,12 +24,12 @@ export interface HeroDoorplate {
 export interface HeroBlockProps {
   background: HeroBackground
   ring: RingData
-  avatar?: React.ReactNode // Ring 중앙에 얹을 아이콘/이미지
+  avatar?: React.ReactNode
   doorplate: HeroDoorplate
 }
 
 const DEFAULT_GRADIENT = 'linear-gradient(135deg, #4A5240 0%, #7A8C6E 60%, #C8D5B9 100%)'
-const RING_SIZE = 120
+const RING_SIZE = 156
 const BG_HEIGHT = 220
 
 export default function HeroBlock({ background, ring, avatar, doorplate }: HeroBlockProps) {
@@ -58,7 +39,6 @@ export default function HeroBlock({ background, ring, avatar, doorplate }: HeroB
 
   return (
     <div style={styles.wrapper}>
-      {/* 배경 — 외부(마당)/내부(거실) 여부는 호출부 책임. 풀블리드. */}
       <div
         className="bleed-full"
         style={{
@@ -74,12 +54,10 @@ export default function HeroBlock({ background, ring, avatar, doorplate }: HeroB
         <div style={styles.backgroundGlow} />
       </div>
 
-      {/* Ring — 배경/정보영역 경계선에 정확히 반씩 걸침 */}
       <div style={styles.ringHolder}>
         <RingBlock data={ring} size={RING_SIZE} centerContent={avatar} />
       </div>
 
-      {/* Doorplate — 정보 영역 */}
       <div style={styles.doorplate}>
         {doorplate.langFlag && <div style={styles.flag}>{doorplate.langFlag}</div>}
         <div style={styles.title}>{doorplate.title}</div>
