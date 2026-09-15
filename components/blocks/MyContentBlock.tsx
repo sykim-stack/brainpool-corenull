@@ -3,8 +3,8 @@
 import { useEffect, useState } from 'react'
 import PostBlock, { PostBlockData, PostBlockGrid } from './PostBlock'
 
-/** 모바일 마당: 한 장씩, 점은 최대 노출 페이지용 */
-const PAGE_SIZE = 1
+/** 모바일 1장 / 태블릿·PC 3장, 최대 3개 노출 */
+const MAX_ITEMS = 3
 
 export interface MyContentBlockProps {
   title?: string
@@ -38,23 +38,33 @@ export default function MyContentBlock({
   showHouseName = true,
 }: MyContentBlockProps) {
   const [page, setPage] = useState(0)
-  // 점 스와이프는 최대 3페이지 분(방 최신 3개) 기준
-  const capped = posts.slice(0, 3)
-  const pageCount = Math.max(1, capped.length)
+  const [wide, setWide] = useState(false)
+
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)')
+    const apply = () => setWide(mq.matches)
+    apply()
+    mq.addEventListener('change', apply)
+    return () => mq.removeEventListener('change', apply)
+  }, [])
+
+  const pageSize = wide ? MAX_ITEMS : 1
+  const capped = posts.slice(0, MAX_ITEMS)
+  const pageCount = Math.max(1, Math.ceil(capped.length / pageSize))
 
   useEffect(() => {
     if (page >= pageCount) setPage(Math.max(0, pageCount - 1))
   }, [pageCount, page])
 
-  const visible = capped.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE)
+  const visible = capped.slice(page * pageSize, page * pageSize + pageSize)
 
   return (
     <section style={styles.section}>
       <div style={styles.header}>
         <span style={styles.title}>{title}</span>
-        {capped.length > 1 && (
+        {pageCount > 1 && (
           <span style={styles.hint}>
-            {page + 1} / {capped.length}
+            {page + 1} / {pageCount}
           </span>
         )}
       </div>
@@ -63,7 +73,7 @@ export default function MyContentBlock({
         <div style={styles.empty}>{emptyLabel}</div>
       ) : (
         <>
-          <PostBlockGrid count={1}>
+          <PostBlockGrid count={visible.length}>
             {visible.map((post) => (
               <PostBlock
                 key={post.id}
