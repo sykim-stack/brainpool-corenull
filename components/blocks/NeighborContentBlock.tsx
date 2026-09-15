@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from 'react'
 import PostBlock, { PostBlockData } from '@/components/blocks/PostBlock'
+import RingBlock, { RingData } from '@/components/blocks/RingBlock'
 
 // NeighborContentBlock — 골목/복도 공용 1|2|3
-// mode=recommend: 시스템 발견 후보 + 이웃 신청
-// mode=neighbor: 연결 이웃
-// Poster 아님 — Room View(PostBlock)
+// 화살표 = 이웃 전환 (좌·우 끝, 세로 중앙)
+// 점 = 그 이웃의 방 전환 (2|3 영역 중앙)
+// 1번 = 골목 이미지 배경 + 프로필 중앙 + 나이테
 
 export interface NeighborRoomSlot {
   roomId: string
@@ -23,6 +24,8 @@ export interface NeighborChip {
   coverUrl?: string | null
   rooms?: NeighborRoomSlot[]
   requestPending?: boolean
+  /** 발견 이웃 상태 — 나이테 */
+  ring?: RingData | null
 }
 
 export interface NeighborContentBlockProps {
@@ -39,6 +42,14 @@ const TIER_LABEL: Record<string, string> = { public: '골목', invite: '복도' 
 const COVER_GRADIENT: Record<string, string> = {
   public: 'linear-gradient(135deg, #4A5240 0%, #7A8C6E 60%, #C8D5B9 100%)',
   invite: 'linear-gradient(135deg, #5C4A35 0%, #8A6F52 60%, #D8C4A8 100%)',
+}
+
+const DEFAULT_RING: RingData = {
+  rings: [
+    { index: 0, weight: 0.6 },
+    { index: 1, weight: 0.4 },
+    { index: 2, weight: 0.25 },
+  ],
 }
 
 export default function NeighborContentBlock({
@@ -68,13 +79,15 @@ export default function NeighborContentBlock({
     if (roomIdx >= rooms.length) setRoomIdx(Math.max(0, rooms.length - 1))
   }, [rooms.length, roomIdx])
 
-  const postA = rooms[roomIdx]?.latestPost || null
-  const postB = rooms[roomIdx + 1]?.latestPost || null
-  const roomA = rooms[roomIdx]
-  const roomB = rooms[roomIdx + 1]
+  const roomPageCount = Math.max(1, Math.ceil(rooms.length / 2) || 1)
+  const roomPage = Math.min(Math.floor(roomIdx / 2), roomPageCount - 1)
+  const postA = rooms[roomPage * 2]?.latestPost || null
+  const postB = rooms[roomPage * 2 + 1]?.latestPost || null
+  const roomA = rooms[roomPage * 2]
+  const roomB = rooms[roomPage * 2 + 1]
 
   const goNeighbor = (dir: -1 | 1) => {
-    if (neighbors.length === 0) return
+    if (neighbors.length <= 1) return
     setNeighborIdx((i) => (i + dir + neighbors.length) % neighbors.length)
   }
 
@@ -83,57 +96,86 @@ export default function NeighborContentBlock({
       ? tier === 'public'
         ? '골목 · 발견'
         : '복도 · 발견'
-      : TIER_LABEL[tier]
+      : TIER_LABEL[tier] || '이웃'
 
   return (
     <section style={styles.section}>
       <div style={styles.header}>
         <span style={styles.title}>{title}</span>
-        {neighbors.length > 0 && <span style={styles.count}>{neighbors.length}</span>}
+        {neighbors.length > 0 && (
+          <span style={styles.count}>
+            {neighborIdx + 1}/{neighbors.length}
+          </span>
+        )}
       </div>
 
       {neighbors.length === 0 ? (
-        <div style={styles.empty}>
-          {mode === 'recommend' ? '아직 발견할 집이 없어요' : '아직 이웃이 없어요'}
-        </div>
+        <div style={styles.empty}>아직 발견할 집이 없어요</div>
       ) : (
-        <>
+        <div style={styles.stage}>
+          {neighbors.length > 1 && (
+            <>
+              <button
+                type="button"
+                style={{ ...styles.edgeArrow, left: 0 }}
+                onClick={() => goNeighbor(-1)}
+                aria-label="이전 이웃"
+              >
+                ‹
+              </button>
+              <button
+                type="button"
+                style={{ ...styles.edgeArrow, right: 0 }}
+                onClick={() => goNeighbor(1)}
+                aria-label="다음 이웃"
+              >
+                ›
+              </button>
+            </>
+          )}
+
           <div style={styles.row}>
             <div style={styles.col1}>
               <div
                 style={{
                   ...styles.cover,
-                  backgroundImage: current?.coverUrl
-                    ? `url(${current.coverUrl})`
+                  background: current?.coverUrl
+                    ? `center/cover no-repeat url(${current.coverUrl})`
                     : COVER_GRADIENT[tier],
-                  backgroundSize: 'cover',
-                  backgroundPosition: 'center',
                 }}
                 onClick={() => current && onNeighborClick(current.houseId)}
-                role="button"
               >
                 <div style={styles.coverShade} />
-                <div style={styles.profileWrap}>
-                  <div style={styles.avatar}>
-                    {current?.avatarUrl ? (
-                      <img src={current.avatarUrl} alt="" style={styles.avatarImg} />
-                    ) : (
-                      <span style={{ fontSize: 22 }}>{current?.langFlag || '🏡'}</span>
-                    )}
-                  </div>
+                <div style={styles.profileCenter}>
+                  <RingBlock
+                    data={current?.ring || DEFAULT_RING}
+                    size={72}
+                    centerContent={
+                      current?.avatarUrl ? (
+                        <img src={current.avatarUrl} alt="" style={styles.avatarImg} />
+                      ) : (
+                        <span style={{ fontSize: 18 }}>{current?.langFlag || '🏡'}</span>
+                      )
+                    }
+                  />
                   <div style={styles.profileName}>{current?.title}</div>
                 </div>
               </div>
 
-              {mode === 'recommend' && current && (
+              {mode === 'recommend' && onApplyNeighbor && current && (
                 <button
                   type="button"
                   style={{
                     ...styles.applyBtn,
-                    opacity: current.requestPending || applyLoadingHouseId === current.houseId ? 0.55 : 1,
+                    opacity:
+                      current.requestPending || applyLoadingHouseId === current.houseId
+                        ? 0.55
+                        : 1,
                   }}
-                  disabled={!!current.requestPending || applyLoadingHouseId === current.houseId}
-                  onClick={() => onApplyNeighbor?.(current.houseId)}
+                  disabled={
+                    !!current.requestPending || applyLoadingHouseId === current.houseId
+                  }
+                  onClick={() => onApplyNeighbor(current.houseId)}
                 >
                   {current.requestPending
                     ? '신청중'
@@ -142,18 +184,6 @@ export default function NeighborContentBlock({
                       : '이웃 신청'}
                 </button>
               )}
-
-              <div style={styles.arrows}>
-                <button type="button" style={styles.arrowBtn} onClick={() => goNeighbor(-1)}>
-                  ←
-                </button>
-                <span style={styles.arrowHint}>
-                  {neighborIdx + 1}/{neighbors.length}
-                </span>
-                <button type="button" style={styles.arrowBtn} onClick={() => goNeighbor(1)}>
-                  →
-                </button>
-              </div>
             </div>
 
             <div style={styles.colPost}>
@@ -166,7 +196,9 @@ export default function NeighborContentBlock({
                   onClick={() => onPostClick?.(postA.id, roomA?.roomId)}
                 />
               ) : (
-                <div style={styles.postEmpty}>{rooms.length === 0 ? '공개 방 없음' : '글 없음'}</div>
+                <div style={styles.postEmpty}>
+                  {rooms.length === 0 ? '공개 방 없음' : '글 없음'}
+                </div>
               )}
             </div>
 
@@ -185,23 +217,26 @@ export default function NeighborContentBlock({
             </div>
           </div>
 
-          {rooms.length > 0 && (
-            <div style={styles.dots}>
-              {rooms.map((r, i) => (
-                <button
-                  key={r.roomId}
-                  type="button"
-                  style={{
-                    ...styles.dot,
-                    background: i === roomIdx ? '#2C1810' : 'rgba(92,61,46,0.2)',
-                  }}
-                  onClick={() => setRoomIdx(i)}
-                  title={r.roomName}
-                />
-              ))}
+          {rooms.length > 2 && (
+            <div style={styles.dotsRow}>
+              <div style={styles.dotsSpacer} />
+              <div style={styles.dots}>
+                {Array.from({ length: roomPageCount }).map((_, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    style={{
+                      ...styles.dot,
+                      background: i === roomPage ? '#2C1810' : 'rgba(92,61,46,0.2)',
+                    }}
+                    onClick={() => setRoomIdx(i * 2)}
+                    aria-label={`방 페이지 ${i + 1}`}
+                  />
+                ))}
+              </div>
             </div>
           )}
-        </>
+        </div>
       )}
     </section>
   )
@@ -242,17 +277,36 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 14,
     border: '1px dashed rgba(92,61,46,0.15)',
   },
+  stage: { position: 'relative' },
+  edgeArrow: {
+    position: 'absolute',
+    top: '50%',
+    transform: 'translateY(-50%)',
+    zIndex: 2,
+    width: 28,
+    height: 36,
+    borderRadius: 10,
+    border: '1px solid rgba(92,61,46,0.12)',
+    background: 'rgba(254,252,248,0.95)',
+    color: '#2C1810',
+    fontSize: 20,
+    lineHeight: '36px',
+    padding: 0,
+    cursor: 'pointer',
+    boxShadow: '0 2px 8px rgba(44,24,16,0.08)',
+  },
   row: {
     display: 'grid',
-    gridTemplateColumns: 'minmax(96px, 1.1fr) minmax(0, 1fr) minmax(0, 1fr)',
+    gridTemplateColumns: 'minmax(100px, 1.05fr) minmax(0, 1fr) minmax(0, 1fr)',
     gap: 8,
     alignItems: 'stretch',
+    padding: '0 14px',
   },
   col1: { display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 },
   cover: {
     position: 'relative',
     flex: 1,
-    minHeight: 140,
+    minHeight: 160,
     borderRadius: 14,
     overflow: 'hidden',
     cursor: 'pointer',
@@ -260,33 +314,26 @@ const styles: Record<string, React.CSSProperties> = {
   coverShade: {
     position: 'absolute',
     inset: 0,
-    background: 'linear-gradient(180deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.45) 100%)',
+    background: 'linear-gradient(180deg, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.35) 100%)',
     pointerEvents: 'none',
   },
-  profileWrap: {
+  profileCenter: {
     position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 10,
+    inset: 0,
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    gap: 6,
-    zIndex: 1,
-    padding: '0 6px',
-  },
-  avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    background: 'rgba(254,252,248,0.95)',
-    display: 'flex',
-    alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
-    border: '2px solid rgba(254,252,248,0.9)',
+    gap: 8,
+    zIndex: 1,
+    padding: 8,
   },
-  avatarImg: { width: '100%', height: '100%', objectFit: 'cover' },
+  avatarImg: {
+    width: 36,
+    height: 36,
+    borderRadius: '50%',
+    objectFit: 'cover',
+  },
   profileName: {
     fontSize: 11,
     fontWeight: 600,
@@ -309,18 +356,6 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 600,
     cursor: 'pointer',
   },
-  arrows: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4 },
-  arrowBtn: {
-    width: 32,
-    height: 28,
-    borderRadius: 8,
-    border: '1px solid rgba(92,61,46,0.12)',
-    background: '#FEFCF8',
-    color: '#2C1810',
-    fontSize: 14,
-    cursor: 'pointer',
-  },
-  arrowHint: { fontSize: 10, color: '#9A8470' },
   colPost: { minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 },
   roomTag: {
     fontSize: 10,
@@ -342,6 +377,25 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 12,
     color: '#9A8470',
   },
-  dots: { display: 'flex', justifyContent: 'center', gap: 6, marginTop: 12 },
-  dot: { width: 7, height: 7, borderRadius: '50%', border: 'none', padding: 0, cursor: 'pointer' },
+  dotsRow: {
+    display: 'grid',
+    gridTemplateColumns: 'minmax(100px, 1.05fr) minmax(0, 2fr)',
+    gap: 8,
+    marginTop: 10,
+    padding: '0 14px',
+  },
+  dotsSpacer: {},
+  dots: {
+    display: 'flex',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  dot: {
+    width: 7,
+    height: 7,
+    borderRadius: '50%',
+    border: 'none',
+    padding: 0,
+    cursor: 'pointer',
+  },
 }
