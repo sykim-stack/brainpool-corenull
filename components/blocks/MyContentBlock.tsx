@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react'
 import PostBlock, { PostBlockData, PostBlockGrid } from './PostBlock'
 
-const PAGE_SIZE = 3
+/** 모바일 마당: 한 장씩, 점은 최대 노출 페이지용 */
+const PAGE_SIZE = 1
 
 export interface MyContentBlockProps {
   title?: string
@@ -37,21 +38,23 @@ export default function MyContentBlock({
   showHouseName = true,
 }: MyContentBlockProps) {
   const [page, setPage] = useState(0)
-  const pageCount = Math.max(1, Math.ceil(posts.length / PAGE_SIZE))
+  // 점 스와이프는 최대 3페이지 분(방 최신 3개) 기준
+  const capped = posts.slice(0, 3)
+  const pageCount = Math.max(1, capped.length)
 
   useEffect(() => {
     if (page >= pageCount) setPage(Math.max(0, pageCount - 1))
   }, [pageCount, page])
 
-  const visible = posts.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE)
+  const visible = capped.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE)
 
   return (
     <section style={styles.section}>
       <div style={styles.header}>
         <span style={styles.title}>{title}</span>
-        {posts.length > PAGE_SIZE && (
+        {capped.length > 1 && (
           <span style={styles.hint}>
-            {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, posts.length)} / {posts.length}
+            {page + 1} / {capped.length}
           </span>
         )}
       </div>
@@ -60,7 +63,7 @@ export default function MyContentBlock({
         <div style={styles.empty}>{emptyLabel}</div>
       ) : (
         <>
-          <PostBlockGrid count={visible.length}>
+          <PostBlockGrid count={1}>
             {visible.map((post) => (
               <PostBlock
                 key={post.id}
