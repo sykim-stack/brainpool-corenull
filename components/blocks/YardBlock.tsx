@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import HeroBlock, { HeroBackground, HeroDoorplate } from './HeroBlock'
 import MyContentBlock from './MyContentBlock'
 import NeighborContentBlock, { NeighborChip } from './NeighborContentBlock'
@@ -83,6 +84,10 @@ export default function YardBlock({
   const received = relations.filter((r) => r.status === 'pending' && r.direction === 'incoming')
   const sent = relations.filter((r) => r.status === 'pending' && r.direction === 'outgoing')
   const accepted = relations.filter((r) => r.status === 'accepted')
+  const [relTab, setRelTab] = useState<'accepted' | 'sent' | 'received'>('accepted')
+  const relList =
+    relTab === 'accepted' ? accepted : relTab === 'sent' ? sent : received
+  const relShow = relList.slice(0, 5)
 
   return (
     <div>
@@ -119,29 +124,45 @@ export default function YardBlock({
             <button type="button" style={styles.relationMore} onClick={onOpenRelations}>전체 ›</button>
           )}
         </div>
-        {relations.length === 0 ? (
+        <div style={styles.relTabs}>
+          {(
+            [
+              ['accepted', '이웃', accepted.length],
+              ['sent', '신청', sent.length],
+              ['received', '요청', received.length],
+            ] as const
+          ).map(([key, label, n]) => (
+            <button
+              key={key}
+              type="button"
+              style={{
+                ...styles.relTab,
+                ...(relTab === key ? styles.relTabOn : null),
+              }}
+              onClick={() => setRelTab(key)}
+            >
+              {label}
+              {n > 0 ? ` ${n}` : ''}
+            </button>
+          ))}
+        </div>
+        {relShow.length === 0 ? (
           <div style={styles.relationEmpty}>신청·이웃이 여기 모입니다</div>
         ) : (
-          <div style={styles.relationList}>
-            {received.map((r) => (
+          <div style={styles.relationGrid}>
+            {relShow.map((r) => (
               <div key={r.id} style={styles.relationRow}>
                 <span style={styles.relationName}>{r.title}</span>
-                <span style={styles.badgeIn}>받은 요청</span>
-                <button type="button" style={styles.relAccept} disabled={relationActingId === r.id} onClick={() => onAcceptRelation?.(r.id)}>수락</button>
-                <button type="button" style={styles.relGhost} disabled={relationActingId === r.id} onClick={() => onRemoveRelation?.(r.id)}>거절</button>
-              </div>
-            ))}
-            {sent.map((r) => (
-              <div key={r.id} style={styles.relationRow}>
-                <span style={styles.relationName}>{r.title}</span>
-                <span style={styles.badgeOut}>신청중</span>
-                <button type="button" style={styles.relGhost} disabled={relationActingId === r.id} onClick={() => onRemoveRelation?.(r.id)}>취소</button>
-              </div>
-            ))}
-            {accepted.map((r) => (
-              <div key={r.id} style={styles.relationRow}>
-                <span style={styles.relationName}>{r.title}</span>
-                <span style={styles.badgeOk}>이웃</span>
+                {relTab === 'received' && (
+                  <>
+                    <button type="button" style={styles.relAccept} disabled={relationActingId === r.id} onClick={() => onAcceptRelation?.(r.id)}>수락</button>
+                    <button type="button" style={styles.relGhost} disabled={relationActingId === r.id} onClick={() => onRemoveRelation?.(r.id)}>거절</button>
+                  </>
+                )}
+                {relTab === 'sent' && (
+                  <button type="button" style={styles.relGhost} disabled={relationActingId === r.id} onClick={() => onRemoveRelation?.(r.id)}>취소</button>
+                )}
+                {relTab === 'accepted' && <span style={styles.badgeOk}>이웃</span>}
               </div>
             ))}
           </div>
@@ -202,6 +223,26 @@ const styles: Record<string, React.CSSProperties> = {
   relationEmpty: {
     fontSize: 13, color: '#9A8470', padding: '16px', textAlign: 'center',
     background: '#FEFCF8', borderRadius: 12, border: '1px dashed rgba(92,61,46,0.12)',
+  },
+  relTabs: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6, marginBottom: 10 },
+  relTab: {
+    border: '1px solid rgba(92,61,46,0.12)',
+    background: '#FEFCF8',
+    color: '#5C4A35',
+    fontSize: 12,
+    padding: '8px 0',
+    borderRadius: 10,
+    cursor: 'pointer',
+  },
+  relTabOn: {
+    background: '#2C1810',
+    color: '#FEFCF8',
+    borderColor: '#2C1810',
+  },
+  relationGrid: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: 8,
   },
   relationList: { display: 'flex', flexDirection: 'column', gap: 8 },
   relationRow: {
