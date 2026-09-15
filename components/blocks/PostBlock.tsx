@@ -128,13 +128,13 @@ export default function PostBlock({
         </div>
       )}
 
-      <div style={styles.content}>{post.content}</div>
-
       {post.media && post.media.length > 0 && (
         <div onClick={(e) => e.stopPropagation()}>
           <MediaRenderer media={post.media} aspect="4 / 3" />
         </div>
       )}
+
+      <div style={styles.content}>{post.content}</div>
 
       <div style={styles.footerRow}>
         <div style={styles.footerLeft}>
@@ -216,7 +216,6 @@ export function PostBlockGrid({
   count = 0,
 }: {
   children: React.ReactNode
-  /** 카드 개수 — 1/2/3에 따라 칸 너비 변경 */
   count?: number
 }) {
   const cols =
