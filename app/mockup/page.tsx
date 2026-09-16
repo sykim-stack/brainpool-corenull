@@ -115,6 +115,7 @@ const MOCK_RECOMMENDED: NeighborChip[] = [
     title: '비단이네~~~♡♡♡',
     langFlag: '🇰🇷',
     coverUrl: IMG('yard1'),
+    // 골목: 상한 없음 — 최신글 있는 방 전부, 화면만 2 + 점 스와이프
     rooms: [
       {
         roomId: 'r1',
@@ -129,6 +130,36 @@ const MOCK_RECOMMENDED: NeighborChip[] = [
           content: '오늘 날씨 좋다',
           created_at: new Date().toISOString(),
           media: [{ type: 'image', url: IMG('sky') }],
+        },
+      },
+      {
+        roomId: 'r2b',
+        roomName: '부엌',
+        latestPost: {
+          id: 'x2',
+          content: '된장찌개 끓였다',
+          created_at: new Date(Date.now() - 3600_000).toISOString(),
+          media: [{ type: 'image', url: IMG('soup') }],
+        },
+      },
+      {
+        roomId: 'r2c',
+        roomName: '산책',
+        latestPost: {
+          id: 'x3',
+          content: '한강 산책',
+          created_at: new Date(Date.now() - 7200_000).toISOString(),
+          media: [{ type: 'image', url: IMG('walk') }],
+        },
+      },
+      {
+        roomId: 'r2d',
+        roomName: '성장일기',
+        latestPost: {
+          id: 'x4',
+          content: '오늘도 잘 자랐다',
+          created_at: new Date(Date.now() - 10800_000).toISOString(),
+          media: [{ type: 'image', url: IMG('grow') }],
         },
       },
     ],
@@ -267,8 +298,7 @@ export default function MockupYardPage() {
       <div style={styles.note}>
         <span style={styles.noteDot} />
         <span>
-          임시 데이터 · 카드 {cardCount}개 그리드 ·{' '}
-          {fullSections ? '골목·관계·이웃피드 채움' : '내 방만'}
+          골목=활동 방 전부(화면2+점) · 이웃/내방=최대3 · 카드 {cardCount}개
         </span>
       </div>
     </div>
