@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { getDeviceId } from '@/lib/deviceId'
 import ShareModal from '@/components/corenull/ShareModal'
 import RoomSettingsModal from '@/components/corenull/RoomSettingsModal'
+import PostBlock from '@/components/blocks/PostBlock'
 
 type Room = {
   id: string
@@ -98,8 +99,6 @@ export default function RoomPage() {
       const hData = await hRes.json()
       if (!hData._error && hData.house) {
         setHouse(hData.house)
-        // room_id를 같이 넘겨서, house 전체 멤버든 이 room 한정
-        // 참여자든 둘 다 "쓸 수 있음"으로 판정되게 한다(ADR-ACCESS-001).
         const mRes = await fetch(`/api/corenull/members?house_id=${rData.room.house_id}&device_id=${key}&room_id=${roomId}`)
         const mData = await mRes.json()
         setIsMember(!mData._error && mData.is_member === true)
@@ -158,9 +157,6 @@ export default function RoomPage() {
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <button style={shareBtnStyle} onClick={() => setShowShare(true)}>🔗</button>
-          {/* owner와 참여자 둘 다 설정(방 이름/폐쇄는 owner만 보이고,
-              참여자에게는 '나가기'가 보임)에 접근할 수 있어야 한다.
-              owner 전용이던 게이트를 canWrite(owner||member) 기준으로 넓힘. */}
           {canWrite && (
             <button style={shareBtnStyle} onClick={() => setShowSettings(true)}>⚙️</button>
           )}
@@ -198,7 +194,21 @@ export default function RoomPage() {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {posts.map((post) => (
-              <PostCard key={post.id} post={post} />
+              <PostBlock
+                key={post.id}
+                post={{
+                  id: post.id,
+                  content: post.content || '',
+                  media: (post.meta?.media as any) || undefined,
+                  created_at: post.created_at,
+                  comment_count: (post as any).comment_count ?? 0,
+                  room_id: roomId,
+                }}
+                onClick={() => router.push(`/posts/${post.id}`)}
+                enableInlineComment
+                ownerKey={ownerKey}
+                showComments
+              />
             ))}
           </div>
         )}
@@ -226,43 +236,11 @@ export default function RoomPage() {
             setRoom(prev => prev ? { ...prev, ...updated } : prev)
           }}
           onLeft={() => {
-            // 참여자 본인이 나가면 이 room을 더 볼 권한이 없어질 수 있으니 뒤로.
             router.back()
           }}
         />
       )}
     </div>
-  )
-}
-
-function PostCard({ post }: { post: Post }) {
-  const preview = post.content?.slice(0, 120) || ''
-  const hasMore = (post.content?.length || 0) > 120
-  const firstMedia = post.meta?.media?.[0]
-
-  return (
-    <Link href={`/posts/${post.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
-      <div style={cardStyle}>
-        {firstMedia?.type === 'image' && (
-          <div style={imgWrap}>
-            <img src={firstMedia.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px' }} />
-          </div>
-        )}
-        {firstMedia?.type === 'video' && (
-          <div style={{ ...imgWrap, background: '#2d4a3e', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px' }}>
-            <span style={{ fontSize: '28px' }}>▶</span>
-          </div>
-        )}
-        {preview && (
-          <p style={{ fontSize: '14px', color: '#5C3D2E', margin: '0 0 8px', lineHeight: '1.6' }}>
-            {preview}{hasMore && '…'}
-          </p>
-        )}
-        <p style={{ fontSize: '11px', color: '#9A8470', margin: 0 }}>
-          {formatDate(post.created_at)}
-        </p>
-      </div>
-    </Link>
   )
 }
 
@@ -276,16 +254,6 @@ function EmptyState({ isOwner, roomId }: { isOwner: boolean; roomId: string }) {
       )}
     </div>
   )
-}
-
-function formatDate(iso: string) {
-  const d = new Date(iso)
-  const now = new Date()
-  const diff = Math.floor((now.getTime() - d.getTime()) / 1000)
-  if (diff < 60) return '방금 전'
-  if (diff < 3600) return `${Math.floor(diff / 60)}분 전`
-  if (diff < 86400) return `${Math.floor(diff / 3600)}시간 전`
-  return d.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })
 }
 
 const headerStyle: React.CSSProperties = {
@@ -315,19 +283,11 @@ const countdownBanner: React.CSSProperties = {
   margin: '12px 16px 0', padding: '14px 16px', borderRadius: '14px',
   border: '1px solid', display: 'flex', alignItems: 'center', gap: '12px',
 }
-const cardStyle: React.CSSProperties = {
-  background: '#FEFCF8', borderRadius: '12px',
-  border: '1px solid rgba(92,61,46,0.12)', padding: '16px', cursor: 'pointer',
-  boxShadow: '0 2px 12px rgba(44,24,16,0.06)',
-}
-const imgWrap: React.CSSProperties = {
-  width: '100%', height: '180px', marginBottom: '12px', overflow: 'hidden',
-}
 function visibilityBadge(v: string): React.CSSProperties {
   const tone =
     v === 'public' ? { bg: '#E8EFE3', fg: '#4A5240' } :
     v === 'invite' ? { bg: '#FBEEDD', fg: '#8A5423' } :
-    { bg: '#EFE6E1', fg: '#5C3D2E' } // private
+    { bg: '#EFE6E1', fg: '#5C3D2E' }
   return {
     fontSize: '10px', padding: '2px 7px', borderRadius: '10px',
     background: tone.bg, color: tone.fg, fontWeight: 600,
