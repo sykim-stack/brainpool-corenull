@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import MediaRenderer from '@/components/corenull/MediaRenderer'
 
 /**
  * PosterView — 방의 현재 상태를 압축한 현관 (거실 핵심)
@@ -12,7 +13,9 @@ export interface PosterData {
   status?: string | null
   stageEmoji?: string | null
   recentContent?: string | null
+  /** @deprecated 단일 썸네일 — media 우선 */
   imageUrl?: string | null
+  media?: { type: string; url: string; file?: string }[]
   createdAt?: string | null
   houseName?: string | null
 }
@@ -57,9 +60,17 @@ export default function PosterBlock({
         )}
       </div>
 
-      <div style={styles.media}>
-        {poster.imageUrl ? (
-          <img src={poster.imageUrl} alt="" style={styles.img} />
+      <div style={styles.media} onClick={(e) => e.stopPropagation()}>
+        {(poster.media && poster.media.length > 0) || poster.imageUrl ? (
+          <MediaRenderer
+            media={
+              poster.media && poster.media.length > 0
+                ? poster.media
+                : [{ type: 'image', url: poster.imageUrl! }]
+            }
+            aspect="4 / 3"
+            stopCardClick
+          />
         ) : (
           <div style={styles.mediaEmpty}>🚪</div>
         )}
@@ -231,7 +242,6 @@ const styles: Record<string, React.CSSProperties> = {
   },
   media: {
     width: '100%',
-    aspectRatio: '4 / 3',
     borderRadius: 12,
     overflow: 'hidden',
     background: 'rgba(92,61,46,0.06)',
@@ -239,7 +249,7 @@ const styles: Record<string, React.CSSProperties> = {
   img: { width: '100%', height: '100%', objectFit: 'cover', display: 'block' },
   mediaEmpty: {
     width: '100%',
-    height: '100%',
+    aspectRatio: '4 / 3',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
