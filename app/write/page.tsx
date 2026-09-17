@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { getDeviceId } from '@/lib/deviceId'
+import TopBar from '@/components/blocks/TopBar'
+import CoreNullLogo from '@/components/corenull/CoreNullLogo'
 
 const LANG_FLAG: Record<string, string> = {
   ko: '🇰🇷', vi: '🇻🇳', en: '🇺🇸', ja: '🇯🇵', zh: '🇨🇳',
@@ -160,19 +162,38 @@ export default function WritePage() {
     setMediaFiles(prev => prev.filter((_, i) => i !== index))
   }
 
+  const leaveWrite = () => {
+    if (selectedRoom?.id) router.push(`/rooms/${selectedRoom.id}`)
+    else router.push('/living')
+  }
+
   return (
     <div>
-      <div style={styles.header}>
-        <button style={styles.backBtn} onClick={() => router.back()}>←</button>
-        <span style={styles.headerTitle}>새 이야기</span>
-        <button
-          style={{ ...styles.submitBtn, opacity: (!content.trim() || !selectedRoom || submitting) ? 0.4 : 1 }}
-          onClick={handleSubmit}
-          disabled={!content.trim() || !selectedRoom || submitting}
-        >
-          {submitting ? '...' : '올리기'}
-        </button>
-      </div>
+      <TopBar
+        logo={<CoreNullLogo size="sm" />}
+        title="새 이야기"
+        actions={[
+          {
+            key: 'living',
+            emoji: '🛋️',
+            label: '거실',
+            onClick: () => router.push('/living'),
+          },
+          {
+            key: 'room',
+            emoji: '🚪',
+            label: '방',
+            onClick: leaveWrite,
+          },
+          {
+            key: 'submit',
+            emoji: submitting ? '…' : '✓',
+            label: '올리기',
+            onClick: handleSubmit,
+            disabled: !content.trim() || !selectedRoom || submitting,
+          },
+        ]}
+      />
 
       <div style={styles.body}>
         {submitError && <div style={styles.errorBox}>⚠️ {submitError}</div>}
@@ -310,6 +331,20 @@ export default function WritePage() {
           </button>
         </div>
 
+        <button
+          type="button"
+          style={{
+            ...styles.submitBtn,
+            width: '100%',
+            marginBottom: 12,
+            opacity: (!content.trim() || !selectedRoom || submitting) ? 0.4 : 1,
+          }}
+          onClick={handleSubmit}
+          disabled={!content.trim() || !selectedRoom || submitting}
+        >
+          {submitting ? '올리는 중...' : '올리기'}
+        </button>
+
         <input
           ref={fileInputRef}
           type="file"
@@ -324,17 +359,8 @@ export default function WritePage() {
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  header: {
-    position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)',
-    width: '100%', maxWidth: '430px', height: 56,
-    background: 'rgba(254,252,248,0.95)', borderBottom: '1px solid rgba(92,61,46,0.12)',
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '0 16px', zIndex: 100, backdropFilter: 'blur(12px)',
-  },
-  backBtn: { fontSize: 20, color: '#2C1810', background: 'none', border: 'none', cursor: 'pointer' },
-  headerTitle: { fontFamily: "'Noto Serif KR', serif", fontSize: 16, fontWeight: 600, color: '#2C1810' },
   submitBtn: {
-    padding: '8px 16px', background: '#2C1810', color: 'white',
+    padding: '12px 16px', background: '#2C1810', color: 'white',
     border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 500, cursor: 'pointer',
   },
   body: { padding: '16px' },
@@ -428,7 +454,7 @@ const styles: Record<string, React.CSSProperties> = {
     border: 'none', fontSize: 10, cursor: 'pointer',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
   },
-  mediaRow: { display: 'flex', gap: 8 },
+  mediaRow: { display: 'flex', gap: 8, marginBottom: 12 },
   mediaBtn: {
     flex: 1, height: 48,
     background: '#FEFCF8', border: '1px dashed rgba(92,61,46,0.2)',
