@@ -2,31 +2,18 @@
 
 import HeroBlock, { HeroBackground, HeroDoorplate } from './HeroBlock'
 import MyContentBlock from './MyContentBlock'
-import NeighborContentBlock, { NeighborChip } from './NeighborContentBlock'
+import { PosterRow, PosterData } from './PosterBlock'
 import { RingData } from './RingBlock'
 import { PostBlockData } from './PostBlock'
 
-// ─────────────────────────────────────────────────────────────
-// LivingBlock — 거실 화면을 조립하는 블록.
-//
-// §3 결정: 거실은 마당과 완전히 동일한 Hero+Doorplate+Ring 구조를
-// 쓴다. 차이는 배경(외부→내부)과, 방 발견 대신 "방 관리"(방탭·
-// 필터탭·방만들기)가 붙는다는 것, 그리고 골목 대신 복도
-// (NeighborContentBlock tier='invite')라는 것.
-//
-// NOTE(2026-09-05): ADR-ACCESS-002 승인 완료 — 복도 연결.
-// ─────────────────────────────────────────────────────────────
-
-export interface RoomTab {
-  id: string
-  label: string
-  badge?: string
-}
-
-export interface FilterChip {
-  key: string
-  label: string
-}
+/**
+ * LivingBlock — 거실
+ *
+ * 마당: 발견 · 관계 · 골목
+ * 거실: 현관(Poster) · 방 고르기 · 이웃공개 최신 RoomView
+ *
+ * A Hero(living) → B 문패(Hero 내) → C Poster 열 → D RoomView 최신
+ */
 
 export interface LivingBlockProps {
   background: HeroBackground
@@ -34,32 +21,30 @@ export interface LivingBlockProps {
   avatar?: React.ReactNode
   doorplate: HeroDoorplate
 
-  rooms: RoomTab[]
-  selectedRoomId: string | null
-  onRoomSelect: (roomId: string) => void
-  onCreateRoomClick: () => void
+  /** 이 집의 방 · PosterView */
+  posters: PosterData[]
+  onPosterClick?: (roomId: string) => void
 
-  visibilityFilters: FilterChip[]
-  selectedVisibility: string
-  onVisibilityChange: (key: string) => void
-
-  stageFilters: FilterChip[]
-  selectedStage: string
-  onStageChange: (key: string) => void
-
-  posts: PostBlockData[]
-  onPostClick?: (postId: string) => void
+  /** 이웃공개(및 공개) 방 최신 RoomView — 방당 1, 최대 3 권장 */
+  roomViews: PostBlockData[]
+  onPostClick?: (postId: string, roomId?: string) => void
   onCommentClick?: (postId: string) => void
-  loading?: boolean
 
+  loading?: boolean
   showInterest?: boolean
   getInterestState?: (postId: string) => 'none' | 'active' | 'ended'
   interestLoadingId?: string | null
   onInterestClick?: (postId: string) => void
+  onInterestGoLibrary?: () => void
 
-  // 복도 — accepted 상태만 걸러서 페이지가 내려준다.
-  neighbors?: NeighborChip[]
-  onNeighborClick?: (houseId: string) => void
+  showPosterInterest?: boolean
+  getPosterInterestActive?: (roomId: string) => boolean
+  onPosterInterestClick?: (roomId: string) => void
+
+  enableInlineComment?: boolean
+  ownerKey?: string
+
+  onCreateRoomClick?: () => void
 }
 
 export default function LivingBlock({
@@ -67,17 +52,9 @@ export default function LivingBlock({
   ring,
   avatar,
   doorplate,
-  rooms,
-  selectedRoomId,
-  onRoomSelect,
-  onCreateRoomClick,
-  visibilityFilters,
-  selectedVisibility,
-  onVisibilityChange,
-  stageFilters,
-  selectedStage,
-  onStageChange,
-  posts,
+  posters,
+  onPosterClick,
+  roomViews,
   onPostClick,
   onCommentClick,
   loading = false,
@@ -85,8 +62,13 @@ export default function LivingBlock({
   getInterestState,
   interestLoadingId = null,
   onInterestClick,
-  neighbors = [],
-  onNeighborClick,
+  onInterestGoLibrary,
+  showPosterInterest = false,
+  getPosterInterestActive,
+  onPosterInterestClick,
+  enableInlineComment = false,
+  ownerKey,
+  onCreateRoomClick,
 }: LivingBlockProps) {
   if (loading) {
     return <div style={styles.loading}>🛋️</div>
@@ -96,80 +78,38 @@ export default function LivingBlock({
     <div>
       <HeroBlock background={background} ring={ring} avatar={avatar} doorplate={doorplate} />
 
-      {/* 방 탭 — 방 관리는 거실에만 있다 */}
-      <div style={styles.roomRow}>
-        {rooms.map((room) => (
-          <button
-            key={room.id}
-            onClick={() => onRoomSelect(room.id)}
-            style={{
-              ...styles.roomChip,
-              ...(room.id === selectedRoomId ? styles.roomChipActive : {}),
-            }}
-          >
-            {room.label}
-            {room.badge && <span style={{ marginLeft: 4 }}>{room.badge}</span>}
+      {onCreateRoomClick && (
+        <div style={styles.createRow}>
+          <button type="button" style={styles.createBtn} onClick={onCreateRoomClick}>
+            + 방 만들기
           </button>
-        ))}
-        <button style={styles.createRoomChip} onClick={onCreateRoomClick}>
-          + 방 만들기
-        </button>
-      </div>
-
-      {/* 공개범위 필터 */}
-      {visibilityFilters.length > 0 && (
-        <div style={styles.filterRow}>
-          {visibilityFilters.map((filter) => (
-            <button
-              key={filter.key}
-              onClick={() => onVisibilityChange(filter.key)}
-              style={{
-                ...styles.filterChip,
-                ...(filter.key === selectedVisibility ? styles.filterChipActive : {}),
-              }}
-            >
-              {filter.label}
-            </button>
-          ))}
         </div>
       )}
 
-      {/* 성장단계 필터 — 공개범위와 완전히 독립된 축 */}
-      {stageFilters.length > 0 && (
-        <div style={{ ...styles.filterRow, paddingTop: 6 }}>
-          {stageFilters.map((filter) => (
-            <button
-              key={filter.key}
-              onClick={() => onStageChange(filter.key)}
-              style={{
-                ...styles.filterChip,
-                ...(filter.key === selectedStage ? styles.filterChipActive : {}),
-              }}
-            >
-              {filter.label}
-            </button>
-          ))}
-        </div>
-      )}
+      <PosterRow
+        title="이 집의 방"
+        posters={posters}
+        onPosterClick={onPosterClick}
+        showInterest={showPosterInterest}
+        getInterestActive={getPosterInterestActive}
+        onInterestClick={onPosterInterestClick}
+      />
 
       <MyContentBlock
-        title="이 방의 이야기"
-        posts={posts}
+        title="최신 이야기"
+        posts={roomViews}
         onPostClick={onPostClick}
         onCommentClick={onCommentClick}
+        emptyLabel="아직 이웃과 나눌 이야기가 없어요"
         showInterest={showInterest}
         getInterestState={getInterestState}
         interestLoadingId={interestLoadingId}
         onInterestClick={onInterestClick}
+        onInterestGoLibrary={onInterestGoLibrary}
+        enableInlineComment={enableInlineComment}
+        ownerKey={ownerKey}
+        showHouseName
       />
-
-      {onNeighborClick && (
-        <NeighborContentBlock
-          tier="invite"
-          neighbors={neighbors}
-          onNeighborClick={onNeighborClick}
-        />
-      )}
     </div>
   )
 }
@@ -182,27 +122,12 @@ const styles: Record<string, React.CSSProperties> = {
     height: '50vh',
     fontSize: 40,
   },
-  roomRow: {
+  createRow: {
+    padding: '12px 16px 0',
     display: 'flex',
-    gap: 8,
-    padding: '14px 16px 0',
-    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
   },
-  roomChip: {
-    padding: '8px 14px',
-    borderRadius: 20,
-    border: '1px solid rgba(92,61,46,0.15)',
-    background: '#F5F0E8',
-    color: '#5C4A35',
-    fontSize: 13,
-    cursor: 'pointer',
-  },
-  roomChipActive: {
-    background: '#2C1810',
-    color: '#FBF8F2',
-    border: '1px solid #2C1810',
-  },
-  createRoomChip: {
+  createBtn: {
     padding: '8px 14px',
     borderRadius: 20,
     border: '1px dashed rgba(92,61,46,0.25)',
@@ -210,25 +135,5 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#9A8470',
     fontSize: 13,
     cursor: 'pointer',
-  },
-  filterRow: {
-    display: 'flex',
-    gap: 8,
-    padding: '10px 16px 0',
-    flexWrap: 'wrap',
-  },
-  filterChip: {
-    padding: '6px 12px',
-    borderRadius: 16,
-    border: '1px solid rgba(92,61,46,0.12)',
-    background: '#FEFCF8',
-    color: '#9A8470',
-    fontSize: 12,
-    cursor: 'pointer',
-  },
-  filterChipActive: {
-    background: 'rgba(193,127,60,0.12)',
-    color: '#C17F3C',
-    border: '1px solid rgba(193,127,60,0.3)',
   },
 }
