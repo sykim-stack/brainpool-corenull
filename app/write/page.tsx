@@ -20,7 +20,6 @@ export default function WritePage() {
   const [ownerKey, setOwnerKey] = useState('')
   const [submitError, setSubmitError] = useState('')
 
-  // 새 방 만들기
   const [showNewRoom, setShowNewRoom] = useState(false)
   const [newRoomName, setNewRoomName] = useState('')
   const [isSeed, setIsSeed] = useState(false)
@@ -38,9 +37,6 @@ export default function WritePage() {
 
     const params = new URLSearchParams(window.location.search)
     const preselectedRoomId = params.get('room_id')
-    // 거실(LivingBlock)의 "방 만들기" 버튼에서 넘어온 신호.
-    // write 페이지가 이미 갖고 있던 인라인 방만들기 폼(showNewRoom)을
-    // 그대로 재사용 — 새 화면/컴포넌트를 따로 만들지 않는다.
     const shouldOpenNewRoom = params.get('new_room') === '1'
 
     fetch(`/api/corenull/houses?owner_key=${key}`)
@@ -81,7 +77,6 @@ export default function WritePage() {
     setSelectedRoom(roomList.length > 0 ? roomList[0] : null)
   }
 
-  // ─── 집 전환 ──────────────────────────────────────────
   const handleHouseChange = async (houseId: string) => {
     const house = houses.find((h: any) => h.id === houseId)
     if (!house) return
@@ -90,7 +85,6 @@ export default function WritePage() {
     await loadRooms(house.id)
   }
 
-  // ─── 새 방 생성 ───────────────────────────────────────
   const handleCreateRoom = async () => {
     if (!newRoomName.trim() || !selectedHouse) return
     setCreatingRoom(true)
@@ -125,7 +119,6 @@ export default function WritePage() {
     setCreatingRoom(false)
   }
 
-  // ─── 미디어 업로드 ────────────────────────────────────
   const handleFileSelect = async (e: any) => {
     const files = Array.from(e.target.files || [])
     if (files.length === 0) return
@@ -138,7 +131,6 @@ export default function WritePage() {
     setUploading(false)
   }
 
-  // ─── 포스트 작성 ──────────────────────────────────────
   const handleSubmit = async () => {
     if (!content.trim() || !selectedRoom) return
     setSubmitting(true)
@@ -151,13 +143,13 @@ export default function WritePage() {
         owner_key: ownerKey,
         content: content.trim(),
         meta: { media: mediaFiles },
-        type: 'post',  // Growth = Message(type="post") — 씨앗방이어도 항상 post
+        type: 'post',
       }),
     })
     const data = await res.json()
     if (data.data) {
       router.refresh()
-      router.push('/')
+      router.replace(`/rooms/${selectedRoom.id}`)
     } else {
       setSubmitError(data._error || '올리기에 실패했어요')
     }
@@ -170,7 +162,6 @@ export default function WritePage() {
 
   return (
     <div>
-      {/* 헤더 */}
       <div style={styles.header}>
         <button style={styles.backBtn} onClick={() => router.back()}>←</button>
         <span style={styles.headerTitle}>새 이야기</span>
@@ -186,7 +177,6 @@ export default function WritePage() {
       <div style={styles.body}>
         {submitError && <div style={styles.errorBox}>⚠️ {submitError}</div>}
 
-        {/* ── 집 선택 (집이 2개 이상일 때만 노출) ── */}
         {houses.length > 1 && (
           <div style={styles.houseSelect}>
             <span style={styles.roomLabel}>어느 집에?</span>
@@ -204,7 +194,6 @@ export default function WritePage() {
           </div>
         )}
 
-        {/* ── 방 선택 ── */}
         {!showNewRoom ? (
           <div style={styles.roomSelect}>
             <span style={styles.roomLabel}>어느 방에?</span>
@@ -229,7 +218,6 @@ export default function WritePage() {
             </select>
           </div>
         ) : (
-          /* ── 새 방 만들기 폼 ── */
           <div style={styles.newRoomBox}>
             <div style={styles.newRoomHeader}>
               <span style={styles.roomLabel}>새 방 만들기</span>
@@ -252,7 +240,6 @@ export default function WritePage() {
               autoFocus
             />
 
-            {/* 씨앗 토글 */}
             <div style={styles.toggleRow} onClick={() => setIsSeed(v => !v)}>
               <div style={styles.toggleLeft}>
                 <span style={{ fontSize: 18 }}>🌱</span>
@@ -266,7 +253,6 @@ export default function WritePage() {
               </div>
             </div>
 
-            {/* bloom_date — 씨앗일 때만 표시 */}
             {isSeed && (
               <div style={styles.bloomBox}>
                 <div style={styles.bloomLabel}>🌸 꽃 피는 날 (선택)</div>
@@ -291,7 +277,6 @@ export default function WritePage() {
           </div>
         )}
 
-        {/* ── 텍스트 입력 ── */}
         <textarea
           style={styles.textarea}
           placeholder="오늘 어떤 순간을 남기고 싶으세요?"
@@ -300,7 +285,6 @@ export default function WritePage() {
           autoFocus={!showNewRoom}
         />
 
-        {/* ── 미디어 미리보기 ── */}
         {mediaFiles.length > 0 && (
           <div style={styles.mediaPreview}>
             {mediaFiles.map((m, i) => (
@@ -316,7 +300,6 @@ export default function WritePage() {
           </div>
         )}
 
-        {/* ── 미디어 추가 ── */}
         <div style={styles.mediaRow}>
           <button
             style={styles.mediaBtn}
