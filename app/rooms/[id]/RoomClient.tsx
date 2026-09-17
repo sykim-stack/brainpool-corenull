@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { getDeviceId } from '@/lib/deviceId'
+import TopBar from '@/components/blocks/TopBar'
+import CoreNullLogo from '@/components/corenull/CoreNullLogo'
 import ShareModal from '@/components/corenull/ShareModal'
 import RoomSettingsModal from '@/components/corenull/RoomSettingsModal'
 import PostBlock from '@/components/blocks/PostBlock'
@@ -75,7 +77,6 @@ export default function RoomPage() {
   const isOwner = house?.owner_key === ownerKey
   const canWrite = isOwner || isMember
 
-  /** 방 → 거실 (히스토리 back은 외부/이전 탭으로 새는 경우가 많음) */
   const goToLiving = () => {
     if (house?.id) router.push(`/houses/${house.id}/living`)
     else router.push('/living')
@@ -134,56 +135,78 @@ export default function RoomPage() {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '50vh', gap: '12px' }}>
         <p style={{ color: '#5C3D2E', fontSize: '14px' }}>{error || '방을 찾을 수 없어요.'}</p>
-        <button onClick={goToLiving} style={btnSecondary}>← 거실</button>
+        <button onClick={goToLiving} style={btnSecondary}>거실로</button>
       </div>
     )
   }
 
   const countdown = room.seed_mode && room.bloom_date ? getCountdown(room.bloom_date) : null
 
+  const topActions = [
+    ...(house
+      ? [
+          {
+            key: 'living',
+            emoji: '🛋️',
+            label: '거실',
+            onClick: goToLiving,
+          },
+          {
+            key: 'yard',
+            emoji: '🌿',
+            label: '마당',
+            onClick: () => router.push(`/houses/${house.id}/yard`),
+          },
+        ]
+      : []),
+    {
+      key: 'share',
+      emoji: '🔗',
+      label: '공유',
+      onClick: () => setShowShare(true),
+    },
+    ...(canWrite
+      ? [
+          {
+            key: 'settings',
+            emoji: '⚙️',
+            label: '설정',
+            onClick: () => setShowSettings(true),
+          },
+          {
+            key: 'write',
+            emoji: '✍️',
+            label: '글쓰기',
+            onClick: () => router.push(`/write?room_id=${roomId}`),
+          },
+        ]
+      : []),
+  ]
+
   return (
     <div style={{ minHeight: '100vh', background: '#FBF8F2' }}>
-      <header style={headerStyle}>
-        <button onClick={goToLiving} style={backBtnStyle} aria-label="거실로">←</button>
-        <div style={{ flex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <h1 style={{ fontSize: '16px', fontWeight: 700, color: '#2C1810', margin: 0 }}>
-              {room.room_name}
-            </h1>
-            <span style={visibilityBadge(room.visibility)}>
-              {room.visibility === 'public' ? '공개' : room.visibility === 'invite' ? '이웃공개' : '비공개'}
-            </span>
-            {room.seed_mode && <span style={seedBadge}>🌱 씨앗</span>}
-          </div>
-          {house && (
-            <button
-              type="button"
-              onClick={goToLiving}
-              style={{
-                fontSize: '12px',
-                color: '#9A8470',
-                margin: '2px 0 0',
-                padding: 0,
-                border: 'none',
-                background: 'none',
-                cursor: 'pointer',
-                textAlign: 'left',
-              }}
-            >
-              {LANG_FLAG[house.primary_language] || '🏡'} {house.title} · 거실
-            </button>
-          )}
-        </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <button style={shareBtnStyle} onClick={() => setShowShare(true)}>🔗</button>
-          {canWrite && (
-            <button style={shareBtnStyle} onClick={() => setShowSettings(true)}>⚙️</button>
-          )}
-          {canWrite && (
-            <Link href={`/write?room_id=${roomId}`} style={writeBtnStyle}>+ 글쓰기</Link>
-          )}
-        </div>
-      </header>
+      <TopBar
+        logo={<CoreNullLogo size="sm" />}
+        title={room.room_name}
+        actions={topActions}
+      />
+
+      <div style={metaStrip}>
+        <span style={visibilityBadge(room.visibility)}>
+          {room.visibility === 'public' ? '공개' : room.visibility === 'invite' ? '이웃공개' : '비공개'}
+        </span>
+        {room.seed_mode && <span style={seedBadge}>🌱 씨앗</span>}
+        {house && (
+          <button type="button" onClick={goToLiving} style={metaHouseBtn}>
+            {LANG_FLAG[house.primary_language] || '🏡'} {house.title}
+          </button>
+        )}
+        {canWrite && (
+          <Link href={`/write?room_id=${roomId}`} style={writeBtnStyle}>
+            + 글쓰기
+          </Link>
+        )}
+      </div>
 
       {countdown && (
         <div style={{
@@ -275,24 +298,21 @@ function EmptyState({ isOwner, roomId }: { isOwner: boolean; roomId: string }) {
   )
 }
 
-const headerStyle: React.CSSProperties = {
-  display: 'flex', alignItems: 'center', gap: '12px',
-  padding: '14px 16px',
-  background: 'rgba(254,252,248,0.95)', borderBottom: '1px solid rgba(92,61,46,0.12)',
-  position: 'sticky', top: 0, zIndex: 10, backdropFilter: 'blur(12px)',
+const metaStrip: React.CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
+  padding: '10px 16px',
+  borderBottom: '1px solid rgba(92,61,46,0.08)',
+  background: '#FEFCF8',
 }
-const backBtnStyle: React.CSSProperties = {
-  background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: '#2C1810', padding: '4px',
+const metaHouseBtn: React.CSSProperties = {
+  fontSize: 12, color: '#9A8470', margin: 0, padding: '2px 0',
+  border: 'none', background: 'none', cursor: 'pointer',
 }
 const writeBtnStyle: React.CSSProperties = {
+  marginLeft: 'auto',
   background: '#2C1810', color: '#FBF8F2', border: 'none',
   borderRadius: '20px', padding: '7px 14px', fontSize: '13px',
   cursor: 'pointer', textDecoration: 'none', whiteSpace: 'nowrap',
-}
-const shareBtnStyle: React.CSSProperties = {
-  width: 34, height: 34, borderRadius: '50%',
-  background: '#F5F0E8', border: 'none',
-  fontSize: 15, cursor: 'pointer',
 }
 const btnSecondary: React.CSSProperties = {
   background: 'none', border: '1px solid #5C3D2E', color: '#5C3D2E',
