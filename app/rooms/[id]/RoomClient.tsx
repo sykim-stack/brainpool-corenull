@@ -142,53 +142,12 @@ export default function RoomPage() {
 
   const countdown = room.seed_mode && room.bloom_date ? getCountdown(room.bloom_date) : null
 
-  const topActions = [
-    ...(house
-      ? [
-          {
-            key: 'living',
-            emoji: '🛋️',
-            label: '거실',
-            onClick: goToLiving,
-          },
-          {
-            key: 'yard',
-            emoji: '🌿',
-            label: '마당',
-            onClick: () => router.push(`/houses/${house.id}/yard`),
-          },
-        ]
-      : []),
-    {
-      key: 'share',
-      emoji: '🔗',
-      label: '공유',
-      onClick: () => setShowShare(true),
-    },
-    ...(canWrite
-      ? [
-          {
-            key: 'settings',
-            emoji: '⚙️',
-            label: '설정',
-            onClick: () => setShowSettings(true),
-          },
-          {
-            key: 'write',
-            emoji: '✍️',
-            label: '글쓰기',
-            onClick: () => router.push(`/write?room_id=${roomId}`),
-          },
-        ]
-      : []),
-  ]
-
+  // TopBar = 마당/거실/서재 공통 내비만. 방 액션은 메타줄.
   return (
     <div style={{ minHeight: '100vh', background: '#FBF8F2' }}>
       <TopBar
         logo={<CoreNullLogo size="sm" />}
         title={room.room_name}
-        actions={topActions}
       />
 
       <div style={metaStrip}>
@@ -201,11 +160,21 @@ export default function RoomPage() {
             {LANG_FLAG[house.primary_language] || '🏡'} {house.title}
           </button>
         )}
-        {canWrite && (
-          <Link href={`/write?room_id=${roomId}`} style={writeBtnStyle}>
-            + 글쓰기
-          </Link>
-        )}
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button type="button" onClick={() => setShowShare(true)} style={iconBtn} aria-label="공유">
+            🔗
+          </button>
+          {canWrite && (
+            <button type="button" onClick={() => setShowSettings(true)} style={iconBtn} aria-label="설정">
+              ⚙️
+            </button>
+          )}
+          {canWrite && (
+            <Link href={`/write?room_id=${roomId}`} style={writeBtnStyle}>
+              + 글쓰기
+            </Link>
+          )}
+        </div>
       </div>
 
       {countdown && (
@@ -304,12 +273,17 @@ const metaStrip: React.CSSProperties = {
   borderBottom: '1px solid rgba(92,61,46,0.08)',
   background: '#FEFCF8',
 }
+const iconBtn: React.CSSProperties = {
+  width: 32, height: 32, borderRadius: '50%',
+  background: '#F5F0E8', border: 'none',
+  fontSize: 14, cursor: 'pointer',
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+}
 const metaHouseBtn: React.CSSProperties = {
   fontSize: 12, color: '#9A8470', margin: 0, padding: '2px 0',
   border: 'none', background: 'none', cursor: 'pointer',
 }
 const writeBtnStyle: React.CSSProperties = {
-  marginLeft: 'auto',
   background: '#2C1810', color: '#FBF8F2', border: 'none',
   borderRadius: '20px', padding: '7px 14px', fontSize: '13px',
   cursor: 'pointer', textDecoration: 'none', whiteSpace: 'nowrap',
