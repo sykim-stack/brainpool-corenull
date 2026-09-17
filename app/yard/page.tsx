@@ -175,7 +175,6 @@ export default function YardPage() {
     )
     setRecommended(rec)
 
-    // 이웃 피드: 방마다 최신 1개
     const accepted = nbRows.filter((n: any) => n.status === 'accepted' && n.house)
     const feedChunks = await Promise.all(
       accepted.map(async (n: any) => {
@@ -190,7 +189,6 @@ export default function YardPage() {
         .slice(0, 12)
     )
 
-    // 내 방 최신: 방마다 최신 글 1개만 + 집·방·상태
     const myRooms = roomList.filter(isYardVisibleRoom)
     if (myRooms.length > 0) {
       const perRoom = await Promise.all(
@@ -365,6 +363,7 @@ export default function YardPage() {
         }}
         recommended={recommended}
         onRecommendHouseClick={(houseId) => router.push(`/houses/${houseId}/yard`)}
+        onAcceptedNeighborClick={(houseId) => router.push(`/houses/${houseId}/living`)}
         onApplyNeighbor={handleApplyNeighbor}
         applyLoadingHouseId={applyLoadingHouseId}
         relations={relations}
