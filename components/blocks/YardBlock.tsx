@@ -30,6 +30,8 @@ export interface YardBlockProps {
   onDiscoveryDismiss?: (id: string) => void
   recommended?: NeighborChip[]
   onRecommendHouseClick?: (houseId: string) => void
+  /** 수락된 이웃 → 거실 */
+  onAcceptedNeighborClick?: (houseId: string) => void
   onApplyNeighbor?: (houseId: string) => void
   applyLoadingHouseId?: string | null
   relations?: YardRelationRow[]
@@ -60,6 +62,7 @@ export default function YardBlock({
   onDiscoveryDismiss,
   recommended = [],
   onRecommendHouseClick,
+  onAcceptedNeighborClick,
   onApplyNeighbor,
   applyLoadingHouseId = null,
   relations = [],
@@ -162,7 +165,20 @@ export default function YardBlock({
                 {relTab === 'sent' && (
                   <button type="button" style={styles.relGhost} disabled={relationActingId === r.id} onClick={() => onRemoveRelation?.(r.id)}>취소</button>
                 )}
-                {relTab === 'accepted' && <span style={styles.badgeOk}>이웃</span>}
+                {relTab === 'accepted' && (
+                  <>
+                    <span style={styles.badgeOk}>이웃</span>
+                    {r.houseId && onAcceptedNeighborClick && (
+                      <button
+                        type="button"
+                        style={styles.relAccept}
+                        onClick={() => onAcceptedNeighborClick(r.houseId!)}
+                      >
+                        거실
+                      </button>
+                    )}
+                  </>
+                )}
               </div>
             ))}
           </div>
