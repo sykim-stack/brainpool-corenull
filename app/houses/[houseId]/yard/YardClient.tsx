@@ -231,19 +231,25 @@ export default function YardClient() {
       <TopBar
         logo={<CoreNullLogo size="sm" />}
         title={house?.title || '마당'}
-        actions={
-          isOwner
-            ? [
-                {
-                  key: 'share',
-                  emoji: '🔗',
-                  label: '참여자 초대',
-                  onClick: handleInvite,
-                  disabled: inviteLoading,
-                },
-              ]
-            : []
-        }
+        actions={[
+          ...((relation.kind === 'self' || relation.kind === 'accepted')
+            ? [{
+                key: 'living',
+                emoji: '🛋️',
+                label: '거실',
+                onClick: () => router.push(`/houses/${houseId}/living`),
+              }]
+            : []),
+          ...(isOwner
+            ? [{
+                key: 'share',
+                emoji: '🔗',
+                label: '참여자 초대',
+                onClick: handleInvite,
+                disabled: inviteLoading,
+              }]
+            : []),
+        ]}
       />
 
       <YardBlock
