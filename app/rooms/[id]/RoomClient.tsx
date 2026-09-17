@@ -75,6 +75,12 @@ export default function RoomPage() {
   const isOwner = house?.owner_key === ownerKey
   const canWrite = isOwner || isMember
 
+  /** 방 → 거실 (히스토리 back은 외부/이전 탭으로 새는 경우가 많음) */
+  const goToLiving = () => {
+    if (house?.id) router.push(`/houses/${house.id}/living`)
+    else router.push('/living')
+  }
+
   useEffect(() => {
     const key = getDeviceId()
     setOwnerKey(key)
@@ -128,7 +134,7 @@ export default function RoomPage() {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '50vh', gap: '12px' }}>
         <p style={{ color: '#5C3D2E', fontSize: '14px' }}>{error || '방을 찾을 수 없어요.'}</p>
-        <button onClick={() => router.back()} style={btnSecondary}>← 돌아가기</button>
+        <button onClick={goToLiving} style={btnSecondary}>← 거실</button>
       </div>
     )
   }
@@ -138,7 +144,7 @@ export default function RoomPage() {
   return (
     <div style={{ minHeight: '100vh', background: '#FBF8F2' }}>
       <header style={headerStyle}>
-        <button onClick={() => router.back()} style={backBtnStyle}>←</button>
+        <button onClick={goToLiving} style={backBtnStyle} aria-label="거실로">←</button>
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <h1 style={{ fontSize: '16px', fontWeight: 700, color: '#2C1810', margin: 0 }}>
@@ -150,9 +156,22 @@ export default function RoomPage() {
             {room.seed_mode && <span style={seedBadge}>🌱 씨앗</span>}
           </div>
           {house && (
-            <p style={{ fontSize: '12px', color: '#9A8470', margin: '2px 0 0' }}>
-              {LANG_FLAG[house.primary_language] || '🏡'} {house.title}
-            </p>
+            <button
+              type="button"
+              onClick={goToLiving}
+              style={{
+                fontSize: '12px',
+                color: '#9A8470',
+                margin: '2px 0 0',
+                padding: 0,
+                border: 'none',
+                background: 'none',
+                cursor: 'pointer',
+                textAlign: 'left',
+              }}
+            >
+              {LANG_FLAG[house.primary_language] || '🏡'} {house.title} · 거실
+            </button>
           )}
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -236,7 +255,7 @@ export default function RoomPage() {
             setRoom(prev => prev ? { ...prev, ...updated } : prev)
           }}
           onLeft={() => {
-            router.back()
+            goToLiving()
           }}
         />
       )}
