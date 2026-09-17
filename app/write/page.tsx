@@ -162,37 +162,11 @@ export default function WritePage() {
     setMediaFiles(prev => prev.filter((_, i) => i !== index))
   }
 
-  const leaveWrite = () => {
-    if (selectedRoom?.id) router.push(`/rooms/${selectedRoom.id}`)
-    else router.push('/living')
-  }
-
   return (
     <div>
       <TopBar
         logo={<CoreNullLogo size="sm" />}
         title="새 이야기"
-        actions={[
-          {
-            key: 'living',
-            emoji: '🛋️',
-            label: '거실',
-            onClick: () => router.push('/living'),
-          },
-          {
-            key: 'room',
-            emoji: '🚪',
-            label: '방',
-            onClick: leaveWrite,
-          },
-          {
-            key: 'submit',
-            emoji: submitting ? '…' : '✓',
-            label: '올리기',
-            onClick: handleSubmit,
-            disabled: !content.trim() || !selectedRoom || submitting,
-          },
-        ]}
       />
 
       <div style={styles.body}>
