@@ -3,41 +3,46 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { getDeviceId } from '@/lib/deviceId'
-import { computeStage } from '@/lib/roomStage'
 import TopBar from '@/components/blocks/TopBar'
-import LivingBlock, { RoomTab, FilterChip } from '@/components/blocks/LivingBlock'
+import LivingBlock from '@/components/blocks/LivingBlock'
 import CoreNullLogo from '@/components/corenull/CoreNullLogo'
 import { PostBlockData } from '@/components/blocks/PostBlock'
+import { PosterData } from '@/components/blocks/PosterBlock'
 import { RingData } from '@/components/blocks/RingBlock'
-import { NeighborChip } from '@/components/blocks/NeighborContentBlock'
 import { houseHeroBackground, houseAvatarUrl } from '@/lib/houseImages'
 
 const LANG_FLAG: Record<string, string> = {
   ko: '🇰🇷', vi: '🇻🇳', en: '🇺🇸', ja: '🇯🇵', zh: '🇨🇳',
 }
 
-const VISIBILITY_FILTERS: FilterChip[] = [
-  { key: 'all', label: '전체' },
-  { key: 'public', label: '공개' },
-  { key: 'invite', label: '이웃공개' },
-  { key: 'family', label: '비공개' },
-]
-
-const STAGE_FILTERS: FilterChip[] = [
-  { key: 'all', label: '전체' },
-  { key: 'seed', label: '🌱 씨드' },
-  { key: 'growth', label: '🌿 성장' },
-  { key: 'flower', label: '🌸 꽃' },
-]
+function roomStatusLabel(rm: any): string {
+  const parts: string[] = []
+  if (rm.visibility === 'public') parts.push('공개')
+  else if (rm.visibility === 'invite') parts.push('이웃공개')
+  else if (rm.visibility === 'private') parts.push('비공개')
+  if (rm.seed_mode || rm.room_type === 'seed') parts.push('씨드')
+  return parts.filter((v, i, a) => a.indexOf(v) === i).join(' · ') || '방'
+}
 
 function buildRingData(roomCount: number): RingData {
   return {
     rings: [
       { index: 0, weight: Math.min(roomCount / 6, 1) },
       { index: 1, weight: 0.4 },
-      { index: 2, weight: 0.6 },
+      { index: 2, weight: 0.55 },
     ],
   }
+}
+
+function formatSince(iso?: string) {
+  if (!iso) return undefined
+  const d = new Date(iso)
+  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')} 부터`
+}
+
+function isLivingVisibleRoom(rm: any, isOwnHouse: boolean) {
+  if (isOwnHouse) return true
+  return rm.visibility === 'public' || rm.visibility === 'invite'
 }
 
 type BookmarkRow = { id: string; message_id: string | null; ended_at: string | null }
@@ -47,14 +52,9 @@ export default function LivingPage() {
 
   const [ownerKey, setOwnerKey] = useState('')
   const [house, setHouse] = useState<any>(null)
-  const [rooms, setRooms] = useState<any[]>([])
-  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null)
-  const [selectedVisibility, setSelectedVisibility] = useState('all')
-  const [selectedStage, setSelectedStage] = useState('all')
-  const [posts, setPosts] = useState<PostBlockData[]>([])
-  const [neighbors, setNeighbors] = useState<NeighborChip[]>([])
+  const [posters, setPosters] = useState<PosterData[]>([])
+  const [roomViews, setRoomViews] = useState<PostBlockData[]>([])
   const [loading, setLoading] = useState(true)
-  const [postsLoading, setPostsLoading] = useState(false)
 
   const [bookmarks, setBookmarks] = useState<BookmarkRow[]>([])
   const [interestLoadingId, setInterestLoadingId] = useState<string | null>(null)
@@ -65,91 +65,89 @@ export default function LivingPage() {
     if (!key) return
 
     Promise.all([
-      fetch(`/api/corenull/houses?owner_key=${key}`).then(r => r.json()),
-      fetch(`/api/corenull/bookmarks?owner_key=${key}`).then(r => r.json()),
-    ]).then(([d, b]) => {
-      const myHouse = d.data?.[0]
-      setBookmarks(b.data || [])
-      if (!myHouse) {
+      fetch(`/api/corenull/houses?owner_key=${key}`).then((r) => r.json()),
+      fetch(`/api/corenull/bookmarks?owner_key=${key}`).then((r) => r.json()),
+    ]).then(async ([hData, bData]) => {
+      if (bData.data) setBookmarks(bData.data)
+      const h = hData.house || hData.data?.[0]
+      if (!h) {
         setLoading(false)
         return
       }
-      setHouse(myHouse)
-      setRooms(myHouse.corenull_rooms || [])
+      setHouse(h)
 
-      fetch(`/api/corenull/houses?action=neighbors&house_id=${myHouse.id}`)
-        .then(r => r.json())
-        .then((nb) => {
-          const acceptedNeighbors: NeighborChip[] = (nb.data || [])
-            .filter((n: any) => n.status === 'accepted' && n.house)
-            .map((n: any) => ({
-              neighborId: n.id,
-              houseId: n.house.id,
-              title: n.house.title,
-              langFlag: LANG_FLAG[n.house.primary_language] || '🌐',
-            }))
-          setNeighbors(acceptedNeighbors)
-        })
+      try {
+        const rd = await fetch(`/api/corenull/rooms?house_id=${h.id}`).then((r) => r.json())
+        const list = (rd.data || []).filter((rm: any) => isLivingVisibleRoom(rm, true))
 
-      setLoading(false)
+        const slots = await Promise.all(
+          list.map(async (rm: any) => {
+            const pd = await fetch(`/api/corenull/posts?room_id=${rm.id}`).then((r) => r.json())
+            const latest =
+              (pd.data || []).find((p: any) => p.type !== 'comment') || (pd.data || [])[0]
+            const media = latest?.meta?.media
+            const imageUrl =
+              media?.find((m: any) => m.type === 'image')?.url || media?.[0]?.url || null
+
+            const poster: PosterData = {
+              roomId: rm.id,
+              roomName: rm.room_name,
+              status: roomStatusLabel(rm),
+              stageEmoji: rm.seed_mode || rm.room_type === 'seed' ? '🌱' : null,
+              recentContent: latest?.content || null,
+              imageUrl,
+              createdAt: latest?.created_at || null,
+              houseName: h.title,
+            }
+
+            const view: PostBlockData | null = latest
+              ? {
+                  id: latest.id,
+                  content: latest.content,
+                  media: latest.meta?.media,
+                  created_at: latest.created_at,
+                  comment_count: latest.comment_count ?? 0,
+                  room_id: rm.id,
+                  view_meta: {
+                    house_name: h.title,
+                    room_name: rm.room_name,
+                    status: roomStatusLabel(rm),
+                    stage_emoji: rm.seed_mode || rm.room_type === 'seed' ? '🌱' : undefined,
+                    relation: '나',
+                  },
+                }
+              : null
+
+            return { poster, view, visibility: rm.visibility }
+          })
+        )
+
+        setPosters(slots.map((s) => s.poster))
+        const views = slots
+          .filter((s) => s.view && (s.visibility === 'public' || s.visibility === 'invite'))
+          .map((s) => s.view!)
+          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+          .slice(0, 3)
+        setRoomViews(views)
+      } catch {
+        setPosters([])
+        setRoomViews([])
+      } finally {
+        setLoading(false)
+      }
     })
   }, [])
 
-  const filteredRooms = rooms.filter((r) => {
-    if (selectedVisibility !== 'all' && r.visibility !== selectedVisibility) return false
-    if (selectedStage !== 'all') {
-      const { stage } = r.stage ? computeStage(r.stage) : { stage: 'none' }
-      if (stage !== selectedStage) return false
-    }
-    return true
-  })
-
-  useEffect(() => {
-    if (filteredRooms.length === 0) {
-      setSelectedRoomId(null)
-      return
-    }
-    if (!filteredRooms.some((r) => r.id === selectedRoomId)) {
-      setSelectedRoomId(filteredRooms[0].id)
-    }
-  }, [selectedVisibility, selectedStage, rooms]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (!selectedRoomId) {
-      setPosts([])
-      return
-    }
-    setPostsLoading(true)
-    fetch(`/api/corenull/posts?room_id=${selectedRoomId}`)
-      .then(r => r.json())
-      .then((d) => {
-        const list = d.data || []
-        setPosts(
-          list.map((p: any): PostBlockData => ({
-            id: p.id,
-            content: p.content,
-            media: p.meta?.media,
-            created_at: p.created_at,
-            comment_count: p.comment_count ?? 0,
-            view_meta: p.type === 'fruit' ? { stage_emoji: '🍎' } : undefined,
-          }))
-        )
-        setPostsLoading(false)
-      })
-  }, [selectedRoomId])
-
   const getInterestState = (postId: string): 'none' | 'active' | 'ended' => {
-    const b = bookmarks.find((bm) => bm.message_id === postId)
-    if (!b) return 'none'
-    return b.ended_at ? 'ended' : 'active'
+    const bm = bookmarks.find((b) => b.message_id === postId)
+    if (!bm) return 'none'
+    return bm.ended_at ? 'ended' : 'active'
   }
 
   const handleInterestClick = async (postId: string) => {
-    if (interestLoadingId) return
+    if (!ownerKey) return
     setInterestLoadingId(postId)
-
-    const existing = bookmarks.find((bm) => bm.message_id === postId)
-
+    const existing = bookmarks.find((b) => b.message_id === postId)
     if (!existing) {
       const res = await fetch('/api/corenull/bookmarks', {
         method: 'POST',
@@ -173,65 +171,70 @@ export default function LivingPage() {
     setInterestLoadingId(null)
   }
 
-  const roomTabs: RoomTab[] = filteredRooms.map((r) => {
-    const computed = r.stage ? computeStage(r.stage) : { emoji: null }
-    return {
-      id: r.id,
-      label: r.room_name,
-      badge: computed.emoji || undefined,
-    }
-  })
-
-  const langFlag = house?.primary_language ? (LANG_FLAG[house.primary_language] || '🌐') : '🌐'
-
-  const handleCreateRoom = () => {
-    router.push(`/write?new_room=1`)
-  }
+  const langFlag = house?.primary_language ? LANG_FLAG[house.primary_language] || '🌐' : '🌐'
 
   return (
     <div>
       <TopBar
         logo={<CoreNullLogo size="sm" />}
         title="거실"
-        actions={house ? [
-          { key: 'home', emoji: '🏠', label: '나의 마당', onClick: () => router.push(`/houses/${house.id}/yard`) },
-        ] : []}
+        actions={
+          house
+            ? [
+                {
+                  key: 'yard',
+                  emoji: '🌿',
+                  label: '마당',
+                  onClick: () => router.push(`/houses/${house.id}/yard`),
+                },
+              ]
+            : []
+        }
       />
 
       <LivingBlock
         loading={loading}
         background={houseHeroBackground(house, 'living')}
-        ring={buildRingData(rooms.length)}
+        ring={buildRingData(posters.length)}
         avatar={
-          houseAvatarUrl(house)
-            ? <img src={houseAvatarUrl(house)!} alt="" style={{ width: 48, height: 48, borderRadius: '50%', objectFit: 'cover' }} />
-            : <span style={{ fontSize: 20 }}>🏡</span>
+          houseAvatarUrl(house) ? (
+            <img
+              src={houseAvatarUrl(house)!}
+              alt=""
+              style={{ width: 48, height: 48, borderRadius: '50%', objectFit: 'cover' }}
+            />
+          ) : (
+            <span style={{ fontSize: 20 }}>🏡</span>
+          )
         }
         doorplate={{
           langFlag,
           title: house?.title || '',
           description: house?.description,
-          roomCount: rooms.length,
+          since: formatSince(house?.created_at),
+          roomCount: posters.length,
+          cta: house
+            ? {
+                label: '집 꾸미기',
+                onClick: () => router.push('/me/house'),
+              }
+            : undefined,
         }}
-        rooms={roomTabs}
-        selectedRoomId={selectedRoomId}
-        onRoomSelect={(roomId) => router.push(`/rooms/${roomId}`)}
-        onCreateRoomClick={handleCreateRoom}
-        visibilityFilters={VISIBILITY_FILTERS}
-        selectedVisibility={selectedVisibility}
-        onVisibilityChange={setSelectedVisibility}
-        stageFilters={STAGE_FILTERS}
-        selectedStage={selectedStage}
-        onStageChange={setSelectedStage}
-        posts={postsLoading ? [] : posts}
-        onPostClick={(postId) => router.push(`/posts/${postId}`)}
+        posters={posters}
+        onPosterClick={(roomId) => router.push(`/rooms/${roomId}`)}
+        roomViews={roomViews}
+        onPostClick={(postId, roomId) =>
+          roomId ? router.push(`/rooms/${roomId}`) : router.push(`/posts/${postId}`)
+        }
         onCommentClick={(postId) => router.push(`/posts/${postId}`)}
         showInterest
         getInterestState={getInterestState}
         interestLoadingId={interestLoadingId}
         onInterestClick={handleInterestClick}
-        neighbors={neighbors}
-        onNeighborClick={(houseId) => router.push(`/houses/${houseId}/yard`)}
+        onInterestGoLibrary={() => router.push('/library')}
+        enableInlineComment
+        ownerKey={ownerKey}
+        onCreateRoomClick={() => router.push('/write?new_room=1')}
       />
     </div>
   )
