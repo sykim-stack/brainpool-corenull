@@ -96,6 +96,7 @@ export default function LivingPage() {
               stageEmoji: rm.seed_mode || rm.room_type === 'seed' ? '🌱' : null,
               recentContent: latest?.content || null,
               imageUrl,
+              media: Array.isArray(media) ? media : undefined,
               createdAt: latest?.created_at || null,
               houseName: h.title,
             }
