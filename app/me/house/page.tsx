@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { getDeviceId } from '@/lib/deviceId'
+import TopBar from '@/components/blocks/TopBar'
+import CoreNullLogo from '@/components/corenull/CoreNullLogo'
 
 // House 이미지 등록 — /write 업로드 파이프라인 재사용.
 // 새 업로드 API 없음. Poster 구현 전 House View 표면만 채운다.
@@ -121,11 +123,7 @@ export default function HouseImagesPage() {
   if (!house) {
     return (
       <div>
-        <div style={styles.header}>
-          <button style={styles.backBtn} onClick={() => router.back()}>←</button>
-          <span style={styles.headerTitle}>집 이미지</span>
-          <div style={{ width: 36 }} />
-        </div>
+        <TopBar logo={<CoreNullLogo size="sm" />} title="집 이미지" />
         <div style={styles.empty}>
           <p>아직 집이 없어요</p>
           <button style={styles.primaryBtn} onClick={() => router.push('/houses/create')}>
@@ -138,11 +136,7 @@ export default function HouseImagesPage() {
 
   return (
     <div>
-      <div style={styles.header}>
-        <button style={styles.backBtn} onClick={() => router.back()}>←</button>
-        <span style={styles.headerTitle}>집 이미지</span>
-        <div style={{ width: 36 }} />
-      </div>
+      <TopBar logo={<CoreNullLogo size="sm" />} title="집 이미지" />
 
       <div style={styles.body}>
         <p style={styles.lead}>
@@ -219,16 +213,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     height: '50vh', fontSize: 40,
   },
-  header: {
-    position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)',
-    width: '100%', maxWidth: '430px', height: 56,
-    background: 'rgba(254,252,248,0.95)', borderBottom: '1px solid rgba(92,61,46,0.12)',
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '0 16px', zIndex: 100, backdropFilter: 'blur(12px)',
-  },
-  backBtn: { fontSize: 20, color: '#2C1810', background: 'none', border: 'none', cursor: 'pointer' },
-  headerTitle: { fontFamily: "'Noto Serif KR', serif", fontSize: 16, fontWeight: 600, color: '#2C1810' },
-  body: { padding: '72px 16px 40px' },
+  body: { padding: '16px 16px 40px' },
   lead: { fontSize: 15, color: '#1C1208', marginBottom: 16, lineHeight: 1.5 },
   leadSub: { fontSize: 12, color: '#9A8470' },
   msg: {
