@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { getDeviceId } from '@/lib/deviceId'
+import TopBar from '@/components/blocks/TopBar'
+import CoreNullLogo from '@/components/corenull/CoreNullLogo'
 
 export default function MePage() {
   const [library, setLibrary] = useState<any>(null)
@@ -81,10 +83,10 @@ export default function MePage() {
 
   return (
     <div>
-      <div style={styles.header}>
-        <span style={styles.headerTitle}>나</span>
-        <button style={styles.iconBtn}>⚙️</button>
-      </div>
+      <TopBar
+        logo={<CoreNullLogo size="sm" />}
+        title="나"
+      />
 
       <div style={styles.body}>
         <div style={styles.profileCard}>
@@ -215,15 +217,6 @@ export default function MePage() {
 
 const styles: Record<string, React.CSSProperties> = {
   loading: { display: 'flex', alignItems: 'center', justifyContent: 'center', height: '50vh', fontSize: 40 },
-  header: {
-    position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)',
-    width: '100%', maxWidth: '430px', height: 56,
-    background: 'rgba(254,252,248,0.95)', borderBottom: '1px solid rgba(92,61,46,0.12)',
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '0 20px', zIndex: 100, backdropFilter: 'blur(12px)',
-  },
-  headerTitle: { fontFamily: "'Noto Serif KR', serif", fontSize: 18, fontWeight: 600, color: '#2C1810' },
-  iconBtn: { width: 36, height: 36, borderRadius: '50%', background: '#F5F0E8', border: 'none', fontSize: 16, cursor: 'pointer' },
   body: { padding: '16px' },
   profileCard: {
     background: '#FEFCF8', borderRadius: 20, border: '1px solid rgba(92,61,46,0.12)',
