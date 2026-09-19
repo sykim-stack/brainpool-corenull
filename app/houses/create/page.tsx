@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useOwnerKey } from '@/hooks/useOwnerKey'
+import TopBar from '@/components/blocks/TopBar'
+import CoreNullLogo from '@/components/corenull/CoreNullLogo'
 
 const LANGUAGES = [
   { code: 'ko', flag: '🇰🇷', label: '한국어' },
@@ -21,7 +23,6 @@ export default function CreateHousePage() {
   const router = useRouter()
   const ownerKey = useOwnerKey()
 
-  // 1인 1집 — 이미 집이 있으면 이 페이지에 머무를 필요 없이 바로 홈으로
   useEffect(() => {
     if (!ownerKey) return
     fetch(`/api/corenull/houses?owner_key=${ownerKey}`)
@@ -52,7 +53,6 @@ export default function CreateHousePage() {
 
     const data = await res.json()
     if (data.data) {
-      // 1인 1집 — 만들고 나면 홈이 곧 내 집(방 목록)이므로 홈으로 이동
       router.push('/')
     }
     setSubmitting(false)
@@ -64,21 +64,17 @@ export default function CreateHousePage() {
 
   return (
     <div>
-      {/* 헤더 */}
-      <div style={styles.header}>
-        <button style={styles.backBtn} onClick={() => router.back()}>←</button>
-        <span style={styles.headerTitle}>집 만들기</span>
+      <TopBar logo={<CoreNullLogo size="sm" />} title="집 만들기" />
+
+      <div style={styles.body}>
         <button
-          style={{ ...styles.submitBtn, opacity: (!title.trim() || !ownerKey || submitting) ? 0.4 : 1 }}
+          style={{ ...styles.submitBtn, width: '100%', marginBottom: 16, opacity: (!title.trim() || !ownerKey || submitting) ? 0.4 : 1 }}
           onClick={handleSubmit}
           disabled={!title.trim() || !ownerKey || submitting}
         >
           {submitting ? '...' : '완성'}
         </button>
-      </div>
 
-      <div style={styles.body}>
-        {/* 집 미리보기 */}
         <div style={styles.preview}>
           <div style={styles.previewCover}>
             <span style={styles.previewEmoji}>🏡</span>
@@ -91,7 +87,6 @@ export default function CreateHousePage() {
           </div>
         </div>
 
-        {/* 집 이름 */}
         <div style={styles.fieldLabel}>집 이름 *</div>
         <input
           style={styles.input}
@@ -102,7 +97,6 @@ export default function CreateHousePage() {
           autoFocus
         />
 
-        {/* 소개 */}
         <div style={styles.fieldLabel}>소개 (선택)</div>
         <textarea
           style={styles.textarea}
@@ -112,7 +106,6 @@ export default function CreateHousePage() {
           maxLength={100}
         />
 
-        {/* 언어 선택 */}
         <div style={styles.fieldLabel}>이 집의 언어</div>
         <div style={styles.fieldDesc}>이 집에서 쓰는 주요 언어예요. 방문자에게는 자동으로 번역돼요.</div>
         <div style={styles.langGrid}>
@@ -131,7 +124,6 @@ export default function CreateHousePage() {
           ))}
         </div>
 
-        {/* 안내 */}
         <div style={styles.notice}>
           🌱 집을 만들면 기본 방 "일상"이 자동으로 생겨요. 집은 딱 하나만 만들 수 있어요.
         </div>
@@ -145,15 +137,6 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     height: '50vh', fontSize: 40,
   },
-  header: {
-    position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)',
-    width: '100%', maxWidth: '430px', height: 56,
-    background: 'rgba(254,252,248,0.95)', borderBottom: '1px solid rgba(92,61,46,0.12)',
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '0 16px', zIndex: 100, backdropFilter: 'blur(12px)',
-  },
-  backBtn: { fontSize: 20, color: '#2C1810', background: 'none', border: 'none', cursor: 'pointer' },
-  headerTitle: { fontFamily: "'Noto Serif KR', serif", fontSize: 16, fontWeight: 600, color: '#2C1810' },
   submitBtn: {
     padding: '8px 16px', background: '#2C1810', color: 'white',
     border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 500, cursor: 'pointer',
