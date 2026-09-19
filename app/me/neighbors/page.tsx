@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { getDeviceId } from '@/lib/deviceId'
+import TopBar from '@/components/blocks/TopBar'
+import CoreNullLogo from '@/components/corenull/CoreNullLogo'
 
 type NeighborRow = {
   id: string
@@ -20,7 +22,6 @@ const LANG_FLAG: Record<string, string> = {
 export default function MyNeighborsPage() {
   const router = useRouter()
   const [ownerKey, setOwnerKey] = useState('')
-  const [myHouseId, setMyHouseId] = useState<string | null>(null)
   const [neighbors, setNeighbors] = useState<NeighborRow[]>([])
   const [loading, setLoading] = useState(true)
   const [actingId, setActingId] = useState<string | null>(null)
@@ -37,7 +38,6 @@ export default function MyNeighborsPage() {
           setLoading(false)
           return
         }
-        setMyHouseId(myHouse.id)
         const nb = await fetch(`/api/corenull/houses?action=neighbors&house_id=${myHouse.id}`).then(r => r.json())
         setNeighbors(nb.data || [])
         setLoading(false)
@@ -59,7 +59,6 @@ export default function MyNeighborsPage() {
     setActingId(null)
   }
 
-  // 거절 / 취소 / 해지 — 전부 DELETE 하나로 처리 (ADR-ACCESS-002 §3)
   const handleRemove = async (neighborId: string) => {
     if (actingId) return
     setActingId(neighborId)
@@ -78,11 +77,7 @@ export default function MyNeighborsPage() {
 
   return (
     <div>
-      <div style={styles.header}>
-        <button style={styles.backBtn} onClick={() => router.back()}>←</button>
-        <span style={styles.headerTitle}>이웃</span>
-        <div style={{ width: 36 }} />
-      </div>
+      <TopBar logo={<CoreNullLogo size="sm" />} title="이웃" />
 
       <div style={styles.body}>
         {neighbors.length === 0 ? (
@@ -173,15 +168,6 @@ function NeighborItem({ n, onClick, children }: { n: NeighborRow; onClick?: () =
 
 const styles: Record<string, React.CSSProperties> = {
   loading: { display: 'flex', alignItems: 'center', justifyContent: 'center', height: '50vh', fontSize: 40 },
-  header: {
-    position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)',
-    width: '100%', maxWidth: '430px', height: 56,
-    background: 'rgba(254,252,248,0.95)', borderBottom: '1px solid rgba(92,61,46,0.12)',
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '0 16px', zIndex: 100, backdropFilter: 'blur(12px)',
-  },
-  backBtn: { fontSize: 20, color: '#2C1810', background: 'none', border: 'none', cursor: 'pointer' },
-  headerTitle: { fontFamily: "'Noto Serif KR', serif", fontSize: 16, fontWeight: 600, color: '#2C1810' },
   body: { padding: '16px' },
   empty: { textAlign: 'center', padding: '64px 24px' },
   sectionTitle: {

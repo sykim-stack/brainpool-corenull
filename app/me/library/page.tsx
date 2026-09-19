@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { getDeviceId } from '@/lib/deviceId'
+import TopBar from '@/components/blocks/TopBar'
+import CoreNullLogo from '@/components/corenull/CoreNullLogo'
 import FootprintRow from '@/components/blocks/FootprintRow'
 import PostCompactRow from '@/components/blocks/PostCompactRow'
 import { PostBlockData } from '@/components/blocks/PostBlock'
@@ -45,11 +47,10 @@ export default function LibraryPage() {
 
   return (
     <div>
-      <div style={styles.header}>
-        <button style={styles.backBtn} onClick={() => router.back()}>←</button>
-        <span style={styles.headerTitle}>📚 서재</span>
-        <div style={{ width: 36 }} />
-      </div>
+      <TopBar
+        logo={<CoreNullLogo size="sm" />}
+        title="서재"
+      />
 
       <div style={styles.tabRow}>
         {tabs.map(tab => (
@@ -192,20 +193,15 @@ function Empty({ emoji, text }: { emoji: string; text: string }) {
 
 const styles: Record<string, React.CSSProperties> = {
   loading: { display: 'flex', alignItems: 'center', justifyContent: 'center', height: '50vh', fontSize: 40 },
-  header: {
-    position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)',
-    width: '100%', maxWidth: '430px', height: 56,
-    background: 'rgba(254,252,248,0.95)', borderBottom: '1px solid rgba(92,61,46,0.12)',
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '0 16px', zIndex: 100, backdropFilter: 'blur(12px)',
-  },
-  backBtn: { fontSize: 20, color: '#2C1810', background: 'none', border: 'none', cursor: 'pointer' },
-  headerTitle: { fontFamily: "'Noto Serif KR', serif", fontSize: 16, fontWeight: 600, color: '#2C1810' },
   tabRow: {
-    position: 'fixed', top: 56, left: '50%', transform: 'translateX(-50%)',
-    width: '100%', maxWidth: '430px',
-    background: 'rgba(254,252,248,0.95)', borderBottom: '1px solid rgba(92,61,46,0.12)',
-    display: 'flex', zIndex: 99, backdropFilter: 'blur(12px)',
+    position: 'sticky',
+    top: 0,
+    width: '100%',
+    background: 'rgba(254,252,248,0.95)',
+    borderBottom: '1px solid rgba(92,61,46,0.12)',
+    display: 'flex',
+    zIndex: 50,
+    backdropFilter: 'blur(12px)',
   },
   tab: {
     flex: 1, padding: '12px 4px', border: 'none', background: 'none',
@@ -218,7 +214,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 11, color: '#C17F3C', fontWeight: 600,
     background: 'rgba(193,127,60,0.12)', padding: '1px 5px', borderRadius: 10,
   },
-  body: { padding: '16px', marginTop: '40px' },
+  body: { padding: '16px' },
   subTitle: { fontSize: 11, color: '#9A8470', letterSpacing: '0.5px', textTransform: 'uppercase', padding: '8px 4px 6px' },
   list: { display: 'flex', flexDirection: 'column', gap: 8 },
   listItem: {
