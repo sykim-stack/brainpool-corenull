@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import PostBlock, { PostBlockData } from '@/components/blocks/PostBlock'
-import RingBlock, { RingData } from '@/components/blocks/RingBlock'
+import RingBlock, { RingData } from './RingBlock'
 
 export interface NeighborRoomSlot {
   roomId: string
@@ -92,6 +92,11 @@ export default function NeighborContentBlock({
         : '복도 · 발견'
       : TIER_LABEL[tier] || '이웃'
 
+  const emptyText =
+    mode === 'recommend'
+      ? '아직 발견할 집이 없어요'
+      : '이 집의 이웃이 아직 없어요'
+
   return (
     <section style={styles.section}>
       <div style={styles.header}>
@@ -104,7 +109,7 @@ export default function NeighborContentBlock({
       </div>
 
       {neighbors.length === 0 ? (
-        <div style={styles.empty}>아직 발견할 집이 없어요</div>
+        <div style={styles.empty}>{emptyText}</div>
       ) : (
         <div style={styles.stage}>
           {neighbors.length > 1 && (
@@ -114,7 +119,6 @@ export default function NeighborContentBlock({
             </>
           )}
 
-          {/* 모바일 세로 / 태블릿+ 1|2|3 가로 — globals .cn-alley-row */}
           <div className="cn-alley-row">
             <div style={styles.col1}>
               <div

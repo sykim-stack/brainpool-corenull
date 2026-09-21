@@ -26,7 +26,6 @@ export interface YardBlockProps {
   avatar?: React.ReactNode
   doorplate: HeroDoorplate
   loading?: boolean
-  /** 방문 마당 — 내 방 숨김, 골목은 neighbor 모드, 공개 방 제목 사용 */
   visitorMode?: boolean
   discoveries?: DiscoveryItem[]
   onDiscoveryDismiss?: (id: string) => void
@@ -40,11 +39,8 @@ export interface YardBlockProps {
   onRemoveRelation?: (neighborId: string) => void
   relationActingId?: string | null
   onOpenRelations?: () => void
-  /** 이웃 공개 방 피드 (내 마당) 또는 미사용 */
   neighborFeed?: PostBlockData[]
-  /** 내 방 / 방문 시 비움 */
   myPosts?: PostBlockData[]
-  /** 방문 시 그 집 공개 방 최신 */
   publicPosts?: PostBlockData[]
   onPostClick?: (postId: string, roomId?: string) => void
   onCommentClick?: (postId: string) => void
@@ -99,7 +95,6 @@ export default function YardBlock({
     relTab === 'accepted' ? accepted : relTab === 'sent' ? sent : received
   const relShow = relList.slice(0, 5)
 
-  // 방문: 수락/거절은 내 관계가 아니므로 액션 숨김. 이웃 탭 + 마당 이동만.
   const canManageRelations = !visitorMode && !!(onAcceptRelation || onRemoveRelation)
 
   return (
@@ -164,7 +159,7 @@ export default function YardBlock({
             {visitorMode ? '이 집의 이웃이 여기 모입니다' : '신청·이웃이 여기 모입니다'}
           </div>
         ) : (
-          <div style={styles.relationGrid}>
+          <div style={styles.relationList}>
             {relShow.map((r) => (
               <div key={r.id} style={styles.relationRow}>
                 <span style={styles.relationName}>{r.title}</span>
@@ -296,18 +291,34 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#FEFCF8',
     borderColor: '#2C1810',
   },
-  relationGrid: {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
+  // 모바일 우선: 1열 나열 (2열 그리드는 좁은 화면에서 깨짐)
+  relationList: {
+    display: 'flex',
+    flexDirection: 'column',
     gap: 8,
   },
   relationRow: {
-    display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px',
-    background: '#FEFCF8', borderRadius: 12, border: '1px solid rgba(92,61,46,0.08)',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    padding: '10px 12px',
+    background: '#FEFCF8',
+    borderRadius: 12,
+    border: '1px solid rgba(92,61,46,0.08)',
+    minWidth: 0,
   },
-  relationName: { flex: 1, fontSize: 13, color: '#2C1810', fontWeight: 500 },
-  badgeOut: { fontSize: 10, color: '#9A8470', background: '#F5F0E8', padding: '2px 8px', borderRadius: 999 },
-  badgeOk: { fontSize: 10, color: '#4A5240', background: 'rgba(74,82,64,0.12)', padding: '2px 8px', borderRadius: 999 },
-  relAccept: { border: 'none', background: '#2C1810', color: '#fff', fontSize: 11, padding: '6px 10px', borderRadius: 8, cursor: 'pointer' },
-  relGhost: { border: '1px solid rgba(92,61,46,0.12)', background: '#fff', color: '#5C4A35', fontSize: 11, padding: '6px 10px', borderRadius: 8, cursor: 'pointer' },
+  relationName: {
+    flex: 1,
+    fontSize: 13,
+    color: '#2C1810',
+    fontWeight: 500,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    minWidth: 0,
+  },
+  badgeOut: { fontSize: 10, color: '#9A8470', background: '#F5F0E8', padding: '2px 8px', borderRadius: 999, flexShrink: 0 },
+  badgeOk: { fontSize: 10, color: '#4A5240', background: 'rgba(74,82,64,0.12)', padding: '2px 8px', borderRadius: 999, flexShrink: 0 },
+  relAccept: { border: 'none', background: '#2C1810', color: '#fff', fontSize: 11, padding: '6px 10px', borderRadius: 8, cursor: 'pointer', flexShrink: 0 },
+  relGhost: { border: '1px solid rgba(92,61,46,0.12)', background: '#fff', color: '#5C4A35', fontSize: 11, padding: '6px 10px', borderRadius: 8, cursor: 'pointer', flexShrink: 0 },
 }
