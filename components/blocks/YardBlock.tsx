@@ -26,11 +26,12 @@ export interface YardBlockProps {
   avatar?: React.ReactNode
   doorplate: HeroDoorplate
   loading?: boolean
+  /** 방문 마당 — 내 방 숨김, 골목은 neighbor 모드, 공개 방 제목 사용 */
+  visitorMode?: boolean
   discoveries?: DiscoveryItem[]
   onDiscoveryDismiss?: (id: string) => void
   recommended?: NeighborChip[]
   onRecommendHouseClick?: (houseId: string) => void
-  /** 수락된 이웃 → 거실 */
   onAcceptedNeighborClick?: (houseId: string) => void
   onApplyNeighbor?: (houseId: string) => void
   applyLoadingHouseId?: string | null
@@ -39,8 +40,12 @@ export interface YardBlockProps {
   onRemoveRelation?: (neighborId: string) => void
   relationActingId?: string | null
   onOpenRelations?: () => void
+  /** 이웃 공개 방 피드 (내 마당) 또는 미사용 */
   neighborFeed?: PostBlockData[]
+  /** 내 방 / 방문 시 비움 */
   myPosts?: PostBlockData[]
+  /** 방문 시 그 집 공개 방 최신 */
+  publicPosts?: PostBlockData[]
   onPostClick?: (postId: string, roomId?: string) => void
   onCommentClick?: (postId: string) => void
   showInterest?: boolean
@@ -58,6 +63,7 @@ export default function YardBlock({
   avatar,
   doorplate,
   loading = false,
+  visitorMode = false,
   discoveries = [],
   onDiscoveryDismiss,
   recommended = [],
@@ -72,6 +78,7 @@ export default function YardBlock({
   onOpenRelations,
   neighborFeed = [],
   myPosts = [],
+  publicPosts = [],
   onPostClick,
   onCommentClick,
   showInterest = false,
@@ -91,6 +98,9 @@ export default function YardBlock({
   const relList =
     relTab === 'accepted' ? accepted : relTab === 'sent' ? sent : received
   const relShow = relList.slice(0, 5)
+
+  // 방문: 수락/거절은 내 관계가 아니므로 액션 숨김. 이웃 탭 + 마당 이동만.
+  const canManageRelations = !visitorMode && !!(onAcceptRelation || onRemoveRelation)
 
   return (
     <div>
@@ -112,18 +122,18 @@ export default function YardBlock({
 
       <NeighborContentBlock
         tier="public"
-        mode="recommend"
+        mode={visitorMode ? 'neighbor' : 'recommend'}
         neighbors={recommended}
         onNeighborClick={(id) => onRecommendHouseClick?.(id)}
         onPostClick={onPostClick}
-        onApplyNeighbor={onApplyNeighbor}
+        onApplyNeighbor={visitorMode ? undefined : onApplyNeighbor}
         applyLoadingHouseId={applyLoadingHouseId}
       />
 
       <section style={styles.relationSection}>
         <div style={styles.relationHeader}>
           <span style={styles.relationTitle}>이웃 관계</span>
-          {onOpenRelations && (
+          {onOpenRelations && !visitorMode && (
             <button type="button" style={styles.relationMore} onClick={onOpenRelations}>전체 ›</button>
           )}
         </div>
@@ -150,28 +160,39 @@ export default function YardBlock({
           ))}
         </div>
         {relShow.length === 0 ? (
-          <div style={styles.relationEmpty}>신청·이웃이 여기 모입니다</div>
+          <div style={styles.relationEmpty}>
+            {visitorMode ? '이 집의 이웃이 여기 모입니다' : '신청·이웃이 여기 모입니다'}
+          </div>
         ) : (
           <div style={styles.relationGrid}>
             {relShow.map((r) => (
               <div key={r.id} style={styles.relationRow}>
                 <span style={styles.relationName}>{r.title}</span>
-                {relTab === 'received' && (
+                {canManageRelations && relTab === 'received' && (
                   <>
                     <button type="button" style={styles.relAccept} disabled={relationActingId === r.id} onClick={() => onAcceptRelation?.(r.id)}>수락</button>
                     <button type="button" style={styles.relGhost} disabled={relationActingId === r.id} onClick={() => onRemoveRelation?.(r.id)}>거절</button>
                   </>
                 )}
-                {relTab === 'sent' && (
+                {canManageRelations && relTab === 'sent' && (
                   <button type="button" style={styles.relGhost} disabled={relationActingId === r.id} onClick={() => onRemoveRelation?.(r.id)}>취소</button>
                 )}
                 {relTab === 'accepted' && (
                   <>
                     <span style={styles.badgeOk}>이웃</span>
-                    {r.houseId && onAcceptedNeighborClick && (
+                    {r.houseId && onRecommendHouseClick && (
                       <button
                         type="button"
                         style={styles.relAccept}
+                        onClick={() => onRecommendHouseClick(r.houseId!)}
+                      >
+                        마당
+                      </button>
+                    )}
+                    {!visitorMode && r.houseId && onAcceptedNeighborClick && (
+                      <button
+                        type="button"
+                        style={styles.relGhost}
                         onClick={() => onAcceptedNeighborClick(r.houseId!)}
                       >
                         거실
@@ -179,39 +200,59 @@ export default function YardBlock({
                     )}
                   </>
                 )}
+                {visitorMode && relTab !== 'accepted' && (
+                  <span style={styles.badgeOut}>{relTab === 'sent' ? '신청' : '요청'}</span>
+                )}
               </div>
             ))}
           </div>
         )}
       </section>
 
-      <MyContentBlock
-        title="이웃 공개 방 최신"
-        posts={neighborFeed}
-        onPostClick={onPostClick}
-        onCommentClick={onCommentClick}
-        showInterest={showInterest}
-        getInterestState={getInterestState}
-        interestLoadingId={interestLoadingId}
-        onInterestClick={onInterestClick}
-        enableInlineComment={enableInlineComment}
-        ownerKey={ownerKey}
-        onInterestGoLibrary={onInterestGoLibrary}
-      />
-
-      <MyContentBlock
-        title="내 방 최신 콘텐츠"
-        posts={myPosts}
-        onPostClick={onPostClick}
-        onCommentClick={onCommentClick}
-        showInterest={showInterest}
-        getInterestState={getInterestState}
-        interestLoadingId={interestLoadingId}
-        onInterestClick={onInterestClick}
-        enableInlineComment={enableInlineComment}
-        ownerKey={ownerKey}
-        onInterestGoLibrary={onInterestGoLibrary}
-      />
+      {visitorMode ? (
+        <MyContentBlock
+          title="공개 방 최신"
+          posts={publicPosts}
+          onPostClick={onPostClick}
+          onCommentClick={onCommentClick}
+          showInterest={showInterest}
+          getInterestState={getInterestState}
+          interestLoadingId={interestLoadingId}
+          onInterestClick={onInterestClick}
+          enableInlineComment={enableInlineComment}
+          ownerKey={ownerKey}
+          onInterestGoLibrary={onInterestGoLibrary}
+        />
+      ) : (
+        <>
+          <MyContentBlock
+            title="이웃 공개 방 최신"
+            posts={neighborFeed}
+            onPostClick={onPostClick}
+            onCommentClick={onCommentClick}
+            showInterest={showInterest}
+            getInterestState={getInterestState}
+            interestLoadingId={interestLoadingId}
+            onInterestClick={onInterestClick}
+            enableInlineComment={enableInlineComment}
+            ownerKey={ownerKey}
+            onInterestGoLibrary={onInterestGoLibrary}
+          />
+          <MyContentBlock
+            title="내 방 최신 콘텐츠"
+            posts={myPosts}
+            onPostClick={onPostClick}
+            onCommentClick={onCommentClick}
+            showInterest={showInterest}
+            getInterestState={getInterestState}
+            interestLoadingId={interestLoadingId}
+            onInterestClick={onInterestClick}
+            enableInlineComment={enableInlineComment}
+            ownerKey={ownerKey}
+            onInterestGoLibrary={onInterestGoLibrary}
+          />
+        </>
+      )}
     </div>
   )
 }
@@ -260,13 +301,11 @@ const styles: Record<string, React.CSSProperties> = {
     gridTemplateColumns: '1fr 1fr',
     gap: 8,
   },
-  relationList: { display: 'flex', flexDirection: 'column', gap: 8 },
   relationRow: {
     display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px',
     background: '#FEFCF8', borderRadius: 12, border: '1px solid rgba(92,61,46,0.08)',
   },
   relationName: { flex: 1, fontSize: 13, color: '#2C1810', fontWeight: 500 },
-  badgeIn: { fontSize: 10, color: '#C17F3C', background: '#FFF7E8', padding: '2px 8px', borderRadius: 999 },
   badgeOut: { fontSize: 10, color: '#9A8470', background: '#F5F0E8', padding: '2px 8px', borderRadius: 999 },
   badgeOk: { fontSize: 10, color: '#4A5240', background: 'rgba(74,82,64,0.12)', padding: '2px 8px', borderRadius: 999 },
   relAccept: { border: 'none', background: '#2C1810', color: '#fff', fontSize: 11, padding: '6px 10px', borderRadius: 8, cursor: 'pointer' },
