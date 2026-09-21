@@ -1,5 +1,8 @@
 'use client'
 
+// 광장 = 마당의 넓은 Scope (공개 방 → 그 집 마당).
+// 새 카드/레이아웃을 만들지 않고 RoomCard + rooms?scope=plaza 재사용.
+
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { getDeviceId } from '@/lib/deviceId'
@@ -11,23 +14,26 @@ export default function PlazaPage() {
   const router = useRouter()
   const [rooms, setRooms] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [myHouseId, setMyHouseId] = useState<string | null>(null)
 
   useEffect(() => {
-    fetch('/api/corenull/rooms?scope=plaza')
-      .then(r => r.json())
-      .then(d => {
-        setRooms(d.data || [])
+    fetch('/api/corenull/rooms?scope=plaza&limit=40')
+      .then((r) => r.json())
+      .then((d) => {
+        const list = d.data || []
+        // 마당 발견과 같이: 최근 활동(글) 있는 방을 앞에, 없는 방은 뒤로
+        const sorted = [...list].sort((a, b) => {
+          const at = a.latest_message?.created_at
+            ? new Date(a.latest_message.created_at).getTime()
+            : 0
+          const bt = b.latest_message?.created_at
+            ? new Date(b.latest_message.created_at).getTime()
+            : 0
+          return bt - at
+        })
+        setRooms(sorted)
         setLoading(false)
       })
-
-    // TopBar 🏠 목적지 — 나머지 화면들과 동일한 패턴, 항상 나의 마당 고정.
-    const key = getDeviceId()
-    if (key) {
-      fetch(`/api/corenull/houses?owner_key=${key}`)
-        .then(r => r.json())
-        .then(d => setMyHouseId(d.data?.[0]?.id || null))
-    }
+      .catch(() => setLoading(false))
   }, [])
 
   return (
@@ -35,9 +41,14 @@ export default function PlazaPage() {
       <TopBar
         logo={<CoreNullLogo size="sm" />}
         title="광장"
-        actions={myHouseId ? [
-          { key: 'home', emoji: '🏠', label: '나의 마당', onClick: () => router.push(`/houses/${myHouseId}/yard`) },
-        ] : []}
+        actions={[
+          {
+            key: 'home',
+            emoji: '🏠',
+            label: '나의 마당',
+            onClick: () => router.push('/yard'),
+          },
+        ]}
       />
 
       <div style={styles.body}>
@@ -46,7 +57,7 @@ export default function PlazaPage() {
         ) : rooms.length === 0 ? (
           <div style={styles.empty}>
             <div style={{ fontSize: 40, marginBottom: 12 }}>🏛️</div>
-            <p style={{ fontSize: 14, color: '#9A8470' }}>아직 발견할 공개 방이 없어요</p>
+            <p style={{ fontSize: 14, color: '#9A8470' }}>아직 둘러볼 공개 방이 없어요</p>
           </div>
         ) : (
           <div style={styles.list}>
@@ -54,8 +65,8 @@ export default function PlazaPage() {
               <RoomCard
                 key={room.id}
                 room={room}
-                // Master View §2/§3: 광장에서만 Room이 아니라 House로 점프한다
-                // (사람을 먼저 만나고, 그다음 그 사람의 공간을 둘러본다).
+                houseName={room.corenull_houses?.title || null}
+                // 광장 → 그 집 마당 (사람/집을 먼저 만난다)
                 onClick={() => router.push(`/houses/${room.house_id}/yard`)}
               />
             ))}
@@ -67,7 +78,13 @@ export default function PlazaPage() {
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  loading: { display: 'flex', alignItems: 'center', justifyContent: 'center', height: '50vh', fontSize: 40 },
+  loading: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: '50vh',
+    fontSize: 40,
+  },
   empty: { textAlign: 'center', padding: '64px 24px' },
   body: { padding: '16px' },
   list: { display: 'flex', flexDirection: 'column', gap: 12 },
