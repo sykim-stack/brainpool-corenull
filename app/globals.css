@@ -120,8 +120,9 @@ body {
   .cn-post-grid[data-count="1"] { grid-template-columns: 1fr; }
   .cn-post-grid[data-count="2"] { grid-template-columns: 1fr 1fr; }
   .cn-post-grid[data-count="3"] { grid-template-columns: 1fr 1fr 1fr; }
+  /* 광장·거실 최신글: 3열×2행 (auto-fill 4열 방지) */
   .cn-post-grid[data-count="many"] {
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    grid-template-columns: 1fr 1fr 1fr;
   }
 }
 
