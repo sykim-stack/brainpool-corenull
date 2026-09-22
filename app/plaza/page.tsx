@@ -17,7 +17,7 @@ const LANG_FLAG: Record<string, string> = {
   ko: '🇰🇷', vi: '🇻🇳', en: '🇺🇸', ja: '🇯🇵', zh: '🇨🇳',
 }
 
-/** 화면 한 장에 나열하는 공개방 상한. 1~6은 있는 만큼, 7개부터 6개 세트 스와이프 */
+/** 한 화면: 가로3 × 세로2 = 6. 1~6은 있는 만큼, 7+는 6개씩 스와이프 */
 const PUBLIC_ROOMS_PAGE = 6
 
 function isYardVisibleRoom(rm: any) {
@@ -224,7 +224,7 @@ export default function PlazaPage() {
   const relList = relTab === 'accepted' ? accepted : relTab === 'sent' ? sent : received
   const relShow = relList.slice(0, 5)
 
-  // 1~6: 있는 만큼만. 7+: 페이지당 6, 스와이프(화살표·점)
+  // 1~6: 있는 만큼(3×2 그리드). 7+: 페이지당 6, 스와이프
   const needsSwipe = publicRooms.length > PUBLIC_ROOMS_PAGE
   const pageCount = needsSwipe
     ? Math.ceil(publicRooms.length / PUBLIC_ROOMS_PAGE)
@@ -237,6 +237,9 @@ export default function PlazaPage() {
   useEffect(() => {
     if (publicPage >= pageCount) setPublicPage(Math.max(0, pageCount - 1))
   }, [pageCount, publicPage])
+
+  const gridCount =
+    visibleRooms.length >= 3 ? 'many' : String(Math.max(1, visibleRooms.length))
 
   return (
     <div>
@@ -362,7 +365,7 @@ export default function PlazaPage() {
             )}
           </section>
 
-          {/* 비이웃 공개방: 1→1 … 6→6 나열 / 7+ → 6개씩 스와이프 더보기 */}
+          {/* 비이웃 공개방: 3열×2행(최대6) — 내 방 최신과 동일 그리드 리듬 */}
           <section style={styles.publicSection}>
             <div style={styles.publicHeader}>
               <span style={styles.relationTitle}>비이웃 공개방 최신</span>
@@ -401,7 +404,7 @@ export default function PlazaPage() {
                   </>
                 )}
 
-                <div style={styles.setList}>
+                <div className="cn-post-grid" data-count={gridCount}>
                   {visibleRooms.map((room: any) => (
                     <div key={room.id} style={styles.setCard}>
                       <RoomCard
@@ -582,15 +585,11 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     boxShadow: '0 2px 8px rgba(44,24,16,0.08)',
   },
-  setList: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 12,
-  },
   setCard: {
     display: 'flex',
     flexDirection: 'column',
     gap: 4,
+    minWidth: 0,
   },
   setDots: {
     display: 'flex',
