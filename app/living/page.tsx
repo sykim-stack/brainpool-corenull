@@ -119,16 +119,16 @@ export default function LivingPage() {
                 }
               : null
 
-            return { poster, view, visibility: rm.visibility }
+            return { poster, view }
           })
         )
 
         setPosters(slots.map((s) => s.poster))
+        // 본인 거실: 전체 방 최신 — 상한 없음(화면만 6·스와이프)
         const views = slots
-          .filter((s) => s.view && (s.visibility === 'public' || s.visibility === 'invite'))
+          .filter((s) => s.view)
           .map((s) => s.view!)
           .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-          .slice(0, 3)
         setRoomViews(views)
       } catch {
         setPosters([])
@@ -232,7 +232,7 @@ export default function LivingPage() {
         getInterestState={getInterestState}
         interestLoadingId={interestLoadingId}
         onInterestClick={handleInterestClick}
-        onInterestGoLibrary={() => router.push('/library')}
+        onInterestGoLibrary={() => router.push('/me/library')}
         enableInlineComment
         ownerKey={ownerKey}
         onCreateRoomClick={() => router.push('/write?new_room=1')}
