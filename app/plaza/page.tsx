@@ -17,7 +17,8 @@ const LANG_FLAG: Record<string, string> = {
   ko: '🇰🇷', vi: '🇻🇳', en: '🇺🇸', ja: '🇯🇵', zh: '🇨🇳',
 }
 
-const PUBLIC_ROOMS_MAX = 6
+/** 한 화면에 보이는 공개방 세트 크기 — 6개 단위로 옆으로 넘김 */
+const PUBLIC_ROOMS_SET = 6
 
 function isYardVisibleRoom(rm: any) {
   return rm.visibility === 'public' || rm.visibility === 'invite'
@@ -83,8 +84,9 @@ export default function PlazaPage() {
   const [relationActingId, setRelationActingId] = useState<string | null>(null)
   const [relTab, setRelTab] = useState<'accepted' | 'sent' | 'received'>('accepted')
 
-  // 3. 비이웃 공개방 최신 6 (가로 스와이프)
+  // 3. 비이웃 공개방 — 전체 보유, 화면은 6개 세트
   const [publicRooms, setPublicRooms] = useState<any[]>([])
+  const [publicSetPage, setPublicSetPage] = useState(0)
 
   const loadAll = useCallback(async (key: string) => {
     const d = await fetch(`/api/corenull/houses?owner_key=${key}`).then((r) => r.json())
@@ -98,7 +100,7 @@ export default function PlazaPage() {
     const [nb, disc, plaza] = await Promise.all([
       fetch(`/api/corenull/houses?action=neighbors&house_id=${myHouse.id}`).then((res) => res.json()),
       fetch(`/api/corenull/houses?action=discover&house_id=${myHouse.id}`).then((res) => res.json()),
-      fetch('/api/corenull/rooms?scope=plaza&limit=40').then((res) => res.json()),
+      fetch('/api/corenull/rooms?scope=plaza&limit=60').then((res) => res.json()),
     ])
 
     const nbRows = nb.data || []
@@ -139,7 +141,7 @@ export default function PlazaPage() {
     )
     setRecommended(rec)
 
-    // 비이웃 공개방: 내 집·수락 이웃 제외, 최근 활동 순, 최대 6
+    // 비이웃 공개방: 내 집·수락 이웃 제외, 최근 활동 순 — 데이터는 전부, 화면만 6세트
     const list = plaza.data || []
     const sorted = [...list]
       .filter((rm: any) => {
@@ -158,9 +160,9 @@ export default function PlazaPage() {
           : 0
         return bt - at
       })
-      .slice(0, PUBLIC_ROOMS_MAX)
 
     setPublicRooms(sorted)
+    setPublicSetPage(0)
     setLoading(false)
   }, [])
 
@@ -225,6 +227,20 @@ export default function PlazaPage() {
   const accepted = relations.filter((r) => r.status === 'accepted')
   const relList = relTab === 'accepted' ? accepted : relTab === 'sent' ? sent : received
   const relShow = relList.slice(0, 5)
+
+  // 공개방 6개 세트
+  const publicSetCount = Math.max(1, Math.ceil(publicRooms.length / PUBLIC_ROOMS_SET) || 1)
+  const safeSetPage = Math.min(publicSetPage, publicSetCount - 1)
+  const publicSet = publicRooms.slice(
+    safeSetPage * PUBLIC_ROOMS_SET,
+    safeSetPage * PUBLIC_ROOMS_SET + PUBLIC_ROOMS_SET
+  )
+
+  useEffect(() => {
+    if (publicSetPage >= publicSetCount) {
+      setPublicSetPage(Math.max(0, publicSetCount - 1))
+    }
+  }, [publicSetCount, publicSetPage])
 
   return (
     <div>
@@ -352,35 +368,85 @@ export default function PlazaPage() {
             )}
           </section>
 
-          {/* 3. 비이웃 공개방 최신 6 — 가로 스와이프, 클릭 → 마당 */}
+          {/* 3. 비이웃 공개방 — 6개 세트, 초과 시 옆으로 다음 세트 */}
           <section style={styles.publicSection}>
             <div style={styles.publicHeader}>
               <span style={styles.relationTitle}>비이웃 공개방 최신</span>
-              <span style={styles.publicHint}>옆으로 넘겨 둘러보기</span>
+              {publicRooms.length > 0 && (
+                <span style={styles.publicHint}>
+                  {publicSetCount > 1
+                    ? `${safeSetPage + 1} / ${publicSetCount} · 6개씩`
+                    : `${publicRooms.length}개`}
+                </span>
+              )}
             </div>
             {publicRooms.length === 0 ? (
-              <div style={styles.relationEmpty}>아직 둘러볼 공개 방이 없어요</div>
+              <div style={{ ...styles.relationEmpty, margin: '0 16px' }}>
+                아직 둘러볼 공개 방이 없어요
+              </div>
             ) : (
-              <div style={styles.swipeRow}>
-                {publicRooms.map((room: any) => (
-                  <div key={room.id} style={styles.swipeCard}>
-                    <RoomCard
-                      room={room}
-                      houseName={room.corenull_houses?.title || null}
-                      onClick={() => router.push(`/houses/${room.house_id}/yard`)}
-                    />
+              <div style={styles.setStage}>
+                {publicSetCount > 1 && (
+                  <>
                     <button
                       type="button"
-                      style={styles.morePosts}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        router.push(`/rooms/${room.id}`)
-                      }}
+                      style={{ ...styles.setArrow, left: 4 }}
+                      onClick={() =>
+                        setPublicSetPage((p) => (p - 1 + publicSetCount) % publicSetCount)
+                      }
+                      aria-label="이전 세트"
                     >
-                      글 더보기 ›
+                      ‹
                     </button>
+                    <button
+                      type="button"
+                      style={{ ...styles.setArrow, right: 4 }}
+                      onClick={() => setPublicSetPage((p) => (p + 1) % publicSetCount)}
+                      aria-label="다음 세트"
+                    >
+                      ›
+                    </button>
+                  </>
+                )}
+
+                <div style={styles.setList}>
+                  {publicSet.map((room: any) => (
+                    <div key={room.id} style={styles.setCard}>
+                      <RoomCard
+                        room={room}
+                        houseName={room.corenull_houses?.title || null}
+                        onClick={() => router.push(`/houses/${room.house_id}/yard`)}
+                      />
+                      <button
+                        type="button"
+                        style={styles.morePosts}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          router.push(`/rooms/${room.id}`)
+                        }}
+                      >
+                        글 더보기 ›
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                {publicSetCount > 1 && (
+                  <div style={styles.setDots}>
+                    {Array.from({ length: publicSetCount }).map((_, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        style={{
+                          ...styles.setDot,
+                          background: i === safeSetPage ? '#2C1810' : 'rgba(92,61,46,0.2)',
+                        }}
+                        onClick={() => setPublicSetPage(i)}
+                        aria-label={`세트 ${i + 1}`}
+                      />
+                    ))}
                   </div>
-                ))}
+                )}
               </div>
             )}
           </section>
@@ -492,7 +558,7 @@ const styles: Record<string, React.CSSProperties> = {
     flexShrink: 0,
   },
   publicSection: {
-    padding: '16px 0 24px',
+    padding: '16px 0 28px',
     borderTop: '1px solid rgba(92,61,46,0.08)',
   },
   publicHeader: {
@@ -503,20 +569,50 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: 12,
   },
   publicHint: { fontSize: 11, color: '#9A8470' },
-  swipeRow: {
-    display: 'flex',
-    gap: 12,
-    overflowX: 'auto',
-    padding: '0 16px 8px',
-    scrollSnapType: 'x mandatory',
-    WebkitOverflowScrolling: 'touch',
+  setStage: {
+    position: 'relative',
+    padding: '0 16px',
   },
-  swipeCard: {
-    flex: '0 0 min(280px, 78vw)',
-    scrollSnapAlign: 'start',
+  setArrow: {
+    position: 'absolute',
+    top: '40%',
+    transform: 'translateY(-50%)',
+    zIndex: 2,
+    width: 28,
+    height: 36,
+    borderRadius: 10,
+    border: '1px solid rgba(92,61,46,0.12)',
+    background: 'rgba(254,252,248,0.95)',
+    color: '#2C1810',
+    fontSize: 20,
+    lineHeight: '36px',
+    padding: 0,
+    cursor: 'pointer',
+    boxShadow: '0 2px 8px rgba(44,24,16,0.08)',
+  },
+  setList: {
     display: 'flex',
     flexDirection: 'column',
+    gap: 12,
+  },
+  setCard: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 4,
+  },
+  setDots: {
+    display: 'flex',
+    justifyContent: 'center',
     gap: 6,
+    marginTop: 14,
+  },
+  setDot: {
+    width: 7,
+    height: 7,
+    borderRadius: '50%',
+    border: 'none',
+    padding: 0,
+    cursor: 'pointer',
   },
   morePosts: {
     border: 'none',
@@ -524,7 +620,7 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#9A8470',
     fontSize: 12,
     cursor: 'pointer',
-    padding: '4px 2px',
+    padding: '2px 2px 0',
     textAlign: 'left',
   },
 }
