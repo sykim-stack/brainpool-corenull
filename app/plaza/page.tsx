@@ -17,8 +17,8 @@ const LANG_FLAG: Record<string, string> = {
   ko: '🇰🇷', vi: '🇻🇳', en: '🇺🇸', ja: '🇯🇵', zh: '🇨🇳',
 }
 
-/** 한 화면에 보이는 공개방 세트 크기 — 6개 단위로 옆으로 넘김 */
-const PUBLIC_ROOMS_SET = 6
+/** 화면 한 장에 나열하는 공개방 상한. 1~6은 있는 만큼, 7개부터 6개 세트 스와이프 */
+const PUBLIC_ROOMS_PAGE = 6
 
 function isYardVisibleRoom(rm: any) {
   return rm.visibility === 'public' || rm.visibility === 'invite'
@@ -75,18 +75,15 @@ export default function PlazaPage() {
   const [house, setHouse] = useState<any>(null)
   const [loading, setLoading] = useState(true)
 
-  // 1. 광장 골목 — 비이웃 발견 + 신청
   const [recommended, setRecommended] = useState<NeighborChip[]>([])
   const [applyLoadingHouseId, setApplyLoadingHouseId] = useState<string | null>(null)
 
-  // 2. 이웃 관계
   const [relations, setRelations] = useState<YardRelationRow[]>([])
   const [relationActingId, setRelationActingId] = useState<string | null>(null)
   const [relTab, setRelTab] = useState<'accepted' | 'sent' | 'received'>('accepted')
 
-  // 3. 비이웃 공개방 — 전체 보유, 화면은 6개 세트
   const [publicRooms, setPublicRooms] = useState<any[]>([])
-  const [publicSetPage, setPublicSetPage] = useState(0)
+  const [publicPage, setPublicPage] = useState(0)
 
   const loadAll = useCallback(async (key: string) => {
     const d = await fetch(`/api/corenull/houses?owner_key=${key}`).then((r) => r.json())
@@ -141,7 +138,6 @@ export default function PlazaPage() {
     )
     setRecommended(rec)
 
-    // 비이웃 공개방: 내 집·수락 이웃 제외, 최근 활동 순 — 데이터는 전부, 화면만 6세트
     const list = plaza.data || []
     const sorted = [...list]
       .filter((rm: any) => {
@@ -162,7 +158,7 @@ export default function PlazaPage() {
       })
 
     setPublicRooms(sorted)
-    setPublicSetPage(0)
+    setPublicPage(0)
     setLoading(false)
   }, [])
 
@@ -228,19 +224,19 @@ export default function PlazaPage() {
   const relList = relTab === 'accepted' ? accepted : relTab === 'sent' ? sent : received
   const relShow = relList.slice(0, 5)
 
-  // 공개방 6개 세트
-  const publicSetCount = Math.max(1, Math.ceil(publicRooms.length / PUBLIC_ROOMS_SET) || 1)
-  const safeSetPage = Math.min(publicSetPage, publicSetCount - 1)
-  const publicSet = publicRooms.slice(
-    safeSetPage * PUBLIC_ROOMS_SET,
-    safeSetPage * PUBLIC_ROOMS_SET + PUBLIC_ROOMS_SET
-  )
+  // 1~6: 있는 만큼만. 7+: 페이지당 6, 스와이프(화살표·점)
+  const needsSwipe = publicRooms.length > PUBLIC_ROOMS_PAGE
+  const pageCount = needsSwipe
+    ? Math.ceil(publicRooms.length / PUBLIC_ROOMS_PAGE)
+    : 1
+  const safePage = Math.min(publicPage, Math.max(0, pageCount - 1))
+  const visibleRooms = needsSwipe
+    ? publicRooms.slice(safePage * PUBLIC_ROOMS_PAGE, safePage * PUBLIC_ROOMS_PAGE + PUBLIC_ROOMS_PAGE)
+    : publicRooms
 
   useEffect(() => {
-    if (publicSetPage >= publicSetCount) {
-      setPublicSetPage(Math.max(0, publicSetCount - 1))
-    }
-  }, [publicSetCount, publicSetPage])
+    if (publicPage >= pageCount) setPublicPage(Math.max(0, pageCount - 1))
+  }, [pageCount, publicPage])
 
   return (
     <div>
@@ -261,7 +257,6 @@ export default function PlazaPage() {
         <div style={styles.loading}>🏛️</div>
       ) : (
         <>
-          {/* 1. 광장 골목 — 비이웃 최신 방글 + 이웃 신청 */}
           <NeighborContentBlock
             tier="public"
             mode="recommend"
@@ -272,7 +267,6 @@ export default function PlazaPage() {
             applyLoadingHouseId={applyLoadingHouseId}
           />
 
-          {/* 2. 이웃 관계 — 마당과 동일 */}
           <section style={styles.relationSection}>
             <div style={styles.relationHeader}>
               <span style={styles.relationTitle}>이웃 관계</span>
@@ -368,14 +362,14 @@ export default function PlazaPage() {
             )}
           </section>
 
-          {/* 3. 비이웃 공개방 — 6개 세트, 초과 시 옆으로 다음 세트 */}
+          {/* 비이웃 공개방: 1→1 … 6→6 나열 / 7+ → 6개씩 스와이프 더보기 */}
           <section style={styles.publicSection}>
             <div style={styles.publicHeader}>
               <span style={styles.relationTitle}>비이웃 공개방 최신</span>
               {publicRooms.length > 0 && (
                 <span style={styles.publicHint}>
-                  {publicSetCount > 1
-                    ? `${safeSetPage + 1} / ${publicSetCount} · 6개씩`
+                  {needsSwipe
+                    ? `${safePage + 1}/${pageCount} · 더보기`
                     : `${publicRooms.length}개`}
                 </span>
               )}
@@ -386,23 +380,21 @@ export default function PlazaPage() {
               </div>
             ) : (
               <div style={styles.setStage}>
-                {publicSetCount > 1 && (
+                {needsSwipe && (
                   <>
                     <button
                       type="button"
                       style={{ ...styles.setArrow, left: 4 }}
-                      onClick={() =>
-                        setPublicSetPage((p) => (p - 1 + publicSetCount) % publicSetCount)
-                      }
-                      aria-label="이전 세트"
+                      onClick={() => setPublicPage((p) => (p - 1 + pageCount) % pageCount)}
+                      aria-label="이전"
                     >
                       ‹
                     </button>
                     <button
                       type="button"
                       style={{ ...styles.setArrow, right: 4 }}
-                      onClick={() => setPublicSetPage((p) => (p + 1) % publicSetCount)}
-                      aria-label="다음 세트"
+                      onClick={() => setPublicPage((p) => (p + 1) % pageCount)}
+                      aria-label="다음"
                     >
                       ›
                     </button>
@@ -410,7 +402,7 @@ export default function PlazaPage() {
                 )}
 
                 <div style={styles.setList}>
-                  {publicSet.map((room: any) => (
+                  {visibleRooms.map((room: any) => (
                     <div key={room.id} style={styles.setCard}>
                       <RoomCard
                         room={room}
@@ -431,18 +423,18 @@ export default function PlazaPage() {
                   ))}
                 </div>
 
-                {publicSetCount > 1 && (
+                {needsSwipe && (
                   <div style={styles.setDots}>
-                    {Array.from({ length: publicSetCount }).map((_, i) => (
+                    {Array.from({ length: pageCount }).map((_, i) => (
                       <button
                         key={i}
                         type="button"
                         style={{
                           ...styles.setDot,
-                          background: i === safeSetPage ? '#2C1810' : 'rgba(92,61,46,0.2)',
+                          background: i === safePage ? '#2C1810' : 'rgba(92,61,46,0.2)',
                         }}
-                        onClick={() => setPublicSetPage(i)}
-                        aria-label={`세트 ${i + 1}`}
+                        onClick={() => setPublicPage(i)}
+                        aria-label={`페이지 ${i + 1}`}
                       />
                     ))}
                   </div>
