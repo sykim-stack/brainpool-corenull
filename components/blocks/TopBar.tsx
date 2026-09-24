@@ -1,7 +1,7 @@
 'use client'
 
 import { usePathname, useRouter } from 'next/navigation'
-import { NAV_TABS } from '@/lib/navTabs'
+import { NAV_TABS, getTabHref, isTabActive } from '@/lib/navTabs'
 
 export interface TopBarAction {
   key: string
@@ -14,10 +14,27 @@ export interface TopBarAction {
 export interface TopBarProps {
   onBack?: () => void
   logo?: React.ReactNode
+  /** 공간 이름 — 알려진 공간은 아이콘으로 표시 (마당→🌳 등) */
   title?: string
   shareUrl?: string
-  /** ignored — right side fixed: 마당↔광장 + 공유 */
+  /** ignored — right side fixed: me + 마당↔광장 + 공유 */
   actions?: TopBarAction[]
+}
+
+/** 로고 옆 제목: 한글 대신 공간 아이콘 */
+const TITLE_ICON: Record<string, string> = {
+  마당: '🌳',
+  거실: '🛋️',
+  서재: '📚',
+  광장: '🏛️',
+  나: '👤',
+  새이야기: '✏️',
+  '새 이야기': '✏️',
+}
+
+function titleToIcon(title?: string): string | null {
+  if (!title) return null
+  return TITLE_ICON[title.trim()] || null
 }
 
 function isYardPath(pathname: string | null): boolean {
@@ -29,8 +46,8 @@ function isYardPath(pathname: string | null): boolean {
 export default function TopBar({ logo, title, shareUrl }: TopBarProps) {
   const pathname = usePathname()
   const router = useRouter()
-  const isActive = (href: string) => (href === '/' ? pathname === '/' : pathname.startsWith(href))
   const onYard = isYardPath(pathname)
+  const titleIcon = titleToIcon(title)
 
   const handleShare = async () => {
     const url = shareUrl || (typeof window !== 'undefined' ? window.location.href : '')
@@ -46,12 +63,12 @@ export default function TopBar({ logo, title, shareUrl }: TopBarProps) {
     } catch { /* ignore */ }
   }
 
-  // 마당일 때: 집 → 광장. 그 외: 집 → 마당.
   const spaceAction = onYard
     ? { key: 'plaza', emoji: '🏛️', label: '광장', onClick: () => router.push('/plaza') }
-    : { key: 'home', emoji: '🏠', label: '마당', onClick: () => router.push('/') }
+    : { key: 'home', emoji: '🏠', label: '내 마당', onClick: () => router.push('/yard') }
 
   const rightActions = [
+    { key: 'me', emoji: '👤', label: '나', onClick: () => router.push('/me') },
     spaceAction,
     { key: 'share', emoji: '🔗', label: '공유', onClick: handleShare },
   ]
@@ -61,24 +78,35 @@ export default function TopBar({ logo, title, shareUrl }: TopBarProps) {
       <div className="app-shell-content" style={styles.inner}>
         <div style={styles.left}>
           {logo}
-          {title && <span style={styles.title}>{title}</span>}
+          {titleIcon ? (
+            <span style={styles.titleIcon} aria-label={title} title={title}>
+              {titleIcon}
+            </span>
+          ) : title ? (
+            <span style={styles.title}>{title}</span>
+          ) : null}
         </div>
 
-        <nav className="app-topnav" style={styles.topNav}>
-          {NAV_TABS.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => router.push(tab.href)}
-              style={{
-                ...styles.topNavItem,
-                color: isActive(tab.href) ? '#C17F3C' : '#5C4A35',
-                fontWeight: isActive(tab.href) ? 600 : 400,
-              }}
-            >
-              <span style={{ fontSize: 15 }}>{tab.emoji}</span>
-              {tab.label}
-            </button>
-          ))}
+        <nav className="app-topnav" style={styles.topNav} aria-label="공간 메뉴">
+          {NAV_TABS.map((tab) => {
+            const active = isTabActive(tab.id, pathname)
+            const href = getTabHref(tab.id, pathname)
+            return (
+              <button
+                key={tab.id}
+                onClick={() => router.push(href)}
+                aria-label={tab.label}
+                style={{
+                  ...styles.topNavItem,
+                  color: active ? '#C17F3C' : '#5C4A35',
+                  fontWeight: active ? 600 : 400,
+                }}
+              >
+                <span style={{ fontSize: 15 }}>{tab.emoji}</span>
+                {tab.label}
+              </button>
+            )
+          })}
         </nav>
 
         <div style={styles.right}>
@@ -114,6 +142,9 @@ const styles: Record<string, React.CSSProperties> = {
   title: {
     fontFamily: "'Noto Serif KR', serif", fontSize: '16px', fontWeight: 600,
     color: '#2C1810', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+  },
+  titleIcon: {
+    fontSize: 20, lineHeight: 1, display: 'flex', alignItems: 'center',
   },
   topNav: { alignItems: 'center', gap: '28px' },
   topNavItem: {
