@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { getDeviceId } from '@/lib/deviceId'
+import { getOwnerKey } from '@/lib/ownerKey'
 import TopBar from '@/components/blocks/TopBar'
 import YardBlock, { YardRelationRow } from '@/components/blocks/YardBlock'
 import CoreNullLogo from '@/components/corenull/CoreNullLogo'
 import ShareModal from '@/components/corenull/ShareModal'
+import OwnerGate from '@/components/corenull/OwnerGate'
 import { PostBlockData } from '@/components/blocks/PostBlock'
 import { RingData } from '@/components/blocks/RingBlock'
 import { NeighborChip, NeighborRoomSlot } from '@/components/blocks/NeighborContentBlock'
@@ -84,7 +85,8 @@ type BookmarkRow = { id: string; message_id: string | null; ended_at: string | n
 export default function YardPage() {
   const router = useRouter()
 
-  const [ownerKey, setOwnerKey] = useState('')
+  const [ownerKey, setOwnerKeyState] = useState('')
+  const [ownerReady, setOwnerReady] = useState(false)
   const [house, setHouse] = useState<any>(null)
   const [rooms, setRooms] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -224,10 +226,15 @@ export default function YardPage() {
     setLoading(false)
   }, [])
 
+  // Owner 확인 후 House 조회. Owner 없으면 House를 만들지 않는다.
   useEffect(() => {
-    const key = getDeviceId()
-    setOwnerKey(key)
-    if (!key) return
+    const key = getOwnerKey()
+    setOwnerKeyState(key)
+    setOwnerReady(true)
+    if (!key) {
+      setLoading(false)
+      return
+    }
     loadAll(key)
   }, [loadAll])
 
@@ -312,6 +319,25 @@ export default function YardPage() {
 
   const langFlag = house?.primary_language ? LANG_FLAG[house.primary_language] || '🌐' : '🌐'
 
+  // Owner 미확인 → 게이트 (빈 집 생성 금지)
+  if (ownerReady && !ownerKey) {
+    return <OwnerGate />
+  }
+
+  // Owner는 있으나 House 없음 → 집 만들기 유도
+  if (ownerReady && ownerKey && !loading && !house) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '70vh', gap: 16 }}>
+        <div style={{ fontSize: 40 }}>🏡</div>
+        <p style={{ fontSize: 14, color: '#9A8470' }}>아직 집이 없어요</p>
+        <button
+          onClick={() => router.push('/houses/create')}
+          style={{ padding: '10px 24px', background: '#2C1810', color: 'white', border: 'none', borderRadius: 12, fontSize: 14, cursor: 'pointer' }}
+        >집 만들기</button>
+      </div>
+    )
+  }
+
   return (
     <div>
       <TopBar
@@ -321,10 +347,10 @@ export default function YardPage() {
           house
             ? [
                 {
-                  key: 'home',
-                  emoji: '🏠',
-                  label: '나의 마당',
-                  onClick: () => router.push(`/houses/${house.id}/yard`),
+                  key: 'plaza',
+                  emoji: '🏛️',
+                  label: '광장',
+                  onClick: () => router.push('/plaza'),
                 },
                 {
                   key: 'share',
