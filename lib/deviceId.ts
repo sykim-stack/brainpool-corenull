@@ -1,5 +1,8 @@
 // lib/deviceId.ts
-// 앱 최초 실행 시 device_id 생성 후 localStorage에 저장
+// Device = Owner가 CoreNull에 접속하는 개별 환경 식별자
+// House / Membership / 소유권 판단에 사용하지 않는다.
+// Owner 식별은 lib/ownerKey.ts 를 사용한다.
+//
 // SSR 환경에서는 빈 문자열 반환 (클라이언트에서만 유효)
 
 const DEVICE_ID_KEY = 'corenull_device_id'
