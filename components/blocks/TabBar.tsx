@@ -3,8 +3,7 @@
 import { usePathname, useRouter } from 'next/navigation'
 import { NAV_TABS, getTabHref, isTabActive } from '@/lib/navTabs'
 
-// 모바일/태블릿 하단 탭 — 아이콘만. 링크는 현재 집 기준.
-// 데스크톱(≥1200px)에선 숨기고 TopBar 가로 내비로 대체.
+// 모바일/태블릿 하단 탭 — 아이콘 + 한글. 링크는 현재 집 기준.
 export default function TabBar() {
   const pathname = usePathname()
   const router = useRouter()
@@ -30,14 +29,13 @@ export default function TabBar() {
           <button
             key={tab.id}
             onClick={() => router.push(href)}
-            aria-label={tab.label}
-            title={tab.label}
             style={{
               flex: 1,
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
+              gap: '4px',
               border: 'none',
               background: 'none',
               cursor: 'pointer',
@@ -47,14 +45,23 @@ export default function TabBar() {
           >
             <span
               style={{
-                fontSize: '24px',
+                fontSize: '22px',
                 lineHeight: 1,
                 transform: active ? 'scale(1.15)' : 'scale(1)',
-                opacity: active ? 1 : 0.55,
-                transition: 'transform 0.2s, opacity 0.2s',
+                transition: 'transform 0.2s',
               }}
             >
               {tab.emoji}
+            </span>
+            <span
+              style={{
+                fontSize: '10px',
+                color: active ? '#C17F3C' : '#9A8470',
+                fontWeight: active ? 500 : 400,
+                transition: 'color 0.2s',
+              }}
+            >
+              {tab.label}
             </span>
           </button>
         )
