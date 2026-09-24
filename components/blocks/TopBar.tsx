@@ -1,7 +1,7 @@
 'use client'
 
 import { usePathname, useRouter } from 'next/navigation'
-import { NAV_TABS } from '@/lib/navTabs'
+import { NAV_TABS, getTabHref, isTabActive } from '@/lib/navTabs'
 
 export interface TopBarAction {
   key: string
@@ -16,7 +16,7 @@ export interface TopBarProps {
   logo?: React.ReactNode
   title?: string
   shareUrl?: string
-  /** ignored — right side fixed: 마당↔광장 + 공유 */
+  /** ignored — right side fixed: me + 마당↔광장 + 공유 */
   actions?: TopBarAction[]
 }
 
@@ -29,7 +29,6 @@ function isYardPath(pathname: string | null): boolean {
 export default function TopBar({ logo, title, shareUrl }: TopBarProps) {
   const pathname = usePathname()
   const router = useRouter()
-  const isActive = (href: string) => (href === '/' ? pathname === '/' : pathname.startsWith(href))
   const onYard = isYardPath(pathname)
 
   const handleShare = async () => {
@@ -46,12 +45,13 @@ export default function TopBar({ logo, title, shareUrl }: TopBarProps) {
     } catch { /* ignore */ }
   }
 
-  // 마당일 때: 집 → 광장. 그 외: 집 → 마당.
+  // 마당일 때: 광장. 그 외: 내 마당 (항상 나 기준)
   const spaceAction = onYard
     ? { key: 'plaza', emoji: '🏛️', label: '광장', onClick: () => router.push('/plaza') }
-    : { key: 'home', emoji: '🏠', label: '마당', onClick: () => router.push('/') }
+    : { key: 'home', emoji: '🏠', label: '내 마당', onClick: () => router.push('/yard') }
 
   const rightActions = [
+    { key: 'me', emoji: '👤', label: '나', onClick: () => router.push('/me') },
     spaceAction,
     { key: 'share', emoji: '🔗', label: '공유', onClick: handleShare },
   ]
@@ -64,21 +64,26 @@ export default function TopBar({ logo, title, shareUrl }: TopBarProps) {
           {title && <span style={styles.title}>{title}</span>}
         </div>
 
-        <nav className="app-topnav" style={styles.topNav}>
-          {NAV_TABS.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => router.push(tab.href)}
-              style={{
-                ...styles.topNavItem,
-                color: isActive(tab.href) ? '#C17F3C' : '#5C4A35',
-                fontWeight: isActive(tab.href) ? 600 : 400,
-              }}
-            >
-              <span style={{ fontSize: 15 }}>{tab.emoji}</span>
-              {tab.label}
-            </button>
-          ))}
+        <nav className="app-topnav" style={styles.topNav} aria-label="공간 메뉴">
+          {NAV_TABS.map((tab) => {
+            const active = isTabActive(tab.id, pathname)
+            const href = getTabHref(tab.id, pathname)
+            return (
+              <button
+                key={tab.id}
+                onClick={() => router.push(href)}
+                aria-label={tab.label}
+                title={tab.label}
+                style={{
+                  ...styles.topNavItem,
+                  opacity: active ? 1 : 0.55,
+                  transform: active ? 'scale(1.12)' : 'scale(1)',
+                }}
+              >
+                <span style={{ fontSize: 20, lineHeight: 1 }}>{tab.emoji}</span>
+              </button>
+            )
+          })}
         </nav>
 
         <div style={styles.right}>
@@ -115,10 +120,11 @@ const styles: Record<string, React.CSSProperties> = {
     fontFamily: "'Noto Serif KR', serif", fontSize: '16px', fontWeight: 600,
     color: '#2C1810', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
   },
-  topNav: { alignItems: 'center', gap: '28px' },
+  topNav: { alignItems: 'center', gap: '20px' },
   topNavItem: {
-    display: 'flex', alignItems: 'center', gap: '6px',
-    background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px', padding: '6px 4px',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    background: 'none', border: 'none', cursor: 'pointer', padding: '6px 8px',
+    transition: 'transform 0.15s, opacity 0.15s',
   },
   right: { display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 },
   actionBtn: {

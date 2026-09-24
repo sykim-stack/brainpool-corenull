@@ -59,11 +59,9 @@ body {
   .app-topnav { display: flex; }
 }
 
-.app-fab-primary { bottom: 200px; }
-.app-fab-secondary { bottom: 132px; }
-@media (min-width: 1200px) {
-  .app-fab-primary { bottom: 96px; }
-  .app-fab-secondary { bottom: 28px; }
+/* 글쓰기 FAB — 중앙 (구 primary/secondary FAB 제거) */
+.app-fab-write {
+  /* margin은 컴포넌트에서 탭바 높이 보정 */
 }
 
 /* Hero 배경 등 — 부모 폭 제약과 무관하게 뷰포트 끝까지 붙는다 */
@@ -120,7 +118,6 @@ body {
   .cn-post-grid[data-count="1"] { grid-template-columns: 1fr; }
   .cn-post-grid[data-count="2"] { grid-template-columns: 1fr 1fr; }
   .cn-post-grid[data-count="3"] { grid-template-columns: 1fr 1fr 1fr; }
-  /* 광장·거실 최신글: 3열×2행 (auto-fill 4열 방지) */
   .cn-post-grid[data-count="many"] {
     grid-template-columns: 1fr 1fr 1fr;
   }
