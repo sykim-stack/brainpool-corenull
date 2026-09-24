@@ -85,17 +85,19 @@ export default function NeighborContentBlock({
     setNeighborIdx((i) => (i + dir + neighbors.length) % neighbors.length)
   }
 
-  const title =
-    mode === 'recommend'
-      ? tier === 'public'
-        ? '골목 · 발견'
-        : '복도 · 발견'
-      : TIER_LABEL[tier] || '이웃'
+  // 골목 / 복도 (발견 문구 제거 — 공간 이름만)
+  const title = TIER_LABEL[tier] || '이웃'
 
   const emptyText =
     mode === 'recommend'
       ? '아직 발견할 집이 없어요'
       : '이 집의 이웃이 아직 없어요'
+
+  const applyLabel = current?.requestPending
+    ? '신청중'
+    : applyLoadingHouseId === current?.houseId
+      ? '…'
+      : '이웃 신청'
 
   return (
     <section style={styles.section}>
@@ -145,31 +147,39 @@ export default function NeighborContentBlock({
                   />
                   <div style={styles.profileName}>{current?.title}</div>
                 </div>
-              </div>
 
-              {mode === 'recommend' && onApplyNeighbor && current && (
-                <button
-                  type="button"
-                  style={{
-                    ...styles.applyBtn,
-                    opacity: current.requestPending || applyLoadingHouseId === current.houseId ? 0.55 : 1,
-                  }}
-                  disabled={!!current.requestPending || applyLoadingHouseId === current.houseId}
-                  onClick={() => onApplyNeighbor(current.houseId)}
-                >
-                  {current.requestPending
-                    ? '신청중'
-                    : applyLoadingHouseId === current.houseId
-                      ? '…'
-                      : '이웃 신청'}
-                </button>
-              )}
+                {/* 이웃 신청 — 골목 이미지 안 작은 버튼 */}
+                {mode === 'recommend' && onApplyNeighbor && current && (
+                  <button
+                    type="button"
+                    style={{
+                      ...styles.applyOnCover,
+                      opacity:
+                        current.requestPending || applyLoadingHouseId === current.houseId
+                          ? 0.65
+                          : 1,
+                    }}
+                    disabled={!!current.requestPending || applyLoadingHouseId === current.houseId}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onApplyNeighbor(current.houseId)
+                    }}
+                  >
+                    {applyLabel}
+                  </button>
+                )}
+              </div>
             </div>
 
             <div style={styles.colPost}>
               {roomA && <div style={styles.roomTag}>{roomA.roomName}</div>}
               {postA ? (
-                <PostBlock post={postA} showViewMeta={false} showComments={false} onClick={() => onPostClick?.(postA.id, roomA?.roomId)} />
+                <PostBlock
+                  post={postA}
+                  showViewMeta={false}
+                  showComments={false}
+                  onClick={() => onPostClick?.(postA.id, roomA?.roomId)}
+                />
               ) : (
                 <div style={styles.postEmpty}>{rooms.length === 0 ? '공개 방 없음' : '글 없음'}</div>
               )}
@@ -178,7 +188,12 @@ export default function NeighborContentBlock({
             <div style={styles.colPost}>
               {roomB && <div style={styles.roomTag}>{roomB.roomName}</div>}
               {postB ? (
-                <PostBlock post={postB} showViewMeta={false} showComments={false} onClick={() => onPostClick?.(postB.id, roomB?.roomId)} />
+                <PostBlock
+                  post={postB}
+                  showViewMeta={false}
+                  showComments={false}
+                  onClick={() => onPostClick?.(postB.id, roomB?.roomId)}
+                />
               ) : (
                 <div style={styles.postEmpty}>{rooms.length <= 1 ? '—' : '글 없음'}</div>
               )}
@@ -192,7 +207,10 @@ export default function NeighborContentBlock({
                   <button
                     key={i}
                     type="button"
-                    style={{ ...styles.dot, background: i === roomPage ? '#2C1810' : 'rgba(92,61,46,0.2)' }}
+                    style={{
+                      ...styles.dot,
+                      background: i === roomPage ? '#2C1810' : 'rgba(92,61,46,0.2)',
+                    }}
                     onClick={() => setRoomIdx(i * 2)}
                   />
                 ))}
@@ -234,12 +252,12 @@ const styles: Record<string, React.CSSProperties> = {
   },
   coverShade: {
     position: 'absolute', inset: 0,
-    background: 'linear-gradient(180deg, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.35) 100%)',
+    background: 'linear-gradient(180deg, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.4) 100%)',
     pointerEvents: 'none',
   },
   profileCenter: {
     position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
-    alignItems: 'center', justifyContent: 'center', gap: 8, zIndex: 1, padding: 8,
+    alignItems: 'center', justifyContent: 'center', gap: 8, zIndex: 1, padding: '8px 8px 36px',
   },
   avatarImg: { width: 48, height: 48, borderRadius: '50%', objectFit: 'cover' },
   profileName: {
@@ -247,9 +265,22 @@ const styles: Record<string, React.CSSProperties> = {
     textShadow: '0 1px 3px rgba(0,0,0,0.45)', overflow: 'hidden', textOverflow: 'ellipsis',
     whiteSpace: 'nowrap', maxWidth: '100%',
   },
-  applyBtn: {
-    width: '100%', padding: '8px 0', borderRadius: 10, border: 'none',
-    background: '#2C1810', color: '#FEFCF8', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+  applyOnCover: {
+    position: 'absolute',
+    left: '50%',
+    bottom: 10,
+    transform: 'translateX(-50%)',
+    zIndex: 2,
+    padding: '5px 12px',
+    borderRadius: 999,
+    border: '1px solid rgba(254,252,248,0.35)',
+    background: 'rgba(44,24,16,0.82)',
+    color: '#FEFCF8',
+    fontSize: 11,
+    fontWeight: 600,
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+    backdropFilter: 'blur(6px)',
   },
   colPost: { minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 },
   roomTag: {

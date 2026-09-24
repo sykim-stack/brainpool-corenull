@@ -151,6 +151,8 @@ export default function YardPage() {
           direction: n.direction,
           title: n.house.title,
           houseId: n.house.id,
+          avatarUrl: n.house.avatar_url || null,
+          langFlag: LANG_FLAG[n.house.primary_language] || undefined,
         }))
     )
 
@@ -286,7 +288,7 @@ export default function YardPage() {
       const res = await fetch('/api/corenull/bookmarks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ owner_key: ownerKey, message_id: postId }),
+      body: JSON.stringify({ owner_key: ownerKey, message_id: postId }),
       })
       const data = await res.json()
       if (data.data) setBookmarks((prev) => [...prev, data.data])
