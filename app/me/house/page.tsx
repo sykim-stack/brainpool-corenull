@@ -3,11 +3,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { getDeviceId } from '@/lib/deviceId'
+import { prepareUploadFile } from '@/lib/compressMedia'
 import TopBar from '@/components/blocks/TopBar'
 import CoreNullLogo from '@/components/corenull/CoreNullLogo'
 
-// House 이미지 등록 — /write 업로드 파이프라인 재사용.
-// 새 업로드 API 없음. Poster 구현 전 House View 표면만 채운다.
+// House 이미지 등록 — /write 업로드 파이프라인 재사용 + 클라이언트 압축.
 
 type SlotKey = 'avatar_url' | 'yard_image_url' | 'living_image_url'
 
@@ -55,20 +55,31 @@ export default function HouseImagesPage() {
     if (!file || !activeSlot || !house || !ownerKey) return
 
     setUploading(true)
-    setMsg('')
+    setMsg('압축 중…')
     try {
+      const prepared = await prepareUploadFile(file)
+      if (!prepared.ok) {
+        setMsg(prepared.error)
+        setUploading(false)
+        setActiveSlot(null)
+        return
+      }
+
+      setMsg('업로드 중…')
       const form = new FormData()
-      form.append('files', file)
+      form.append('files', prepared.file)
       const up = await fetch('/api/corenull/upload', { method: 'POST', body: form })
       const upData = await up.json()
       const item = upData.data?.[0]
       if (!item?.url || item._error) {
         setMsg(item?._error || upData._error || '업로드 실패')
         setUploading(false)
+        setActiveSlot(null)
         return
       }
 
       setSaving(true)
+      setMsg('저장 중…')
       const res = await fetch('/api/corenull/houses', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -81,7 +92,7 @@ export default function HouseImagesPage() {
       const data = await res.json()
       if (data.data) {
         setHouse(data.data)
-        setMsg('저장됐어요')
+        setMsg(prepared.note ? `저장됐어요 (${prepared.note})` : '저장됐어요')
       } else {
         setMsg(data._error || '저장 실패 — DB 마이그레이션 확인')
       }
@@ -142,7 +153,7 @@ export default function HouseImagesPage() {
         <p style={styles.lead}>
           {house.title}
           <br />
-          <span style={styles.leadSub}>글쓰기와 같은 업로드를 씁니다. 없으면 기본 배경이 보입니다.</span>
+          <span style={styles.leadSub}>올기기 전 자동으로 가볍게 줄입니다.</span>
         </p>
 
         {msg && <div style={styles.msg}>{msg}</div>}
@@ -180,7 +191,7 @@ export default function HouseImagesPage() {
                   disabled={uploading || saving}
                   onClick={() => pickSlot(slot.key)}
                 >
-                  {uploading && activeSlot === slot.key ? '업로드 중…' : url ? '📷 바꾸기' : '📷 올리기'}
+                  {uploading && activeSlot === slot.key ? '처리 중…' : url ? '📷 바꾸기' : '📷 올리기'}
                 </button>
                 {url && (
                   <button

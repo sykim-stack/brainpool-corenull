@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { getDeviceId } from '@/lib/deviceId'
+import { prepareUploadFile } from '@/lib/compressMedia'
 import TopBar from '@/components/blocks/TopBar'
 import CoreNullLogo from '@/components/corenull/CoreNullLogo'
 
@@ -18,6 +19,7 @@ export default function WritePage() {
   const [selectedRoom, setSelectedRoom] = useState<any>(null)
   const [mediaFiles, setMediaFiles] = useState<any[]>([])
   const [uploading, setUploading] = useState(false)
+  const [uploadLabel, setUploadLabel] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [ownerKey, setOwnerKey] = useState('')
   const [submitError, setSubmitError] = useState('')
@@ -122,15 +124,44 @@ export default function WritePage() {
   }
 
   const handleFileSelect = async (e: any) => {
-    const files = Array.from(e.target.files || [])
+    const files = Array.from(e.target.files || []) as File[]
+    e.target.value = ''
     if (files.length === 0) return
+
     setUploading(true)
+    setSubmitError('')
+    setUploadLabel('준비 중…')
+
+    const prepared: File[] = []
+    for (let i = 0; i < files.length; i++) {
+      setUploadLabel(`압축 중 ${i + 1}/${files.length}`)
+      const result = await prepareUploadFile(files[i])
+      if (!result.ok) {
+        setSubmitError(result.error)
+        continue
+      }
+      prepared.push(result.file)
+    }
+
+    if (prepared.length === 0) {
+      setUploading(false)
+      setUploadLabel('')
+      return
+    }
+
+    setUploadLabel('업로드 중…')
     const form = new FormData()
-    files.forEach((f: any) => form.append('files', f))
+    prepared.forEach((f) => form.append('files', f))
     const res = await fetch('/api/corenull/upload', { method: 'POST', body: form })
     const data = await res.json()
-    setMediaFiles(prev => [...prev, ...(data.data || [])])
+    const ok = (data.data || []).filter((x: any) => x.url && !x._error)
+    const failed = (data.data || []).filter((x: any) => x._error)
+    if (failed.length) {
+      setSubmitError(failed[0]._error || '일부 업로드 실패')
+    }
+    setMediaFiles((prev) => [...prev, ...ok])
     setUploading(false)
+    setUploadLabel('')
   }
 
   const handleSubmit = async () => {
@@ -301,7 +332,7 @@ export default function WritePage() {
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
           >
-            {uploading ? '⏳' : '📷'} {uploading ? '업로드 중...' : '사진/영상'}
+            {uploading ? '⏳' : '📷'} {uploading ? (uploadLabel || '업로드 중...') : '사진/영상'}
           </button>
         </div>
 
@@ -322,7 +353,7 @@ export default function WritePage() {
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*,video/*"
+          accept="image/*,video/mp4,video/webm"
           multiple
           style={{ display: 'none' }}
           onChange={handleFileSelect}
