@@ -18,6 +18,8 @@ export interface YardRelationRow {
   direction: 'outgoing' | 'incoming'
   title: string
   houseId?: string
+  avatarUrl?: string | null
+  langFlag?: string
 }
 
 export interface YardBlockProps {
@@ -51,6 +53,34 @@ export interface YardBlockProps {
   enableInlineComment?: boolean
   ownerKey?: string
   onInterestGoLibrary?: () => void
+}
+
+function RelationAvatar({
+  row,
+  onClick,
+}: {
+  row: YardRelationRow
+  onClick?: () => void
+}) {
+  const initial = (row.title || '?').trim().charAt(0)
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={row.title}
+      aria-label={row.title}
+      style={styles.relAvatarBtn}
+    >
+      <div style={styles.relAvatarCircle}>
+        {row.avatarUrl ? (
+          <img src={row.avatarUrl} alt="" style={styles.relAvatarImg} />
+        ) : (
+          <span style={styles.relAvatarInitial}>{row.langFlag || initial}</span>
+        )}
+      </div>
+      <span style={styles.relAvatarName}>{row.title}</span>
+    </button>
+  )
 }
 
 export default function YardBlock({
@@ -90,10 +120,6 @@ export default function YardBlock({
   const received = relations.filter((r) => r.status === 'pending' && r.direction === 'incoming')
   const sent = relations.filter((r) => r.status === 'pending' && r.direction === 'outgoing')
   const accepted = relations.filter((r) => r.status === 'accepted')
-  const [relTab, setRelTab] = useState<'accepted' | 'sent' | 'received'>('accepted')
-  const relList =
-    relTab === 'accepted' ? accepted : relTab === 'sent' ? sent : received
-  const relShow = relList.slice(0, 5)
 
   const canManageRelations = !visitorMode && !!(onAcceptRelation || onRemoveRelation)
 
@@ -125,82 +151,81 @@ export default function YardBlock({
         applyLoadingHouseId={applyLoadingHouseId}
       />
 
+      {/* 이웃 관계 — 히어로 프로필 아이콘 가로 나열 */}
       <section style={styles.relationSection}>
         <div style={styles.relationHeader}>
           <span style={styles.relationTitle}>이웃 관계</span>
           {onOpenRelations && !visitorMode && (
-            <button type="button" style={styles.relationMore} onClick={onOpenRelations}>전체 ›</button>
+            <button type="button" style={styles.relationMore} onClick={onOpenRelations}>
+              전체 ›
+            </button>
           )}
         </div>
-        <div style={styles.relTabs}>
-          {(
-            [
-              ['accepted', '이웃', accepted.length],
-              ['sent', '신청', sent.length],
-              ['received', '요청', received.length],
-            ] as const
-          ).map(([key, label, n]) => (
-            <button
-              key={key}
-              type="button"
-              style={{
-                ...styles.relTab,
-                ...(relTab === key ? styles.relTabOn : null),
-              }}
-              onClick={() => setRelTab(key)}
-            >
-              {label}
-              {n > 0 ? ` ${n}` : ''}
-            </button>
-          ))}
-        </div>
-        {relShow.length === 0 ? (
+
+        {accepted.length === 0 && received.length === 0 && sent.length === 0 ? (
           <div style={styles.relationEmpty}>
-            {visitorMode ? '이 집의 이웃이 여기 모입니다' : '신청·이웃이 여기 모입니다'}
+            {visitorMode ? '이 집의 이웃이 여기 모입니다' : '이웃이 생기면 여기에 보여요'}
           </div>
         ) : (
-          <div style={styles.relationList}>
-            {relShow.map((r) => (
-              <div key={r.id} style={styles.relationRow}>
-                <span style={styles.relationName}>{r.title}</span>
-                {canManageRelations && relTab === 'received' && (
-                  <>
-                    <button type="button" style={styles.relAccept} disabled={relationActingId === r.id} onClick={() => onAcceptRelation?.(r.id)}>수락</button>
-                    <button type="button" style={styles.relGhost} disabled={relationActingId === r.id} onClick={() => onRemoveRelation?.(r.id)}>거절</button>
-                  </>
-                )}
-                {canManageRelations && relTab === 'sent' && (
-                  <button type="button" style={styles.relGhost} disabled={relationActingId === r.id} onClick={() => onRemoveRelation?.(r.id)}>취소</button>
-                )}
-                {relTab === 'accepted' && (
-                  <>
-                    <span style={styles.badgeOk}>이웃</span>
-                    {r.houseId && onRecommendHouseClick && (
-                      <button
-                        type="button"
-                        style={styles.relAccept}
-                        onClick={() => onRecommendHouseClick(r.houseId!)}
-                      >
-                        마당
-                      </button>
-                    )}
-                    {!visitorMode && r.houseId && onAcceptedNeighborClick && (
-                      <button
-                        type="button"
-                        style={styles.relGhost}
-                        onClick={() => onAcceptedNeighborClick(r.houseId!)}
-                      >
-                        거실
-                      </button>
-                    )}
-                  </>
-                )}
-                {visitorMode && relTab !== 'accepted' && (
-                  <span style={styles.badgeOut}>{relTab === 'sent' ? '신청' : '요청'}</span>
-                )}
+          <>
+            {accepted.length > 0 && (
+              <div style={styles.relAvatarRow}>
+                {accepted.map((r) => (
+                  <RelationAvatar
+                    key={r.id}
+                    row={r}
+                    onClick={() => {
+                      if (!r.houseId) return
+                      if (onAcceptedNeighborClick) onAcceptedNeighborClick(r.houseId)
+                      else onRecommendHouseClick?.(r.houseId)
+                    }}
+                  />
+                ))}
               </div>
-            ))}
-          </div>
+            )}
+
+            {/* 요청/신청 — 작은 칩 (관리용) */}
+            {canManageRelations && (received.length > 0 || sent.length > 0) && (
+              <div style={styles.pendingBlock}>
+                {received.map((r) => (
+                  <div key={r.id} style={styles.pendingRow}>
+                    <span style={styles.pendingName}>{r.title}</span>
+                    <span style={styles.pendingTag}>요청</span>
+                    <button
+                      type="button"
+                      style={styles.relAccept}
+                      disabled={relationActingId === r.id}
+                      onClick={() => onAcceptRelation?.(r.id)}
+                    >
+                      수락
+                    </button>
+                    <button
+                      type="button"
+                      style={styles.relGhost}
+                      disabled={relationActingId === r.id}
+                      onClick={() => onRemoveRelation?.(r.id)}
+                    >
+                      거절
+                    </button>
+                  </div>
+                ))}
+                {sent.map((r) => (
+                  <div key={r.id} style={styles.pendingRow}>
+                    <span style={styles.pendingName}>{r.title}</span>
+                    <span style={styles.pendingTag}>신청</span>
+                    <button
+                      type="button"
+                      style={styles.relGhost}
+                      disabled={relationActingId === r.id}
+                      onClick={() => onRemoveRelation?.(r.id)}
+                    >
+                      취소
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
         )}
       </section>
 
@@ -267,58 +292,88 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'space-between',
   },
   discoveryText: { fontSize: 13, color: '#2C1810', lineHeight: 1.5, flex: 1 },
-  discoveryDismiss: { background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#9A8470', padding: '0 0 0 8px', flexShrink: 0 },
+  discoveryDismiss: {
+    background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#9A8470',
+    padding: '0 0 0 8px', flexShrink: 0,
+  },
   relationSection: { padding: '16px', borderTop: '1px solid rgba(92,61,46,0.08)' },
-  relationHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-  relationTitle: { fontFamily: "'Noto Serif KR', serif", fontSize: 15, fontWeight: 600, color: '#2C1810' },
+  relationHeader: {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12,
+  },
+  relationTitle: {
+    fontFamily: "'Noto Serif KR', serif", fontSize: 15, fontWeight: 600, color: '#2C1810',
+  },
   relationMore: { border: 'none', background: 'none', color: '#9A8470', fontSize: 12, cursor: 'pointer' },
   relationEmpty: {
     fontSize: 13, color: '#9A8470', padding: '16px', textAlign: 'center',
     background: '#FEFCF8', borderRadius: 12, border: '1px dashed rgba(92,61,46,0.12)',
   },
-  relTabs: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6, marginBottom: 10 },
-  relTab: {
-    border: '1px solid rgba(92,61,46,0.12)',
-    background: '#FEFCF8',
-    color: '#5C4A35',
-    fontSize: 12,
-    padding: '8px 0',
-    borderRadius: 10,
+  relAvatarRow: {
+    display: 'flex',
+    flexDirection: 'row',
+    gap: 14,
+    overflowX: 'auto',
+    paddingBottom: 4,
+    WebkitOverflowScrolling: 'touch',
+  },
+  relAvatarBtn: {
+    flexShrink: 0,
+    width: 64,
+    border: 'none',
+    background: 'none',
+    padding: 0,
     cursor: 'pointer',
-  },
-  relTabOn: {
-    background: '#2C1810',
-    color: '#FEFCF8',
-    borderColor: '#2C1810',
-  },
-  // 모바일 우선: 1열 나열 (2열 그리드는 좁은 화면에서 깨짐)
-  relationList: {
     display: 'flex',
     flexDirection: 'column',
-    gap: 8,
+    alignItems: 'center',
+    gap: 6,
   },
-  relationRow: {
+  relAvatarCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: '50%',
+    background: 'linear-gradient(135deg, #4A5240, #C17F3C)',
     display: 'flex',
     alignItems: 'center',
-    gap: 8,
-    padding: '10px 12px',
-    background: '#FEFCF8',
-    borderRadius: 12,
-    border: '1px solid rgba(92,61,46,0.08)',
-    minWidth: 0,
+    justifyContent: 'center',
+    overflow: 'hidden',
+    boxShadow: '0 2px 8px rgba(44,24,16,0.12)',
   },
-  relationName: {
-    flex: 1,
-    fontSize: 13,
-    color: '#2C1810',
-    fontWeight: 500,
+  relAvatarImg: { width: '100%', height: '100%', objectFit: 'cover' },
+  relAvatarInitial: { fontSize: 18, color: '#FEFCF8', fontWeight: 600 },
+  relAvatarName: {
+    fontSize: 10,
+    color: '#5C4A35',
+    maxWidth: 64,
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
-    minWidth: 0,
+    textAlign: 'center',
   },
-  badgeOut: { fontSize: 10, color: '#9A8470', background: '#F5F0E8', padding: '2px 8px', borderRadius: 999, flexShrink: 0 },
-  badgeOk: { fontSize: 10, color: '#4A5240', background: 'rgba(74,82,64,0.12)', padding: '2px 8px', borderRadius: 999, flexShrink: 0 },
-  relAccept: { border: 'none', background: '#2C1810', color: '#fff', fontSize: 11, padding: '6px 10px', borderRadius: 8, cursor: 'pointer', flexShrink: 0 },
-  relGhost: { border: '1px solid rgba(92,61,46,0.12)', background: '#fff', color: '#5C4A35', fontSize: 11, padding: '6px 10px', borderRadius: 8, cursor: 'pointer', flexShrink: 0 },
+  pendingBlock: { marginTop: 12, display: 'flex', flexDirection: 'column', gap: 6 },
+  pendingRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    padding: '8px 10px',
+    background: '#FEFCF8',
+    borderRadius: 10,
+    border: '1px solid rgba(92,61,46,0.08)',
+  },
+  pendingName: {
+    flex: 1, fontSize: 12, color: '#2C1810', overflow: 'hidden',
+    textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0,
+  },
+  pendingTag: {
+    fontSize: 10, color: '#9A8470', background: '#F5F0E8',
+    padding: '2px 7px', borderRadius: 999, flexShrink: 0,
+  },
+  relAccept: {
+    border: 'none', background: '#2C1810', color: '#fff', fontSize: 11,
+    padding: '5px 9px', borderRadius: 8, cursor: 'pointer', flexShrink: 0,
+  },
+  relGhost: {
+    border: '1px solid rgba(92,61,46,0.12)', background: '#fff', color: '#5C4A35',
+    fontSize: 11, padding: '5px 9px', borderRadius: 8, cursor: 'pointer', flexShrink: 0,
+  },
 }
