@@ -2,13 +2,15 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { getDeviceId } from '@/lib/deviceId'
+import { getOwnerKey, setOwnerKey as persistOwnerKey } from '@/lib/ownerKey'
 import TopBar from '@/components/blocks/TopBar'
 import CoreNullLogo from '@/components/corenull/CoreNullLogo'
+import OwnerGate from '@/components/corenull/OwnerGate'
 
 export default function MePage() {
   const [library, setLibrary] = useState<any>(null)
-  const [ownerKey, setOwnerKey] = useState('')
+  const [ownerKey, setOwnerKeyState] = useState('')
+  const [ownerReady, setOwnerReady] = useState(false)
   const [loading, setLoading] = useState(true)
   const [myHouses, setMyHouses] = useState<any[]>([])
   const [pendingReceived, setPendingReceived] = useState(0)
@@ -20,8 +22,13 @@ export default function MePage() {
   const router = useRouter()
 
   useEffect(() => {
-    const key = getDeviceId()
-    setOwnerKey(key)
+    const key = getOwnerKey()
+    setOwnerKeyState(key)
+    setOwnerReady(true)
+    if (!key) {
+      setLoading(false)
+      return
+    }
     Promise.all([
       fetch(`/api/corenull/library?owner_key=${key}`).then(r => r.json()),
       fetch(`/api/corenull/houses?owner_key=${key}`).then(r => r.json()),
@@ -66,7 +73,8 @@ export default function MePage() {
     })
     const data = await res.json()
     if (data.data?.owner_key) {
-      localStorage.setItem('corenull_device_id', data.data.owner_key)
+      // Owner 복구: device_id가 아니라 owner_key 저장
+      persistOwnerKey(data.data.owner_key)
       setSyncMsg('✅ 동기화 완료! 페이지를 새로고침 해주세요.')
     } else {
       setSyncMsg('❌ ' + (data._error || '코드가 올바르지 않아요'))
@@ -77,6 +85,10 @@ export default function MePage() {
     if (myHouses.length === 1) router.push(`/houses/${myHouses[0].id}/yard`)
     else if (myHouses.length > 1) router.push('/')
     else router.push('/houses/create')
+  }
+
+  if (ownerReady && !ownerKey) {
+    return <OwnerGate />
   }
 
   if (loading) return <div style={styles.loading}>👤</div>
@@ -146,7 +158,6 @@ export default function MePage() {
         </div>
 
         <div style={styles.menuSection}>
-          {/* [feat/house-images] 등록 UI 진입점 — 이미지 없으면 Hero는 예전과 동일(그라데이션) */}
           <div style={styles.menuItem} onClick={() => router.push('/me/house')}>
             <div style={{ ...styles.menuIcon, background: 'rgba(193,127,60,0.12)' }}>🖼️</div>
             <span style={styles.menuLabel}>집 이미지</span>
