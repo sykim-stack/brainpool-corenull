@@ -1,32 +1,18 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import HeroBlock, { HeroBackground, HeroDoorplate } from './HeroBlock'
-import MyContentBlock from './MyContentBlock'
-import NeighborContentBlock, { NeighborChip } from './NeighborContentBlock'
+import PostBlock, { PostBlockData } from './PostBlock'
+import { PosterRow, PosterData } from './PosterBlock'
 import { RingData } from './RingBlock'
-import { PostBlockData } from './PostBlock'
 
-// ─────────────────────────────────────────────────────────────
-// LivingBlock — 거실 화면을 조립하는 블록.
-//
-// §3 결정: 거실은 마당과 완전히 동일한 Hero+Doorplate+Ring 구조를
-// 쓴다. 차이는 배경(외부→내부)과, 방 발견 대신 "방 관리"(방탭·
-// 필터탭·방만들기)가 붙는다는 것, 그리고 골목 대신 복도
-// (NeighborContentBlock tier='invite')라는 것.
-//
-// NOTE(2026-09-05): ADR-ACCESS-002 승인 완료 — 복도 연결.
-// ─────────────────────────────────────────────────────────────
+/**
+ * LivingBlock — 거실
+ * 방 = 공간 고르기 (Poster)
+ * 최신글 = 광장과 동일 리듬 (최대 6, 초과 시 스와이프)
+ */
 
-export interface RoomTab {
-  id: string
-  label: string
-  badge?: string
-}
-
-export interface FilterChip {
-  key: string
-  label: string
-}
+const LATEST_PAGE = 6
 
 export interface LivingBlockProps {
   background: HeroBackground
@@ -34,32 +20,28 @@ export interface LivingBlockProps {
   avatar?: React.ReactNode
   doorplate: HeroDoorplate
 
-  rooms: RoomTab[]
-  selectedRoomId: string | null
-  onRoomSelect: (roomId: string) => void
-  onCreateRoomClick: () => void
+  posters: PosterData[]
+  onPosterClick?: (roomId: string) => void
 
-  visibilityFilters: FilterChip[]
-  selectedVisibility: string
-  onVisibilityChange: (key: string) => void
-
-  stageFilters: FilterChip[]
-  selectedStage: string
-  onStageChange: (key: string) => void
-
-  posts: PostBlockData[]
-  onPostClick?: (postId: string) => void
+  roomViews: PostBlockData[]
+  onPostClick?: (postId: string, roomId?: string) => void
   onCommentClick?: (postId: string) => void
-  loading?: boolean
 
+  loading?: boolean
   showInterest?: boolean
   getInterestState?: (postId: string) => 'none' | 'active' | 'ended'
   interestLoadingId?: string | null
   onInterestClick?: (postId: string) => void
+  onInterestGoLibrary?: () => void
 
-  // 복도 — accepted 상태만 걸러서 페이지가 내려준다.
-  neighbors?: NeighborChip[]
-  onNeighborClick?: (houseId: string) => void
+  showPosterInterest?: boolean
+  getPosterInterestActive?: (roomId: string) => boolean
+  onPosterInterestClick?: (roomId: string) => void
+
+  enableInlineComment?: boolean
+  ownerKey?: string
+
+  onCreateRoomClick?: () => void
 }
 
 export default function LivingBlock({
@@ -67,17 +49,9 @@ export default function LivingBlock({
   ring,
   avatar,
   doorplate,
-  rooms,
-  selectedRoomId,
-  onRoomSelect,
-  onCreateRoomClick,
-  visibilityFilters,
-  selectedVisibility,
-  onVisibilityChange,
-  stageFilters,
-  selectedStage,
-  onStageChange,
-  posts,
+  posters,
+  onPosterClick,
+  roomViews,
   onPostClick,
   onCommentClick,
   loading = false,
@@ -85,9 +59,31 @@ export default function LivingBlock({
   getInterestState,
   interestLoadingId = null,
   onInterestClick,
-  neighbors = [],
-  onNeighborClick,
+  onInterestGoLibrary,
+  showPosterInterest = false,
+  getPosterInterestActive,
+  onPosterInterestClick,
+  enableInlineComment = false,
+  ownerKey,
+  onCreateRoomClick,
 }: LivingBlockProps) {
+  const [latestPage, setLatestPage] = useState(0)
+
+  const needsSwipe = roomViews.length > LATEST_PAGE
+  const pageCount = needsSwipe ? Math.ceil(roomViews.length / LATEST_PAGE) : 1
+  const safePage = Math.min(latestPage, Math.max(0, pageCount - 1))
+  const visible =
+    needsSwipe
+      ? roomViews.slice(safePage * LATEST_PAGE, safePage * LATEST_PAGE + LATEST_PAGE)
+      : roomViews
+
+  useEffect(() => {
+    if (latestPage >= pageCount) setLatestPage(Math.max(0, pageCount - 1))
+  }, [pageCount, latestPage])
+
+  const gridCount =
+    visible.length >= 3 ? 'many' : String(Math.max(1, visible.length))
+
   if (loading) {
     return <div style={styles.loading}>🛋️</div>
   }
@@ -96,80 +92,98 @@ export default function LivingBlock({
     <div>
       <HeroBlock background={background} ring={ring} avatar={avatar} doorplate={doorplate} />
 
-      {/* 방 탭 — 방 관리는 거실에만 있다 */}
-      <div style={styles.roomRow}>
-        {rooms.map((room) => (
-          <button
-            key={room.id}
-            onClick={() => onRoomSelect(room.id)}
-            style={{
-              ...styles.roomChip,
-              ...(room.id === selectedRoomId ? styles.roomChipActive : {}),
-            }}
-          >
-            {room.label}
-            {room.badge && <span style={{ marginLeft: 4 }}>{room.badge}</span>}
+      {onCreateRoomClick && (
+        <div style={styles.createRow}>
+          <button type="button" style={styles.createBtn} onClick={onCreateRoomClick}>
+            + 방 만들기
           </button>
-        ))}
-        <button style={styles.createRoomChip} onClick={onCreateRoomClick}>
-          + 방 만들기
-        </button>
-      </div>
-
-      {/* 공개범위 필터 */}
-      {visibilityFilters.length > 0 && (
-        <div style={styles.filterRow}>
-          {visibilityFilters.map((filter) => (
-            <button
-              key={filter.key}
-              onClick={() => onVisibilityChange(filter.key)}
-              style={{
-                ...styles.filterChip,
-                ...(filter.key === selectedVisibility ? styles.filterChipActive : {}),
-              }}
-            >
-              {filter.label}
-            </button>
-          ))}
         </div>
       )}
 
-      {/* 성장단계 필터 — 공개범위와 완전히 독립된 축 */}
-      {stageFilters.length > 0 && (
-        <div style={{ ...styles.filterRow, paddingTop: 6 }}>
-          {stageFilters.map((filter) => (
-            <button
-              key={filter.key}
-              onClick={() => onStageChange(filter.key)}
-              style={{
-                ...styles.filterChip,
-                ...(filter.key === selectedStage ? styles.filterChipActive : {}),
-              }}
-            >
-              {filter.label}
-            </button>
-          ))}
-        </div>
-      )}
-
-      <MyContentBlock
-        title="이 방의 이야기"
-        posts={posts}
-        onPostClick={onPostClick}
-        onCommentClick={onCommentClick}
-        showInterest={showInterest}
-        getInterestState={getInterestState}
-        interestLoadingId={interestLoadingId}
-        onInterestClick={onInterestClick}
+      <PosterRow
+        title="방"
+        posters={posters}
+        onPosterClick={onPosterClick}
+        showInterest={showPosterInterest}
+        getInterestActive={getPosterInterestActive}
+        onInterestClick={onPosterInterestClick}
       />
 
-      {onNeighborClick && (
-        <NeighborContentBlock
-          tier="invite"
-          neighbors={neighbors}
-          onNeighborClick={onNeighborClick}
-        />
-      )}
+      <section style={styles.latestSection}>
+        <div style={styles.latestHeader}>
+          <span style={styles.latestTitle}>최신글</span>
+          {roomViews.length > 0 && (
+            <span style={styles.latestHint}>
+              {needsSwipe
+                ? `${safePage + 1}/${pageCount} · 더보기`
+                : `${roomViews.length}개`}
+            </span>
+          )}
+        </div>
+
+        {roomViews.length === 0 ? (
+          <div style={styles.empty}>아직 이야기가 없어요</div>
+        ) : (
+          <div style={styles.latestStage}>
+            {needsSwipe && (
+              <>
+                <button
+                  type="button"
+                  style={{ ...styles.arrow, left: 0 }}
+                  onClick={() => setLatestPage((p) => (p - 1 + pageCount) % pageCount)}
+                  aria-label="이전"
+                >
+                  ‹
+                </button>
+                <button
+                  type="button"
+                  style={{ ...styles.arrow, right: 0 }}
+                  onClick={() => setLatestPage((p) => (p + 1) % pageCount)}
+                  aria-label="다음"
+                >
+                  ›
+                </button>
+              </>
+            )}
+
+            <div className="cn-post-grid" data-count={gridCount}>
+              {visible.map((post) => (
+                <PostBlock
+                  key={post.id}
+                  post={post}
+                  onClick={() => onPostClick?.(post.id, post.room_id)}
+                  onCommentClick={() => onCommentClick?.(post.id)}
+                  showInterest={showInterest}
+                  interestState={getInterestState?.(post.id) ?? 'none'}
+                  interestLoading={interestLoadingId === post.id}
+                  onInterestClick={() => onInterestClick?.(post.id)}
+                  onInterestGoLibrary={onInterestGoLibrary}
+                  enableInlineComment={enableInlineComment}
+                  ownerKey={ownerKey}
+                  showHouseName
+                />
+              ))}
+            </div>
+
+            {needsSwipe && (
+              <div style={styles.dots}>
+                {Array.from({ length: pageCount }).map((_, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    style={{
+                      ...styles.dot,
+                      background: i === safePage ? '#2C1810' : 'rgba(92,61,46,0.2)',
+                    }}
+                    onClick={() => setLatestPage(i)}
+                    aria-label={`페이지 ${i + 1}`}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </section>
     </div>
   )
 }
@@ -182,27 +196,12 @@ const styles: Record<string, React.CSSProperties> = {
     height: '50vh',
     fontSize: 40,
   },
-  roomRow: {
+  createRow: {
+    padding: '12px 16px 0',
     display: 'flex',
-    gap: 8,
-    padding: '14px 16px 0',
-    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
   },
-  roomChip: {
-    padding: '8px 14px',
-    borderRadius: 20,
-    border: '1px solid rgba(92,61,46,0.15)',
-    background: '#F5F0E8',
-    color: '#5C4A35',
-    fontSize: 13,
-    cursor: 'pointer',
-  },
-  roomChipActive: {
-    background: '#2C1810',
-    color: '#FBF8F2',
-    border: '1px solid #2C1810',
-  },
-  createRoomChip: {
+  createBtn: {
     padding: '8px 14px',
     borderRadius: 20,
     border: '1px dashed rgba(92,61,46,0.25)',
@@ -211,24 +210,62 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 13,
     cursor: 'pointer',
   },
-  filterRow: {
+  latestSection: {
+    padding: '8px 16px 28px',
+    borderTop: '1px solid rgba(92,61,46,0.08)',
+  },
+  latestHeader: {
     display: 'flex',
-    gap: 8,
-    padding: '10px 16px 0',
-    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
   },
-  filterChip: {
-    padding: '6px 12px',
-    borderRadius: 16,
-    border: '1px solid rgba(92,61,46,0.12)',
-    background: '#FEFCF8',
+  latestTitle: {
+    fontFamily: "'Noto Serif KR', serif",
+    fontSize: 15,
+    fontWeight: 600,
+    color: '#2C1810',
+  },
+  latestHint: { fontSize: 11, color: '#9A8470' },
+  empty: {
+    textAlign: 'center',
+    padding: '28px 16px',
+    fontSize: 13,
     color: '#9A8470',
-    fontSize: 12,
-    cursor: 'pointer',
+    background: '#FEFCF8',
+    borderRadius: 14,
+    border: '1px dashed rgba(92,61,46,0.15)',
   },
-  filterChipActive: {
-    background: 'rgba(193,127,60,0.12)',
-    color: '#C17F3C',
-    border: '1px solid rgba(193,127,60,0.3)',
+  latestStage: { position: 'relative' },
+  arrow: {
+    position: 'absolute',
+    top: '40%',
+    transform: 'translateY(-50%)',
+    zIndex: 2,
+    width: 28,
+    height: 36,
+    borderRadius: 10,
+    border: '1px solid rgba(92,61,46,0.12)',
+    background: 'rgba(254,252,248,0.95)',
+    color: '#2C1810',
+    fontSize: 20,
+    lineHeight: '36px',
+    padding: 0,
+    cursor: 'pointer',
+    boxShadow: '0 2px 8px rgba(44,24,16,0.08)',
+  },
+  dots: {
+    display: 'flex',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 14,
+  },
+  dot: {
+    width: 7,
+    height: 7,
+    borderRadius: '50%',
+    border: 'none',
+    padding: 0,
+    cursor: 'pointer',
   },
 }

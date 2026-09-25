@@ -4,6 +4,8 @@ import { useRouter, useParams } from 'next/navigation'
 import { getDeviceId } from '@/lib/deviceId'
 import ShareModal from '@/components/corenull/ShareModal'
 import MediaRenderer from '@/components/corenull/MediaRenderer'
+import TopBar from '@/components/blocks/TopBar'
+import CoreNullLogo from '@/components/corenull/CoreNullLogo'
 
 export default function PostDetailPage() {
   const { postId } = useParams()
@@ -35,7 +37,6 @@ export default function PostDetailPage() {
     setOwnerKey(key)
     if (!postId) return
     Promise.all([
-      // ADR-ACCESS-001: owner_key를 같이 보내야 family 방 접근 제어가 정상 동작함
       fetch(`/api/corenull/posts?post_id=${postId}&owner_key=${key}`).then(r => r.json()),
       fetch(`/api/corenull/posts?parent_id=${postId}`).then(r => r.json()),
     ]).then(async ([p, c]) => {
@@ -79,7 +80,6 @@ export default function PostDetailPage() {
     setEditMedia(prev => prev.filter((_: any, i: number) => i !== index))
   }
 
-  // 카메라 촬영 / 앨범 선택 공용 핸들러
   const handleAddMedia = async (e: any) => {
     const files = Array.from(e.target.files || [])
     if (files.length === 0) return
@@ -90,7 +90,6 @@ export default function PostDetailPage() {
     const data = await res.json()
     setEditMedia(prev => [...prev, ...(data.data || [])])
     setUploading(false)
-    // 같은 파일을 연속으로 다시 촬영/선택해도 onChange가 다시 뜨도록 value 초기화
     e.target.value = ''
   }
 
@@ -185,19 +184,14 @@ export default function PostDetailPage() {
 
   return (
     <div>
-      <div style={styles.header}>
-        <button style={styles.backBtn} onClick={() => router.back()}>←</button>
-        <span style={styles.headerTitle}>이야기</span>
-        <div style={{ display: 'flex', gap: 8 }}>
-          {isPostOwner && !editMode && (
-            <>
-              <button style={styles.actionBtn} onClick={handleEditOpen}>✏️</button>
-              <button style={styles.actionBtn} onClick={handleDelete} disabled={deleting}>🗑️</button>
-            </>
-          )}
-          <button style={styles.actionBtn} onClick={() => setShowShare(true)}>🔗</button>
+      <TopBar logo={<CoreNullLogo size="sm" />} title="이야기" />
+
+      {isPostOwner && !editMode && (
+        <div style={styles.metaStrip}>
+          <button style={styles.actionBtn} onClick={handleEditOpen} aria-label="수정">✏️</button>
+          <button style={styles.actionBtn} onClick={handleDelete} disabled={deleting} aria-label="삭제">🗑️</button>
         </div>
-      </div>
+      )}
 
       <div style={styles.body}>
         {(house || room) && (
@@ -215,10 +209,8 @@ export default function PostDetailPage() {
           <span style={styles.postTime}>{new Date(post.created_at).toLocaleDateString('ko-KR')}</span>
         </div>
 
-        {/* 수정 모드 */}
         {editMode ? (
           <div style={styles.editBox}>
-            {/* 기존 이미지 표시 + 삭제 */}
             {editMedia.length > 0 && (
               <div style={styles.editMediaRow}>
                 {editMedia.map((m: any, i: number) => (
@@ -235,7 +227,6 @@ export default function PostDetailPage() {
               </div>
             )}
 
-            {/* 이미지 추가: 카메라 촬영 / 앨범 선택 */}
             <div style={styles.addMediaRow}>
               <button
                 style={styles.addMediaBtn}
@@ -252,8 +243,6 @@ export default function PostDetailPage() {
                 {uploading ? '⏳' : '🖼️'} {uploading ? '업로드 중...' : '앨범에서 선택'}
               </button>
             </div>
-            {/* capture 속성: 모바일에서 갤러리 없이 카메라 앱을 바로 띄움(후면 카메라).
-                데스크톱에서는 무시되고 일반 파일 선택창이 뜸 */}
             <input
               ref={cameraInputRef}
               type="file"
@@ -369,15 +358,12 @@ export default function PostDetailPage() {
 
 const styles: Record<string, React.CSSProperties> = {
   loading: { display: 'flex', alignItems: 'center', justifyContent: 'center', height: '50vh', fontSize: 40 },
-  header: {
-    position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)',
-    width: '100%', maxWidth: '430px', height: 56,
-    background: 'rgba(254,252,248,0.95)', borderBottom: '1px solid rgba(92,61,46,0.12)',
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '0 16px', zIndex: 100, backdropFilter: 'blur(12px)',
+  metaStrip: {
+    display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8,
+    padding: '8px 16px',
+    borderBottom: '1px solid rgba(92,61,46,0.08)',
+    background: '#FEFCF8',
   },
-  backBtn: { fontSize: 20, color: '#2C1810', background: 'none', border: 'none', cursor: 'pointer' },
-  headerTitle: { fontFamily: "'Noto Serif KR', serif", fontSize: 16, fontWeight: 600, color: '#2C1810' },
   actionBtn: { width: 36, height: 36, borderRadius: '50%', background: '#F5F0E8', border: 'none', fontSize: 16, cursor: 'pointer' },
   body: { padding: '16px 16px 80px' },
   spaceRow: { display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 },

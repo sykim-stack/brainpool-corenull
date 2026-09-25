@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 import { getDeviceId } from '@/lib/deviceId'
+import TopBar from '@/components/blocks/TopBar'
+import CoreNullLogo from '@/components/corenull/CoreNullLogo'
 
 type Post = {
   id: string
@@ -19,12 +21,10 @@ type Post = {
 export default function MyPostsPage() {
   const router = useRouter()
   const [posts, setPosts] = useState<Post[]>([])
-  const [ownerKey, setOwnerKey] = useState('')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const key = getDeviceId()
-    setOwnerKey(key)
     fetch(`/api/corenull/library?owner_key=${key}`)
       .then(r => r.json())
       .then(d => {
@@ -43,12 +43,7 @@ export default function MyPostsPage() {
 
   return (
     <div>
-      {/* 헤더 */}
-      <div style={styles.header}>
-        <button style={styles.backBtn} onClick={() => router.back()}>←</button>
-        <span style={styles.headerTitle}>내가 쓴 이야기</span>
-        <div style={{ width: 36 }} />
-      </div>
+      <TopBar logo={<CoreNullLogo size="sm" />} title="내가 쓴 이야기" />
 
       <div style={styles.body}>
         {posts.length === 0 ? (
@@ -69,7 +64,6 @@ export default function MyPostsPage() {
   )
 }
 
-// ─── PostItem ─────────────────────────────────────────────
 function PostItem({ post, onClick }: { post: Post; onClick: () => void }) {
   const thumb = post.meta?.media?.find(m => m.type === 'image')
   const preview = post.content?.slice(0, 80) || ''
@@ -77,12 +71,10 @@ function PostItem({ post, onClick }: { post: Post; onClick: () => void }) {
 
   return (
     <div style={styles.item} onClick={onClick}>
-      {/* 썸네일 */}
       {thumb && (
         <img src={thumb.url} alt="" style={styles.thumb} />
       )}
 
-      {/* 내용 */}
       <div style={styles.itemInfo}>
         <p style={styles.itemContent}>
           {preview}{hasMore ? '…' : ''}
@@ -105,7 +97,6 @@ function PostItem({ post, onClick }: { post: Post; onClick: () => void }) {
   )
 }
 
-// ─── Empty ────────────────────────────────────────────────
 function Empty() {
   return (
     <div style={{ textAlign: 'center', padding: '64px 24px' }}>
@@ -117,7 +108,6 @@ function Empty() {
   )
 }
 
-// ─── Utils ────────────────────────────────────────────────
 function formatDate(iso: string) {
   const d = new Date(iso)
   const now = new Date()
@@ -128,24 +118,10 @@ function formatDate(iso: string) {
   return d.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })
 }
 
-// ─── Styles ───────────────────────────────────────────────
 const styles: Record<string, React.CSSProperties> = {
   loading: {
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     height: '50vh',
-  },
-  header: {
-    position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)',
-    width: '100%', maxWidth: '430px', height: 56,
-    background: 'rgba(254,252,248,0.95)', borderBottom: '1px solid rgba(92,61,46,0.12)',
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '0 16px', zIndex: 100, backdropFilter: 'blur(12px)',
-  },
-  backBtn: {
-    fontSize: 20, color: '#2C1810', background: 'none', border: 'none', cursor: 'pointer',
-  },
-  headerTitle: {
-    fontFamily: "'Noto Serif KR', serif", fontSize: 16, fontWeight: 600, color: '#2C1810',
   },
   body: {
     padding: '16px',

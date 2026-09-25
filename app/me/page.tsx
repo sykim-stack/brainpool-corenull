@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { getDeviceId } from '@/lib/deviceId'
+import TopBar from '@/components/blocks/TopBar'
+import CoreNullLogo from '@/components/corenull/CoreNullLogo'
 
 export default function MePage() {
   const [library, setLibrary] = useState<any>(null)
@@ -81,13 +83,12 @@ export default function MePage() {
 
   return (
     <div>
-      <div style={styles.header}>
-        <span style={styles.headerTitle}>나</span>
-        <button style={styles.iconBtn}>⚙️</button>
-      </div>
+      <TopBar
+        logo={<CoreNullLogo size="sm" />}
+        title="나"
+      />
 
       <div style={styles.body}>
-        {/* 프로필 */}
         <div style={styles.profileCard}>
           <div style={styles.profileAvatar}>🌱</div>
           <div>
@@ -96,7 +97,6 @@ export default function MePage() {
           </div>
         </div>
 
-        {/* 활동 요약 */}
         <div style={styles.statsRow}>
           <div style={styles.statItem}>
             <span style={styles.statNum}>{library?.my_posts?.length || 0}</span>
@@ -114,7 +114,6 @@ export default function MePage() {
           </div>
         </div>
 
-        {/* 메뉴 1 */}
         <div style={styles.menuSection}>
           <div style={styles.menuItem} onClick={() => router.push('/me/library')}>
             <div style={{ ...styles.menuIcon, background: 'rgba(74,82,64,0.12)' }}>📚</div>
@@ -146,8 +145,13 @@ export default function MePage() {
           </div>
         </div>
 
-        {/* 메뉴 2 */}
         <div style={styles.menuSection}>
+          {/* [feat/house-images] 등록 UI 진입점 — 이미지 없으면 Hero는 예전과 동일(그라데이션) */}
+          <div style={styles.menuItem} onClick={() => router.push('/me/house')}>
+            <div style={{ ...styles.menuIcon, background: 'rgba(193,127,60,0.12)' }}>🖼️</div>
+            <span style={styles.menuLabel}>집 이미지</span>
+            <span style={styles.menuArrow}>›</span>
+          </div>
           <div style={styles.menuItem} onClick={handleHouseManage}>
             <div style={{ ...styles.menuIcon, background: 'rgba(193,127,60,0.12)' }}>🏡</div>
             <span style={styles.menuLabel}>내 집 관리</span>
@@ -169,7 +173,6 @@ export default function MePage() {
           </div>
         </div>
 
-        {/* 기기 동기화 */}
         <div style={styles.menuSection}>
           <div style={styles.syncHeader}>
             <span style={styles.syncTitle}>📱 기기 동기화</span>
@@ -214,15 +217,6 @@ export default function MePage() {
 
 const styles: Record<string, React.CSSProperties> = {
   loading: { display: 'flex', alignItems: 'center', justifyContent: 'center', height: '50vh', fontSize: 40 },
-  header: {
-    position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)',
-    width: '100%', maxWidth: '430px', height: 56,
-    background: 'rgba(254,252,248,0.95)', borderBottom: '1px solid rgba(92,61,46,0.12)',
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '0 20px', zIndex: 100, backdropFilter: 'blur(12px)',
-  },
-  headerTitle: { fontFamily: "'Noto Serif KR', serif", fontSize: 18, fontWeight: 600, color: '#2C1810' },
-  iconBtn: { width: 36, height: 36, borderRadius: '50%', background: '#F5F0E8', border: 'none', fontSize: 16, cursor: 'pointer' },
   body: { padding: '16px' },
   profileCard: {
     background: '#FEFCF8', borderRadius: 20, border: '1px solid rgba(92,61,46,0.12)',

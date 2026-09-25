@@ -1,65 +1,204 @@
 'use client'
 
-// ─────────────────────────────────────────────────────────────
-// NeighborContentBlock — 골목(마당)/복도(거실) 공용 블록.
-//
-// ADR-ACCESS-002 §1-2 기준: 이 블록이 보여주는 건 "이웃 목록 +
-// 그 이웃의 마당으로 들어가는 입구"뿐이다. 활동 피드는 의도적으로
-// 넣지 않는다 — 나중에 필요해져도 별도 결정을 거쳐야 한다.
-//
-// tier는 라벨(골목/복도)만 바꾼다. Neighbor 관계 자체는 House
-// 단위이고 tier가 없다(§1-3: Neighbor ≠ Access 권한) — 그래서
-// 이 컴포넌트는 neighbors 배열을 필터링하지 않고 받은 그대로
-// 그린다. accepted 관계는 어느 화면에서 보든 전부 동일한 이웃이다.
-//
-// fetch 없음. 호출부(YardBlock/LivingBlock → 페이지)가
-// accepted 상태만 걸러서 내려준다.
-// ─────────────────────────────────────────────────────────────
+import { useEffect, useState } from 'react'
+import PostBlock, { PostBlockData } from '@/components/blocks/PostBlock'
+import RingBlock, { RingData } from './RingBlock'
+
+export interface NeighborRoomSlot {
+  roomId: string
+  roomName: string
+  latestPost?: PostBlockData | null
+}
 
 export interface NeighborChip {
-  neighborId: string  // corenull_neighbors.id
-  houseId: string      // 상대방 house id — 입구 이동에 사용
+  neighborId: string
+  houseId: string
   title: string
   langFlag?: string
+  avatarUrl?: string | null
+  coverUrl?: string | null
+  rooms?: NeighborRoomSlot[]
+  requestPending?: boolean
+  ring?: RingData | null
 }
 
 export interface NeighborContentBlockProps {
-  tier: 'public' | 'invite' // 'public' → 골목(마당), 'invite' → 복도(거실)
+  tier: 'public' | 'invite'
+  mode?: 'recommend' | 'neighbor'
   neighbors: NeighborChip[]
   onNeighborClick: (houseId: string) => void
+  onPostClick?: (postId: string, roomId?: string) => void
+  onApplyNeighbor?: (houseId: string) => void
+  applyLoadingHouseId?: string | null
 }
 
-const TIER_LABEL: Record<NeighborContentBlockProps['tier'], string> = {
-  public: '골목',
-  invite: '복도',
+const TIER_LABEL: Record<string, string> = { public: '골목', invite: '복도' }
+const COVER_GRADIENT: Record<string, string> = {
+  public: 'linear-gradient(135deg, #4A5240 0%, #7A8C6E 60%, #C8D5B9 100%)',
+  invite: 'linear-gradient(135deg, #5C4A35 0%, #8A6F52 60%, #D8C4A8 100%)',
+}
+
+const DEFAULT_RING: RingData = {
+  rings: [
+    { index: 0, weight: 0.6 },
+    { index: 1, weight: 0.4 },
+    { index: 2, weight: 0.25 },
+  ],
 }
 
 export default function NeighborContentBlock({
   tier,
+  mode = 'neighbor',
   neighbors,
   onNeighborClick,
+  onPostClick,
+  onApplyNeighbor,
+  applyLoadingHouseId = null,
 }: NeighborContentBlockProps) {
+  const [neighborIdx, setNeighborIdx] = useState(0)
+  const [roomIdx, setRoomIdx] = useState(0)
+
+  useEffect(() => {
+    if (neighborIdx >= neighbors.length) setNeighborIdx(Math.max(0, neighbors.length - 1))
+  }, [neighbors.length, neighborIdx])
+
+  const current = neighbors[neighborIdx] || null
+  const rooms = current?.rooms || []
+
+  useEffect(() => {
+    setRoomIdx(0)
+  }, [neighborIdx, current?.neighborId, current?.houseId])
+
+  useEffect(() => {
+    if (roomIdx >= rooms.length) setRoomIdx(Math.max(0, rooms.length - 1))
+  }, [rooms.length, roomIdx])
+
+  const roomPageCount = Math.max(1, Math.ceil(rooms.length / 2) || 1)
+  const roomPage = Math.min(Math.floor(roomIdx / 2), roomPageCount - 1)
+  const postA = rooms[roomPage * 2]?.latestPost || null
+  const postB = rooms[roomPage * 2 + 1]?.latestPost || null
+  const roomA = rooms[roomPage * 2]
+  const roomB = rooms[roomPage * 2 + 1]
+
+  const goNeighbor = (dir: -1 | 1) => {
+    if (neighbors.length <= 1) return
+    setNeighborIdx((i) => (i + dir + neighbors.length) % neighbors.length)
+  }
+
+  const title =
+    mode === 'recommend'
+      ? tier === 'public'
+        ? '골목 · 발견'
+        : '복도 · 발견'
+      : TIER_LABEL[tier] || '이웃'
+
+  const emptyText =
+    mode === 'recommend'
+      ? '아직 발견할 집이 없어요'
+      : '이 집의 이웃이 아직 없어요'
+
   return (
     <section style={styles.section}>
       <div style={styles.header}>
-        <span style={styles.title}>{TIER_LABEL[tier]}</span>
-        {neighbors.length > 0 && <span style={styles.count}>{neighbors.length}</span>}
+        <span style={styles.title}>{title}</span>
+        {neighbors.length > 0 && (
+          <span style={styles.count}>
+            {neighborIdx + 1}/{neighbors.length}
+          </span>
+        )}
       </div>
 
       {neighbors.length === 0 ? (
-        <div style={styles.empty}>아직 이웃이 없어요</div>
+        <div style={styles.empty}>{emptyText}</div>
       ) : (
-        <div style={styles.scrollRow}>
-          {neighbors.map((n) => (
-            <button
-              key={n.neighborId}
-              style={styles.item}
-              onClick={() => onNeighborClick(n.houseId)}
-            >
-              <div style={styles.avatar}>{n.langFlag || '🏡'}</div>
-              <span style={styles.name}>{n.title}</span>
-            </button>
-          ))}
+        <div style={styles.stage}>
+          {neighbors.length > 1 && (
+            <>
+              <button type="button" style={{ ...styles.edgeArrow, left: 0 }} onClick={() => goNeighbor(-1)} aria-label="이전 이웃">‹</button>
+              <button type="button" style={{ ...styles.edgeArrow, right: 0 }} onClick={() => goNeighbor(1)} aria-label="다음 이웃">›</button>
+            </>
+          )}
+
+          <div className="cn-alley-row">
+            <div style={styles.col1}>
+              <div
+                style={{
+                  ...styles.cover,
+                  background: current?.coverUrl
+                    ? `center/cover no-repeat url(${current.coverUrl})`
+                    : COVER_GRADIENT[tier],
+                }}
+                onClick={() => current && onNeighborClick(current.houseId)}
+              >
+                <div style={styles.coverShade} />
+                <div style={styles.profileCenter}>
+                  <RingBlock
+                    data={current?.ring || DEFAULT_RING}
+                    size={100}
+                    centerContent={
+                      current?.avatarUrl ? (
+                        <img src={current.avatarUrl} alt="" style={styles.avatarImg} />
+                      ) : (
+                        <span style={{ fontSize: 22 }}>{current?.langFlag || '🏡'}</span>
+                      )
+                    }
+                  />
+                  <div style={styles.profileName}>{current?.title}</div>
+                </div>
+              </div>
+
+              {mode === 'recommend' && onApplyNeighbor && current && (
+                <button
+                  type="button"
+                  style={{
+                    ...styles.applyBtn,
+                    opacity: current.requestPending || applyLoadingHouseId === current.houseId ? 0.55 : 1,
+                  }}
+                  disabled={!!current.requestPending || applyLoadingHouseId === current.houseId}
+                  onClick={() => onApplyNeighbor(current.houseId)}
+                >
+                  {current.requestPending
+                    ? '신청중'
+                    : applyLoadingHouseId === current.houseId
+                      ? '…'
+                      : '이웃 신청'}
+                </button>
+              )}
+            </div>
+
+            <div style={styles.colPost}>
+              {roomA && <div style={styles.roomTag}>{roomA.roomName}</div>}
+              {postA ? (
+                <PostBlock post={postA} showViewMeta={false} showComments={false} onClick={() => onPostClick?.(postA.id, roomA?.roomId)} />
+              ) : (
+                <div style={styles.postEmpty}>{rooms.length === 0 ? '공개 방 없음' : '글 없음'}</div>
+              )}
+            </div>
+
+            <div style={styles.colPost}>
+              {roomB && <div style={styles.roomTag}>{roomB.roomName}</div>}
+              {postB ? (
+                <PostBlock post={postB} showViewMeta={false} showComments={false} onClick={() => onPostClick?.(postB.id, roomB?.roomId)} />
+              ) : (
+                <div style={styles.postEmpty}>{rooms.length <= 1 ? '—' : '글 없음'}</div>
+              )}
+            </div>
+          </div>
+
+          {rooms.length > 2 && (
+            <div className="cn-alley-dots">
+              <div className="cn-alley-dots-inner" style={styles.dots}>
+                {Array.from({ length: roomPageCount }).map((_, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    style={{ ...styles.dot, background: i === roomPage ? '#2C1810' : 'rgba(92,61,46,0.2)' }}
+                    onClick={() => setRoomIdx(i * 2)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </section>
@@ -72,76 +211,56 @@ const styles: Record<string, React.CSSProperties> = {
     borderTop: '1px solid rgba(92,61,46,0.08)',
     background: 'rgba(255,255,255,0.34)',
   },
-  header: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  title: {
-    fontFamily: "'Noto Serif KR', serif",
-    fontSize: 15,
-    fontWeight: 600,
-    color: '#2C1810',
-    letterSpacing: '0.1px',
-  },
+  header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  title: { fontFamily: "'Noto Serif KR', serif", fontSize: 15, fontWeight: 600, color: '#2C1810' },
   count: {
-    fontSize: 11,
-    color: '#C17F3C',
-    background: '#FFF7E8',
-    border: '1px solid rgba(193,127,60,0.16)',
-    borderRadius: 999,
-    padding: '3px 8px',
+    fontSize: 11, color: '#C17F3C', background: '#FFF7E8',
+    border: '1px solid rgba(193,127,60,0.16)', borderRadius: 999, padding: '3px 8px',
   },
   empty: {
-    textAlign: 'center',
-    padding: '24px 16px',
-    fontSize: 13,
-    color: '#9A8470',
-    background: '#FEFCF8',
-    borderRadius: 14,
-    border: '1px dashed rgba(92,61,46,0.15)',
+    textAlign: 'center', padding: '24px 16px', fontSize: 13, color: '#9A8470',
+    background: '#FEFCF8', borderRadius: 14, border: '1px dashed rgba(92,61,46,0.15)',
   },
-  scrollRow: {
-    display: 'flex',
-    gap: 10,
-    overflowX: 'auto',
-    padding: '1px 1px 5px',
-    scrollbarWidth: 'none',
+  stage: { position: 'relative' },
+  edgeArrow: {
+    position: 'absolute', top: '50%', transform: 'translateY(-50%)', zIndex: 2,
+    width: 28, height: 36, borderRadius: 10, border: '1px solid rgba(92,61,46,0.12)',
+    background: 'rgba(254,252,248,0.95)', color: '#2C1810', fontSize: 20, lineHeight: '36px',
+    padding: 0, cursor: 'pointer', boxShadow: '0 2px 8px rgba(44,24,16,0.08)',
   },
-  item: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: 8,
-    flexShrink: 0,
-    width: 106,
-    minHeight: 114,
-    padding: '12px 8px 10px',
-    border: '1px solid rgba(92,61,46,0.10)',
-    borderRadius: 16,
-    background: '#FEFCF8',
-    boxShadow: '0 2px 8px rgba(44,24,16,0.04)',
-    cursor: 'pointer',
+  col1: { display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 },
+  cover: {
+    position: 'relative', flex: 1, minHeight: 200, borderRadius: 14, overflow: 'hidden', cursor: 'pointer',
   },
-  avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 15,
-    background: 'linear-gradient(135deg, #405443, #9AB18B)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontSize: 22,
+  coverShade: {
+    position: 'absolute', inset: 0,
+    background: 'linear-gradient(180deg, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.35) 100%)',
+    pointerEvents: 'none',
   },
-  name: {
-    fontSize: 11.5,
-    color: '#5C4A35',
-    textAlign: 'center',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'normal',
-    lineHeight: 1.35,
-    maxWidth: '100%',
+  profileCenter: {
+    position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+    alignItems: 'center', justifyContent: 'center', gap: 8, zIndex: 1, padding: 8,
   },
+  avatarImg: { width: 48, height: 48, borderRadius: '50%', objectFit: 'cover' },
+  profileName: {
+    fontSize: 12, fontWeight: 600, color: '#FEFCF8', textAlign: 'center',
+    textShadow: '0 1px 3px rgba(0,0,0,0.45)', overflow: 'hidden', textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap', maxWidth: '100%',
+  },
+  applyBtn: {
+    width: '100%', padding: '8px 0', borderRadius: 10, border: 'none',
+    background: '#2C1810', color: '#FEFCF8', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+  },
+  colPost: { minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 },
+  roomTag: {
+    fontSize: 10, color: '#9A8470', paddingLeft: 2, overflow: 'hidden',
+    textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+  },
+  postEmpty: {
+    flex: 1, minHeight: 120, borderRadius: 14, border: '1px dashed rgba(92,61,46,0.15)',
+    background: '#FEFCF8', display: 'flex', alignItems: 'center', justifyContent: 'center',
+    fontSize: 12, color: '#9A8470',
+  },
+  dots: { display: 'flex', justifyContent: 'center', gap: 6 },
+  dot: { width: 7, height: 7, borderRadius: '50%', border: 'none', padding: 0, cursor: 'pointer' },
 }
