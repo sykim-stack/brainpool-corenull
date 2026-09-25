@@ -3,6 +3,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { getDeviceId } from '@/lib/deviceId'
+import { prepareUploadFile } from '@/lib/compressMedia'
+import TopBar from '@/components/blocks/TopBar'
+import CoreNullLogo from '@/components/corenull/CoreNullLogo'
 
 const LANG_FLAG: Record<string, string> = {
   ko: '🇰🇷', vi: '🇻🇳', en: '🇺🇸', ja: '🇯🇵', zh: '🇨🇳',
@@ -16,11 +19,11 @@ export default function WritePage() {
   const [selectedRoom, setSelectedRoom] = useState<any>(null)
   const [mediaFiles, setMediaFiles] = useState<any[]>([])
   const [uploading, setUploading] = useState(false)
+  const [uploadLabel, setUploadLabel] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [ownerKey, setOwnerKey] = useState('')
   const [submitError, setSubmitError] = useState('')
 
-  // 새 방 만들기
   const [showNewRoom, setShowNewRoom] = useState(false)
   const [newRoomName, setNewRoomName] = useState('')
   const [isSeed, setIsSeed] = useState(false)
@@ -38,9 +41,6 @@ export default function WritePage() {
 
     const params = new URLSearchParams(window.location.search)
     const preselectedRoomId = params.get('room_id')
-    // 거실(LivingBlock)의 "방 만들기" 버튼에서 넘어온 신호.
-    // write 페이지가 이미 갖고 있던 인라인 방만들기 폼(showNewRoom)을
-    // 그대로 재사용 — 새 화면/컴포넌트를 따로 만들지 않는다.
     const shouldOpenNewRoom = params.get('new_room') === '1'
 
     fetch(`/api/corenull/houses?owner_key=${key}`)
@@ -81,7 +81,6 @@ export default function WritePage() {
     setSelectedRoom(roomList.length > 0 ? roomList[0] : null)
   }
 
-  // ─── 집 전환 ──────────────────────────────────────────
   const handleHouseChange = async (houseId: string) => {
     const house = houses.find((h: any) => h.id === houseId)
     if (!house) return
@@ -90,7 +89,6 @@ export default function WritePage() {
     await loadRooms(house.id)
   }
 
-  // ─── 새 방 생성 ───────────────────────────────────────
   const handleCreateRoom = async () => {
     if (!newRoomName.trim() || !selectedHouse) return
     setCreatingRoom(true)
@@ -125,20 +123,47 @@ export default function WritePage() {
     setCreatingRoom(false)
   }
 
-  // ─── 미디어 업로드 ────────────────────────────────────
   const handleFileSelect = async (e: any) => {
-    const files = Array.from(e.target.files || [])
+    const files = Array.from(e.target.files || []) as File[]
+    e.target.value = ''
     if (files.length === 0) return
+
     setUploading(true)
+    setSubmitError('')
+    setUploadLabel('준비 중…')
+
+    const prepared: File[] = []
+    for (let i = 0; i < files.length; i++) {
+      setUploadLabel(`압축 중 ${i + 1}/${files.length}`)
+      const result = await prepareUploadFile(files[i])
+      if (!result.ok) {
+        setSubmitError(result.error)
+        continue
+      }
+      prepared.push(result.file)
+    }
+
+    if (prepared.length === 0) {
+      setUploading(false)
+      setUploadLabel('')
+      return
+    }
+
+    setUploadLabel('업로드 중…')
     const form = new FormData()
-    files.forEach((f: any) => form.append('files', f))
+    prepared.forEach((f) => form.append('files', f))
     const res = await fetch('/api/corenull/upload', { method: 'POST', body: form })
     const data = await res.json()
-    setMediaFiles(prev => [...prev, ...(data.data || [])])
+    const ok = (data.data || []).filter((x: any) => x.url && !x._error)
+    const failed = (data.data || []).filter((x: any) => x._error)
+    if (failed.length) {
+      setSubmitError(failed[0]._error || '일부 업로드 실패')
+    }
+    setMediaFiles((prev) => [...prev, ...ok])
     setUploading(false)
+    setUploadLabel('')
   }
 
-  // ─── 포스트 작성 ──────────────────────────────────────
   const handleSubmit = async () => {
     if (!content.trim() || !selectedRoom) return
     setSubmitting(true)
@@ -151,13 +176,13 @@ export default function WritePage() {
         owner_key: ownerKey,
         content: content.trim(),
         meta: { media: mediaFiles },
-        type: 'post',  // Growth = Message(type="post") — 씨앗방이어도 항상 post
+        type: 'post',
       }),
     })
     const data = await res.json()
     if (data.data) {
       router.refresh()
-      router.push('/')
+      router.replace(`/rooms/${selectedRoom.id}`)
     } else {
       setSubmitError(data._error || '올리기에 실패했어요')
     }
@@ -170,23 +195,14 @@ export default function WritePage() {
 
   return (
     <div>
-      {/* 헤더 */}
-      <div style={styles.header}>
-        <button style={styles.backBtn} onClick={() => router.back()}>←</button>
-        <span style={styles.headerTitle}>새 이야기</span>
-        <button
-          style={{ ...styles.submitBtn, opacity: (!content.trim() || !selectedRoom || submitting) ? 0.4 : 1 }}
-          onClick={handleSubmit}
-          disabled={!content.trim() || !selectedRoom || submitting}
-        >
-          {submitting ? '...' : '올리기'}
-        </button>
-      </div>
+      <TopBar
+        logo={<CoreNullLogo size="sm" />}
+        title="새 이야기"
+      />
 
       <div style={styles.body}>
         {submitError && <div style={styles.errorBox}>⚠️ {submitError}</div>}
 
-        {/* ── 집 선택 (집이 2개 이상일 때만 노출) ── */}
         {houses.length > 1 && (
           <div style={styles.houseSelect}>
             <span style={styles.roomLabel}>어느 집에?</span>
@@ -204,7 +220,6 @@ export default function WritePage() {
           </div>
         )}
 
-        {/* ── 방 선택 ── */}
         {!showNewRoom ? (
           <div style={styles.roomSelect}>
             <span style={styles.roomLabel}>어느 방에?</span>
@@ -229,7 +244,6 @@ export default function WritePage() {
             </select>
           </div>
         ) : (
-          /* ── 새 방 만들기 폼 ── */
           <div style={styles.newRoomBox}>
             <div style={styles.newRoomHeader}>
               <span style={styles.roomLabel}>새 방 만들기</span>
@@ -252,7 +266,6 @@ export default function WritePage() {
               autoFocus
             />
 
-            {/* 씨앗 토글 */}
             <div style={styles.toggleRow} onClick={() => setIsSeed(v => !v)}>
               <div style={styles.toggleLeft}>
                 <span style={{ fontSize: 18 }}>🌱</span>
@@ -266,7 +279,6 @@ export default function WritePage() {
               </div>
             </div>
 
-            {/* bloom_date — 씨앗일 때만 표시 */}
             {isSeed && (
               <div style={styles.bloomBox}>
                 <div style={styles.bloomLabel}>🌸 꽃 피는 날 (선택)</div>
@@ -291,7 +303,6 @@ export default function WritePage() {
           </div>
         )}
 
-        {/* ── 텍스트 입력 ── */}
         <textarea
           style={styles.textarea}
           placeholder="오늘 어떤 순간을 남기고 싶으세요?"
@@ -300,7 +311,6 @@ export default function WritePage() {
           autoFocus={!showNewRoom}
         />
 
-        {/* ── 미디어 미리보기 ── */}
         {mediaFiles.length > 0 && (
           <div style={styles.mediaPreview}>
             {mediaFiles.map((m, i) => (
@@ -316,21 +326,34 @@ export default function WritePage() {
           </div>
         )}
 
-        {/* ── 미디어 추가 ── */}
         <div style={styles.mediaRow}>
           <button
             style={styles.mediaBtn}
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
           >
-            {uploading ? '⏳' : '📷'} {uploading ? '업로드 중...' : '사진/영상'}
+            {uploading ? '⏳' : '📷'} {uploading ? (uploadLabel || '업로드 중...') : '사진/영상'}
           </button>
         </div>
+
+        <button
+          type="button"
+          style={{
+            ...styles.submitBtn,
+            width: '100%',
+            marginBottom: 12,
+            opacity: (!content.trim() || !selectedRoom || submitting) ? 0.4 : 1,
+          }}
+          onClick={handleSubmit}
+          disabled={!content.trim() || !selectedRoom || submitting}
+        >
+          {submitting ? '올리는 중...' : '올리기'}
+        </button>
 
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*,video/*"
+          accept="image/*,video/mp4,video/webm"
           multiple
           style={{ display: 'none' }}
           onChange={handleFileSelect}
@@ -341,17 +364,8 @@ export default function WritePage() {
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  header: {
-    position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)',
-    width: '100%', maxWidth: '430px', height: 56,
-    background: 'rgba(254,252,248,0.95)', borderBottom: '1px solid rgba(92,61,46,0.12)',
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '0 16px', zIndex: 100, backdropFilter: 'blur(12px)',
-  },
-  backBtn: { fontSize: 20, color: '#2C1810', background: 'none', border: 'none', cursor: 'pointer' },
-  headerTitle: { fontFamily: "'Noto Serif KR', serif", fontSize: 16, fontWeight: 600, color: '#2C1810' },
   submitBtn: {
-    padding: '8px 16px', background: '#2C1810', color: 'white',
+    padding: '12px 16px', background: '#2C1810', color: 'white',
     border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 500, cursor: 'pointer',
   },
   body: { padding: '16px' },
@@ -445,7 +459,7 @@ const styles: Record<string, React.CSSProperties> = {
     border: 'none', fontSize: 10, cursor: 'pointer',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
   },
-  mediaRow: { display: 'flex', gap: 8 },
+  mediaRow: { display: 'flex', gap: 8, marginBottom: 12 },
   mediaBtn: {
     flex: 1, height: 48,
     background: '#FEFCF8', border: '1px dashed rgba(92,61,46,0.2)',

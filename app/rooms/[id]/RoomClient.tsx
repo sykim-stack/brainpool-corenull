@@ -4,8 +4,11 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { getDeviceId } from '@/lib/deviceId'
+import TopBar from '@/components/blocks/TopBar'
+import CoreNullLogo from '@/components/corenull/CoreNullLogo'
 import ShareModal from '@/components/corenull/ShareModal'
 import RoomSettingsModal from '@/components/corenull/RoomSettingsModal'
+import PostBlock from '@/components/blocks/PostBlock'
 
 type Room = {
   id: string
@@ -74,6 +77,11 @@ export default function RoomPage() {
   const isOwner = house?.owner_key === ownerKey
   const canWrite = isOwner || isMember
 
+  const goToLiving = () => {
+    if (house?.id) router.push(`/houses/${house.id}/living`)
+    else router.push('/living')
+  }
+
   useEffect(() => {
     const key = getDeviceId()
     setOwnerKey(key)
@@ -98,8 +106,6 @@ export default function RoomPage() {
       const hData = await hRes.json()
       if (!hData._error && hData.house) {
         setHouse(hData.house)
-        // room_id를 같이 넘겨서, house 전체 멤버든 이 room 한정
-        // 참여자든 둘 다 "쓸 수 있음"으로 판정되게 한다(ADR-ACCESS-001).
         const mRes = await fetch(`/api/corenull/members?house_id=${rData.room.house_id}&device_id=${key}&room_id=${roomId}`)
         const mData = await mRes.json()
         setIsMember(!mData._error && mData.is_member === true)
@@ -129,46 +135,47 @@ export default function RoomPage() {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '50vh', gap: '12px' }}>
         <p style={{ color: '#5C3D2E', fontSize: '14px' }}>{error || '방을 찾을 수 없어요.'}</p>
-        <button onClick={() => router.back()} style={btnSecondary}>← 돌아가기</button>
+        <button onClick={goToLiving} style={btnSecondary}>거실로</button>
       </div>
     )
   }
 
   const countdown = room.seed_mode && room.bloom_date ? getCountdown(room.bloom_date) : null
 
+  // TopBar = 마당/거실/서재 공통 내비만. 방 액션은 메타줄.
   return (
     <div style={{ minHeight: '100vh', background: '#FBF8F2' }}>
-      <header style={headerStyle}>
-        <button onClick={() => router.back()} style={backBtnStyle}>←</button>
-        <div style={{ flex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <h1 style={{ fontSize: '16px', fontWeight: 700, color: '#2C1810', margin: 0 }}>
-              {room.room_name}
-            </h1>
-            <span style={visibilityBadge(room.visibility)}>
-              {room.visibility === 'public' ? '공개' : room.visibility === 'invite' ? '이웃공개' : '비공개'}
-            </span>
-            {room.seed_mode && <span style={seedBadge}>🌱 씨앗</span>}
-          </div>
-          {house && (
-            <p style={{ fontSize: '12px', color: '#9A8470', margin: '2px 0 0' }}>
-              {LANG_FLAG[house.primary_language] || '🏡'} {house.title}
-            </p>
-          )}
-        </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <button style={shareBtnStyle} onClick={() => setShowShare(true)}>🔗</button>
-          {/* owner와 참여자 둘 다 설정(방 이름/폐쇄는 owner만 보이고,
-              참여자에게는 '나가기'가 보임)에 접근할 수 있어야 한다.
-              owner 전용이던 게이트를 canWrite(owner||member) 기준으로 넓힘. */}
+      <TopBar
+        logo={<CoreNullLogo size="sm" />}
+        title={room.room_name}
+      />
+
+      <div style={metaStrip}>
+        <span style={visibilityBadge(room.visibility)}>
+          {room.visibility === 'public' ? '공개' : room.visibility === 'invite' ? '이웃공개' : '비공개'}
+        </span>
+        {room.seed_mode && <span style={seedBadge}>🌱 씨앗</span>}
+        {house && (
+          <button type="button" onClick={goToLiving} style={metaHouseBtn}>
+            {LANG_FLAG[house.primary_language] || '🏡'} {house.title}
+          </button>
+        )}
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button type="button" onClick={() => setShowShare(true)} style={iconBtn} aria-label="공유">
+            🔗
+          </button>
           {canWrite && (
-            <button style={shareBtnStyle} onClick={() => setShowSettings(true)}>⚙️</button>
+            <button type="button" onClick={() => setShowSettings(true)} style={iconBtn} aria-label="설정">
+              ⚙️
+            </button>
           )}
           {canWrite && (
-            <Link href={`/write?room_id=${roomId}`} style={writeBtnStyle}>+ 글쓰기</Link>
+            <Link href={`/write?room_id=${roomId}`} style={writeBtnStyle}>
+              + 글쓰기
+            </Link>
           )}
         </div>
-      </header>
+      </div>
 
       {countdown && (
         <div style={{
@@ -198,7 +205,21 @@ export default function RoomPage() {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {posts.map((post) => (
-              <PostCard key={post.id} post={post} />
+              <PostBlock
+                key={post.id}
+                post={{
+                  id: post.id,
+                  content: post.content || '',
+                  media: (post.meta?.media as any) || undefined,
+                  created_at: post.created_at,
+                  comment_count: (post as any).comment_count ?? 0,
+                  room_id: roomId,
+                }}
+                onClick={() => router.push(`/posts/${post.id}`)}
+                enableInlineComment
+                ownerKey={ownerKey}
+                showComments
+              />
             ))}
           </div>
         )}
@@ -226,43 +247,11 @@ export default function RoomPage() {
             setRoom(prev => prev ? { ...prev, ...updated } : prev)
           }}
           onLeft={() => {
-            // 참여자 본인이 나가면 이 room을 더 볼 권한이 없어질 수 있으니 뒤로.
-            router.back()
+            goToLiving()
           }}
         />
       )}
     </div>
-  )
-}
-
-function PostCard({ post }: { post: Post }) {
-  const preview = post.content?.slice(0, 120) || ''
-  const hasMore = (post.content?.length || 0) > 120
-  const firstMedia = post.meta?.media?.[0]
-
-  return (
-    <Link href={`/posts/${post.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
-      <div style={cardStyle}>
-        {firstMedia?.type === 'image' && (
-          <div style={imgWrap}>
-            <img src={firstMedia.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px' }} />
-          </div>
-        )}
-        {firstMedia?.type === 'video' && (
-          <div style={{ ...imgWrap, background: '#2d4a3e', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px' }}>
-            <span style={{ fontSize: '28px' }}>▶</span>
-          </div>
-        )}
-        {preview && (
-          <p style={{ fontSize: '14px', color: '#5C3D2E', margin: '0 0 8px', lineHeight: '1.6' }}>
-            {preview}{hasMore && '…'}
-          </p>
-        )}
-        <p style={{ fontSize: '11px', color: '#9A8470', margin: 0 }}>
-          {formatDate(post.created_at)}
-        </p>
-      </div>
-    </Link>
   )
 }
 
@@ -278,34 +267,26 @@ function EmptyState({ isOwner, roomId }: { isOwner: boolean; roomId: string }) {
   )
 }
 
-function formatDate(iso: string) {
-  const d = new Date(iso)
-  const now = new Date()
-  const diff = Math.floor((now.getTime() - d.getTime()) / 1000)
-  if (diff < 60) return '방금 전'
-  if (diff < 3600) return `${Math.floor(diff / 60)}분 전`
-  if (diff < 86400) return `${Math.floor(diff / 3600)}시간 전`
-  return d.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })
+const metaStrip: React.CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
+  padding: '10px 16px',
+  borderBottom: '1px solid rgba(92,61,46,0.08)',
+  background: '#FEFCF8',
 }
-
-const headerStyle: React.CSSProperties = {
-  display: 'flex', alignItems: 'center', gap: '12px',
-  padding: '14px 16px',
-  background: 'rgba(254,252,248,0.95)', borderBottom: '1px solid rgba(92,61,46,0.12)',
-  position: 'sticky', top: 0, zIndex: 10, backdropFilter: 'blur(12px)',
+const iconBtn: React.CSSProperties = {
+  width: 32, height: 32, borderRadius: '50%',
+  background: '#F5F0E8', border: 'none',
+  fontSize: 14, cursor: 'pointer',
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
 }
-const backBtnStyle: React.CSSProperties = {
-  background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: '#2C1810', padding: '4px',
+const metaHouseBtn: React.CSSProperties = {
+  fontSize: 12, color: '#9A8470', margin: 0, padding: '2px 0',
+  border: 'none', background: 'none', cursor: 'pointer',
 }
 const writeBtnStyle: React.CSSProperties = {
   background: '#2C1810', color: '#FBF8F2', border: 'none',
   borderRadius: '20px', padding: '7px 14px', fontSize: '13px',
   cursor: 'pointer', textDecoration: 'none', whiteSpace: 'nowrap',
-}
-const shareBtnStyle: React.CSSProperties = {
-  width: 34, height: 34, borderRadius: '50%',
-  background: '#F5F0E8', border: 'none',
-  fontSize: 15, cursor: 'pointer',
 }
 const btnSecondary: React.CSSProperties = {
   background: 'none', border: '1px solid #5C3D2E', color: '#5C3D2E',
@@ -315,19 +296,11 @@ const countdownBanner: React.CSSProperties = {
   margin: '12px 16px 0', padding: '14px 16px', borderRadius: '14px',
   border: '1px solid', display: 'flex', alignItems: 'center', gap: '12px',
 }
-const cardStyle: React.CSSProperties = {
-  background: '#FEFCF8', borderRadius: '12px',
-  border: '1px solid rgba(92,61,46,0.12)', padding: '16px', cursor: 'pointer',
-  boxShadow: '0 2px 12px rgba(44,24,16,0.06)',
-}
-const imgWrap: React.CSSProperties = {
-  width: '100%', height: '180px', marginBottom: '12px', overflow: 'hidden',
-}
 function visibilityBadge(v: string): React.CSSProperties {
   const tone =
     v === 'public' ? { bg: '#E8EFE3', fg: '#4A5240' } :
     v === 'invite' ? { bg: '#FBEEDD', fg: '#8A5423' } :
-    { bg: '#EFE6E1', fg: '#5C3D2E' } // private
+    { bg: '#EFE6E1', fg: '#5C3D2E' }
   return {
     fontSize: '10px', padding: '2px 7px', borderRadius: '10px',
     background: tone.bg, color: tone.fg, fontWeight: 600,

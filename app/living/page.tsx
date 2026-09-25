@@ -2,54 +2,48 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { getDeviceId } from '@/lib/deviceId'
-import { computeStage } from '@/lib/roomStage'
+import { getOwnerKey } from '@/lib/ownerKey'
 import TopBar from '@/components/blocks/TopBar'
-import LivingBlock, { RoomTab, FilterChip } from '@/components/blocks/LivingBlock'
+import LivingBlock from '@/components/blocks/LivingBlock'
 import CoreNullLogo from '@/components/corenull/CoreNullLogo'
 import { PostBlockData } from '@/components/blocks/PostBlock'
+import { PosterData } from '@/components/blocks/PosterBlock'
 import { RingData } from '@/components/blocks/RingBlock'
-import { NeighborChip } from '@/components/blocks/NeighborContentBlock'
+import { houseHeroBackground, houseAvatarUrl } from '@/lib/houseImages'
+import InlineHeroImageControls from '@/components/corenull/InlineHeroImageControls'
 
 const LANG_FLAG: Record<string, string> = {
   ko: '🇰🇷', vi: '🇻🇳', en: '🇺🇸', ja: '🇯🇵', zh: '🇨🇳',
 }
 
-const VISIBILITY_FILTERS: FilterChip[] = [
-  { key: 'all', label: '전체' },
-  { key: 'public', label: '공개' },
-  { key: 'invite', label: '이웃공개' },
-  { key: 'family', label: '비공개' },
-]
+function roomStatusLabel(rm: any): string {
+  const parts: string[] = []
+  if (rm.visibility === 'public') parts.push('공개')
+  else if (rm.visibility === 'invite') parts.push('이웃공개')
+  else if (rm.visibility === 'private') parts.push('비공개')
+  if (rm.seed_mode || rm.room_type === 'seed') parts.push('씨드')
+  return parts.filter((v, i, a) => a.indexOf(v) === i).join(' · ') || '방'
+}
 
-// NOTE(2026-08-31): '열매'를 Room 필터에서 뺐다 — 열매는 Room의 상태가
-// 아니라 Room 안에 생기는 Message(type='fruit')다. computeStage()가
-// 반환하는 stage가 'fruit'인 경우는 있지만(목표일을 지났거나 harvested
-// 됐을 때), 그건 "이 방을 지금 찾아볼 이유"라기보다 "다 끝난 방"이라
-// 목록 필터 축에서는 굳이 안 보여준다. 필요해지면 언제든 추가 가능.
-const STAGE_FILTERS: FilterChip[] = [
-  { key: 'all', label: '전체' },
-  { key: 'seed', label: '🌱 씨드' },
-  { key: 'growth', label: '🌿 성장' },
-  { key: 'flower', label: '🌸 꽃' },
-]
-
-// NOTE(2026-08-31): 로컬 stage 계산 함수를 지웠다. lib/roomStage.js의
-// computeStage()가 이미 정확한 계약(fruit 판정에 harvested OR 목표일
-// 초과 둘 다 반영)으로 존재하는데 모르고 새로 짰던 것 — Anchor §7
-// 중복 로직 금지 위반이었다. room.stage는 이제 houses API가
-// attachRoomStages로 미리 계산해서 내려준다.
-
-// Ring weight — YardBlock과 동일한 임시 계산. 계약만 지키면 되므로
-// 이 함수만 나중에 CoreHub 가중치로 교체해도 LivingBlock/HeroBlock은 안 바뀐다.
 function buildRingData(roomCount: number): RingData {
   return {
     rings: [
       { index: 0, weight: Math.min(roomCount / 6, 1) },
       { index: 1, weight: 0.4 },
-      { index: 2, weight: 0.6 },
+      { index: 2, weight: 0.55 },
     ],
   }
+}
+
+function formatSince(iso?: string) {
+  if (!iso) return undefined
+  const d = new Date(iso)
+  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')} 부터`
+}
+
+function isLivingVisibleRoom(rm: any, isOwnHouse: boolean) {
+  if (isOwnHouse) return true
+  return rm.visibility === 'public' || rm.visibility === 'invite'
 }
 
 type BookmarkRow = { id: string; message_id: string | null; ended_at: string | null }
@@ -59,120 +53,103 @@ export default function LivingPage() {
 
   const [ownerKey, setOwnerKey] = useState('')
   const [house, setHouse] = useState<any>(null)
-  const [rooms, setRooms] = useState<any[]>([]) // 각 room에 .stage(RoomStage 계약) 포함
-  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null)
-  const [selectedVisibility, setSelectedVisibility] = useState('all')
-  const [selectedStage, setSelectedStage] = useState('all')
-  const [posts, setPosts] = useState<PostBlockData[]>([])
-  const [neighbors, setNeighbors] = useState<NeighborChip[]>([])
+  const [posters, setPosters] = useState<PosterData[]>([])
+  const [roomViews, setRoomViews] = useState<PostBlockData[]>([])
   const [loading, setLoading] = useState(true)
-  const [postsLoading, setPostsLoading] = useState(false)
 
-  // 관심(북마크) — post별 개별 fetch 대신 목록 한 번만 불러와서 매핑.
   const [bookmarks, setBookmarks] = useState<BookmarkRow[]>([])
   const [interestLoadingId, setInterestLoadingId] = useState<string | null>(null)
 
-  // 내 house + room 목록 로드 (1인1집, 첫 번째 House 사용)
   useEffect(() => {
-    const key = getDeviceId()
+    const key = getOwnerKey()
     setOwnerKey(key)
     if (!key) return
 
     Promise.all([
-      fetch(`/api/corenull/houses?owner_key=${key}`).then(r => r.json()),
-      fetch(`/api/corenull/bookmarks?owner_key=${key}`).then(r => r.json()),
-    ]).then(([d, b]) => {
-      const myHouse = d.data?.[0]
-      setBookmarks(b.data || [])
-      if (!myHouse) {
+      fetch(`/api/corenull/houses?owner_key=${key}`).then((r) => r.json()),
+      fetch(`/api/corenull/bookmarks?owner_key=${key}`).then((r) => r.json()),
+    ]).then(async ([hData, bData]) => {
+      if (bData.data) setBookmarks(bData.data)
+      const h = hData.house || hData.data?.[0]
+      if (!h) {
         setLoading(false)
         return
       }
-      setHouse(myHouse)
-      setRooms(myHouse.corenull_rooms || [])
+      setHouse(h)
 
-      // 골목/복도엔 accepted 관계만 보여준다 (ADR-ACCESS-002 §1-2).
-      // house.id가 있어야 조회 가능해서 이 시점에 별도로 걸어준다.
-      fetch(`/api/corenull/houses?action=neighbors&house_id=${myHouse.id}`)
-        .then(r => r.json())
-        .then((nb) => {
-          const acceptedNeighbors: NeighborChip[] = (nb.data || [])
-            .filter((n: any) => n.status === 'accepted' && n.house)
-            .map((n: any) => ({
-              neighborId: n.id,
-              houseId: n.house.id,
-              title: n.house.title,
-              langFlag: LANG_FLAG[n.house.primary_language] || '🌐',
-            }))
-          setNeighbors(acceptedNeighbors)
-        })
+      try {
+        const rd = await fetch(`/api/corenull/rooms?house_id=${h.id}`).then((r) => r.json())
+        const list = (rd.data || []).filter((rm: any) => isLivingVisibleRoom(rm, true))
 
-      setLoading(false)
+        const slots = await Promise.all(
+          list.map(async (rm: any) => {
+            const pd = await fetch(`/api/corenull/posts?room_id=${rm.id}`).then((r) => r.json())
+            const latest =
+              (pd.data || []).find((p: any) => p.type !== 'comment') || (pd.data || [])[0]
+            const media = latest?.meta?.media
+            const imageUrl =
+              media?.find((m: any) => m.type === 'image')?.url || media?.[0]?.url || null
+
+            const poster: PosterData = {
+              roomId: rm.id,
+              roomName: rm.room_name,
+              status: roomStatusLabel(rm),
+              stageEmoji: rm.seed_mode || rm.room_type === 'seed' ? '🌱' : null,
+              recentContent: latest?.content || null,
+              imageUrl,
+              media: Array.isArray(media) ? media : undefined,
+              createdAt: latest?.created_at || null,
+              houseName: h.title,
+            }
+
+            const view: PostBlockData | null = latest
+              ? {
+                  id: latest.id,
+                  content: latest.content,
+                  media: latest.meta?.media,
+                  created_at: latest.created_at,
+                  comment_count: latest.comment_count ?? 0,
+                  room_id: rm.id,
+                  view_meta: {
+                    house_name: h.title,
+                    room_name: rm.room_name,
+                    status: roomStatusLabel(rm),
+                    stage_emoji: rm.seed_mode || rm.room_type === 'seed' ? '🌱' : undefined,
+                    relation: '나',
+                  },
+                }
+              : null
+
+            return { poster, view }
+          })
+        )
+
+        setPosters(slots.map((s) => s.poster))
+        // 본인 거실: 전체 방 최신 — 상한 없음(화면만 6·스와이프)
+        const views = slots
+          .filter((s) => s.view)
+          .map((s) => s.view!)
+          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        setRoomViews(views)
+      } catch {
+        setPosters([])
+        setRoomViews([])
+      } finally {
+        setLoading(false)
+      }
     })
   }, [])
 
-  // 두 축(공개범위/성장단계) AND 조합으로 room 목록 필터링.
-  // stage 계산은 room.stage(API가 이미 붙여서 내려줌)를 computeStage()에
-  // 넣어서 얻는다 — 여기서 다시 계산하지 않는다.
-  const filteredRooms = rooms.filter((r) => {
-    if (selectedVisibility !== 'all' && r.visibility !== selectedVisibility) return false
-    if (selectedStage !== 'all') {
-      const { stage } = r.stage ? computeStage(r.stage) : { stage: 'none' }
-      if (stage !== selectedStage) return false
-    }
-    return true
-  })
-
-  // 필터링된 목록 안에 지금 선택된 room이 없으면(필터 바뀌어서 빠졌으면)
-  // 첫 번째 room으로 자동 이동. 필터링된 목록이 비면 선택 해제.
-  useEffect(() => {
-    if (filteredRooms.length === 0) {
-      setSelectedRoomId(null)
-      return
-    }
-    if (!filteredRooms.some((r) => r.id === selectedRoomId)) {
-      setSelectedRoomId(filteredRooms[0].id)
-    }
-  }, [selectedVisibility, selectedStage, rooms]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // 선택된 room의 post 목록 로드. 필터는 room 선택 단계에서 이미
-  // 끝났으므로, 여기서는 그 room의 글을 있는 그대로 보여준다.
-  useEffect(() => {
-    if (!selectedRoomId) {
-      setPosts([])
-      return
-    }
-    setPostsLoading(true)
-    fetch(`/api/corenull/posts?room_id=${selectedRoomId}`)
-      .then(r => r.json())
-      .then((d) => {
-        const list = d.data || []
-        setPosts(
-          list.map((p: any): PostBlockData => ({
-            id: p.id,
-            content: p.content,
-            media: p.meta?.media,
-            created_at: p.created_at,
-            comment_count: p.comment_count ?? 0,
-            view_meta: p.type === 'fruit' ? { stage_emoji: '🍎' } : undefined,
-          }))
-        )
-        setPostsLoading(false)
-      })
-  }, [selectedRoomId])
-
   const getInterestState = (postId: string): 'none' | 'active' | 'ended' => {
-    const b = bookmarks.find((bm) => bm.message_id === postId)
-    if (!b) return 'none'
-    return b.ended_at ? 'ended' : 'active'
+    const bm = bookmarks.find((b) => b.message_id === postId)
+    if (!bm) return 'none'
+    return bm.ended_at ? 'ended' : 'active'
   }
 
   const handleInterestClick = async (postId: string) => {
-    if (interestLoadingId) return
+    if (!ownerKey) return
     setInterestLoadingId(postId)
-
-    const existing = bookmarks.find((bm) => bm.message_id === postId)
-
+    const existing = bookmarks.find((b) => b.message_id === postId)
     if (!existing) {
       const res = await fetch('/api/corenull/bookmarks', {
         method: 'POST',
@@ -196,62 +173,82 @@ export default function LivingPage() {
     setInterestLoadingId(null)
   }
 
-  const roomTabs: RoomTab[] = filteredRooms.map((r) => {
-    const computed = r.stage ? computeStage(r.stage) : { emoji: null }
-    return {
-      id: r.id,
-      label: r.room_name,
-      badge: computed.emoji || undefined,
-    }
-  })
-
-  const langFlag = house?.primary_language ? (LANG_FLAG[house.primary_language] || '🌐') : '🌐'
-
-  const handleCreateRoom = () => {
-    router.push(`/write?new_room=1`)
-  }
+  const langFlag = house?.primary_language ? LANG_FLAG[house.primary_language] || '🌐' : '🌐'
 
   return (
     <div>
       <TopBar
         logo={<CoreNullLogo size="sm" />}
         title="거실"
-        actions={house ? [
-          // TODO: 광장 구현되면 다른 화면들처럼 이 자리를 상황에 따라 교체할 수 있음.
-          { key: 'home', emoji: '🏠', label: '나의 마당', onClick: () => router.push(`/houses/${house.id}/yard`) },
-        ] : []}
+        actions={
+          house
+            ? [
+                {
+                  key: 'yard',
+                  emoji: '🌿',
+                  label: '마당',
+                  onClick: () => router.push(`/houses/${house.id}/yard`),
+                },
+              ]
+            : []
+        }
       />
 
       <LivingBlock
         loading={loading}
-        background={{ gradient: 'linear-gradient(135deg, #5C4A35 0%, #8A6F52 60%, #D8C4A8 100%)' }}
-        ring={buildRingData(rooms.length)}
-        avatar={<span style={{ fontSize: 20 }}>🏡</span>}
+        background={houseHeroBackground(house, 'living')}
+        heroControls={
+          house && ownerKey ? (
+            <InlineHeroImageControls
+              houseId={house.id}
+              ownerKey={ownerKey}
+              view="living"
+              imageUrl={house.living_image_url}
+              position={house.living_image_position}
+              onSaved={(nextHouse) => setHouse(nextHouse)}
+            />
+          ) : undefined
+        }
+        ring={buildRingData(posters.length)}
+        avatar={
+          houseAvatarUrl(house) ? (
+            <img
+              src={houseAvatarUrl(house)!}
+              alt=""
+              style={{ width: 48, height: 48, borderRadius: '50%', objectFit: 'cover' }}
+            />
+          ) : (
+            <span style={{ fontSize: 20 }}>🏡</span>
+          )
+        }
         doorplate={{
           langFlag,
           title: house?.title || '',
           description: house?.description,
-          roomCount: rooms.length,
+          since: formatSince(house?.created_at),
+          roomCount: posters.length,
+          cta: house
+            ? {
+                label: '집 꾸미기',
+                onClick: () => router.push('/me/house'),
+              }
+            : undefined,
         }}
-        rooms={roomTabs}
-        selectedRoomId={selectedRoomId}
-        onRoomSelect={(roomId) => router.push(`/rooms/${roomId}`)}
-        onCreateRoomClick={handleCreateRoom}
-        visibilityFilters={VISIBILITY_FILTERS}
-        selectedVisibility={selectedVisibility}
-        onVisibilityChange={setSelectedVisibility}
-        stageFilters={STAGE_FILTERS}
-        selectedStage={selectedStage}
-        onStageChange={setSelectedStage}
-        posts={postsLoading ? [] : posts}
-        onPostClick={(postId) => router.push(`/posts/${postId}`)}
+        posters={posters}
+        onPosterClick={(roomId) => router.push(`/rooms/${roomId}`)}
+        roomViews={roomViews}
+        onPostClick={(postId, roomId) =>
+          roomId ? router.push(`/rooms/${roomId}`) : router.push(`/posts/${postId}`)
+        }
         onCommentClick={(postId) => router.push(`/posts/${postId}`)}
         showInterest
         getInterestState={getInterestState}
         interestLoadingId={interestLoadingId}
         onInterestClick={handleInterestClick}
-        neighbors={neighbors}
-        onNeighborClick={(houseId) => router.push(`/houses/${houseId}/yard`)}
+        onInterestGoLibrary={() => router.push('/me/library')}
+        enableInlineComment
+        ownerKey={ownerKey}
+        onCreateRoomClick={() => router.push('/write?new_room=1')}
       />
     </div>
   )
