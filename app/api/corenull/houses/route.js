@@ -149,13 +149,6 @@ const handleHousePatch = async (req, traceId) => {
       patch[key] = normalizeHeroPosition(body[key])
     }
   }
-  // 원본 이미지는 재생성하지 않고, Hero별 표시 설정만 저장한다.
-  // 임의 필드는 받지 않으며 숫자 범위도 서버에서 한 번 더 제한한다.
-  for (const key of HERO_POSITION_FIELDS) {
-    if (Object.prototype.hasOwnProperty.call(body, key)) {
-      patch[key] = normalizeHeroPosition(body[key])
-    }
-  }
   if (Object.prototype.hasOwnProperty.call(body, 'title') && body.title != null) {
     patch.title = String(body.title).trim() || null
   }
