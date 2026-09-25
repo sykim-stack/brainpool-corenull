@@ -153,6 +153,8 @@ export default function YardPage() {
           direction: n.direction,
           title: n.house.title,
           houseId: n.house.id,
+          avatarUrl: n.house.avatar_url || null,
+          langFlag: LANG_FLAG[n.house.primary_language] || undefined,
         }))
     )
 
