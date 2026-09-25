@@ -1,11 +1,10 @@
 'use client'
 
 // 광장 = 비이웃 발견·신청 + 관계 관리 + 공개방 둘러보기
-// 새 카드/프리미티브 없음. NeighborContentBlock · RoomCard · 마당 관계 UI 재사용.
 
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { getDeviceId } from '@/lib/deviceId'
+import { getOwnerKey } from '@/lib/ownerKey'
 import TopBar from '@/components/blocks/TopBar'
 import NeighborContentBlock, { NeighborChip, NeighborRoomSlot } from '@/components/blocks/NeighborContentBlock'
 import RoomCard from '@/components/corenull/RoomCard'
@@ -17,7 +16,6 @@ const LANG_FLAG: Record<string, string> = {
   ko: '🇰🇷', vi: '🇻🇳', en: '🇺🇸', ja: '🇯🇵', zh: '🇨🇳',
 }
 
-/** 한 화면: 가로3 × 세로2 = 6. 1~6은 있는 만큼, 7+는 6개씩 스와이프 */
 const PUBLIC_ROOMS_PAGE = 6
 
 function isYardVisibleRoom(rm: any) {
@@ -80,7 +78,6 @@ export default function PlazaPage() {
 
   const [relations, setRelations] = useState<YardRelationRow[]>([])
   const [relationActingId, setRelationActingId] = useState<string | null>(null)
-  const [relTab, setRelTab] = useState<'accepted' | 'sent' | 'received'>('accepted')
 
   const [publicRooms, setPublicRooms] = useState<any[]>([])
   const [publicPage, setPublicPage] = useState(0)
@@ -110,6 +107,8 @@ export default function PlazaPage() {
           direction: n.direction,
           title: n.house.title,
           houseId: n.house.id,
+          avatarUrl: n.house.avatar_url || null,
+          langFlag: LANG_FLAG[n.house.primary_language] || undefined,
         }))
     )
 
@@ -163,7 +162,7 @@ export default function PlazaPage() {
   }, [])
 
   useEffect(() => {
-    const key = getDeviceId()
+    const key = getOwnerKey()
     setOwnerKey(key)
     if (!key) {
       setLoading(false)
@@ -221,14 +220,9 @@ export default function PlazaPage() {
   const received = relations.filter((r) => r.status === 'pending' && r.direction === 'incoming')
   const sent = relations.filter((r) => r.status === 'pending' && r.direction === 'outgoing')
   const accepted = relations.filter((r) => r.status === 'accepted')
-  const relList = relTab === 'accepted' ? accepted : relTab === 'sent' ? sent : received
-  const relShow = relList.slice(0, 5)
 
-  // 1~6: 있는 만큼(3×2 그리드). 7+: 페이지당 6, 스와이프
   const needsSwipe = publicRooms.length > PUBLIC_ROOMS_PAGE
-  const pageCount = needsSwipe
-    ? Math.ceil(publicRooms.length / PUBLIC_ROOMS_PAGE)
-    : 1
+  const pageCount = needsSwipe ? Math.ceil(publicRooms.length / PUBLIC_ROOMS_PAGE) : 1
   const safePage = Math.min(publicPage, Math.max(0, pageCount - 1))
   const visibleRooms = needsSwipe
     ? publicRooms.slice(safePage * PUBLIC_ROOMS_PAGE, safePage * PUBLIC_ROOMS_PAGE + PUBLIC_ROOMS_PAGE)
@@ -243,18 +237,7 @@ export default function PlazaPage() {
 
   return (
     <div>
-      <TopBar
-        logo={<CoreNullLogo size="sm" />}
-        title="광장"
-        actions={[
-          {
-            key: 'home',
-            emoji: '🏠',
-            label: '나의 마당',
-            onClick: () => router.push('/yard'),
-          },
-        ]}
-      />
+      <TopBar logo={<CoreNullLogo size="sm" />} title="광장" />
 
       {loading ? (
         <div style={styles.loading}>🏛️</div>
@@ -277,37 +260,44 @@ export default function PlazaPage() {
                 전체 ›
               </button>
             </div>
-            <div style={styles.relTabs}>
-              {(
-                [
-                  ['accepted', '이웃', accepted.length],
-                  ['sent', '신청', sent.length],
-                  ['received', '요청', received.length],
-                ] as const
-              ).map(([key, label, n]) => (
-                <button
-                  key={key}
-                  type="button"
-                  style={{
-                    ...styles.relTab,
-                    ...(relTab === key ? styles.relTabOn : null),
-                  }}
-                  onClick={() => setRelTab(key)}
-                >
-                  {label}
-                  {n > 0 ? ` ${n}` : ''}
-                </button>
-              ))}
-            </div>
-            {relShow.length === 0 ? (
-              <div style={styles.relationEmpty}>신청·이웃이 여기 모입니다</div>
+
+            {accepted.length === 0 && received.length === 0 && sent.length === 0 ? (
+              <div style={styles.relationEmpty}>이웃이 생기면 여기에 보여요</div>
             ) : (
-              <div style={styles.relationList}>
-                {relShow.map((r) => (
-                  <div key={r.id} style={styles.relationRow}>
-                    <span style={styles.relationName}>{r.title}</span>
-                    {relTab === 'received' && (
-                      <>
+              <>
+                {accepted.length > 0 && (
+                  <div style={styles.relAvatarRow}>
+                    {accepted.map((r) => {
+                      const initial = (r.title || '?').trim().charAt(0)
+                      return (
+                        <button
+                          key={r.id}
+                          type="button"
+                          title={r.title}
+                          aria-label={r.title}
+                          style={styles.relAvatarBtn}
+                          onClick={() => r.houseId && router.push(`/houses/${r.houseId}/living`)}
+                        >
+                          <div style={styles.relAvatarCircle}>
+                            {r.avatarUrl ? (
+                              <img src={r.avatarUrl} alt="" style={styles.relAvatarImg} />
+                            ) : (
+                              <span style={styles.relAvatarInitial}>{r.langFlag || initial}</span>
+                            )}
+                          </div>
+                          <span style={styles.relAvatarName}>{r.title}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {(received.length > 0 || sent.length > 0) && (
+                  <div style={styles.pendingBlock}>
+                    {received.map((r) => (
+                      <div key={r.id} style={styles.pendingRow}>
+                        <span style={styles.pendingName}>{r.title}</span>
+                        <span style={styles.pendingTag}>요청</span>
                         <button
                           type="button"
                           style={styles.relAccept}
@@ -324,63 +314,39 @@ export default function PlazaPage() {
                         >
                           거절
                         </button>
-                      </>
-                    )}
-                    {relTab === 'sent' && (
-                      <button
-                        type="button"
-                        style={styles.relGhost}
-                        disabled={relationActingId === r.id}
-                        onClick={() => handleRemoveRelation(r.id)}
-                      >
-                        취소
-                      </button>
-                    )}
-                    {relTab === 'accepted' && (
-                      <>
-                        <span style={styles.badgeOk}>이웃</span>
-                        {r.houseId && (
-                          <>
-                            <button
-                              type="button"
-                              style={styles.relAccept}
-                              onClick={() => router.push(`/houses/${r.houseId}/yard`)}
-                            >
-                              마당
-                            </button>
-                            <button
-                              type="button"
-                              style={styles.relGhost}
-                              onClick={() => router.push(`/houses/${r.houseId}/living`)}
-                            >
-                              거실
-                            </button>
-                          </>
-                        )}
-                      </>
-                    )}
+                      </div>
+                    ))}
+                    {sent.map((r) => (
+                      <div key={r.id} style={styles.pendingRow}>
+                        <span style={styles.pendingName}>{r.title}</span>
+                        <span style={styles.pendingTag}>신청</span>
+                        <button
+                          type="button"
+                          style={styles.relGhost}
+                          disabled={relationActingId === r.id}
+                          onClick={() => handleRemoveRelation(r.id)}
+                        >
+                          취소
+                        </button>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                )}
+              </>
             )}
           </section>
 
-          {/* 비이웃 공개방: 3열×2행(최대6) — 내 방 최신과 동일 그리드 리듬 */}
           <section style={styles.publicSection}>
             <div style={styles.publicHeader}>
               <span style={styles.relationTitle}>비이웃 공개방 최신</span>
               {publicRooms.length > 0 && (
                 <span style={styles.publicHint}>
-                  {needsSwipe
-                    ? `${safePage + 1}/${pageCount} · 더보기`
-                    : `${publicRooms.length}개`}
+                  {needsSwipe ? `${safePage + 1}/${pageCount} · 더보기` : `${publicRooms.length}개`}
                 </span>
               )}
             </div>
             {publicRooms.length === 0 ? (
-              <div style={{ ...styles.relationEmpty, margin: '0 16px' }}>
-                아직 둘러볼 공개 방이 없어요
-              </div>
+              <div style={{ ...styles.relationEmpty, margin: '0 16px' }}>아직 둘러볼 공개 방이 없어요</div>
             ) : (
               <div style={styles.setStage}>
                 {needsSwipe && (
@@ -453,165 +419,79 @@ export default function PlazaPage() {
 
 const styles: Record<string, React.CSSProperties> = {
   loading: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: '50vh',
-    fontSize: 40,
+    display: 'flex', alignItems: 'center', justifyContent: 'center', height: '50vh', fontSize: 40,
   },
   relationSection: { padding: '16px', borderTop: '1px solid rgba(92,61,46,0.08)' },
   relationHeader: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 10,
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12,
   },
   relationTitle: {
-    fontFamily: "'Noto Serif KR', serif",
-    fontSize: 15,
-    fontWeight: 600,
-    color: '#2C1810',
+    fontFamily: "'Noto Serif KR', serif", fontSize: 15, fontWeight: 600, color: '#2C1810',
   },
-  relationMore: {
-    border: 'none',
-    background: 'none',
-    color: '#9A8470',
-    fontSize: 12,
-    cursor: 'pointer',
-  },
+  relationMore: { border: 'none', background: 'none', color: '#9A8470', fontSize: 12, cursor: 'pointer' },
   relationEmpty: {
-    fontSize: 13,
-    color: '#9A8470',
-    padding: '16px',
-    textAlign: 'center',
-    background: '#FEFCF8',
-    borderRadius: 12,
-    border: '1px dashed rgba(92,61,46,0.12)',
+    fontSize: 13, color: '#9A8470', padding: '16px', textAlign: 'center',
+    background: '#FEFCF8', borderRadius: 12, border: '1px dashed rgba(92,61,46,0.12)',
   },
-  relTabs: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6, marginBottom: 10 },
-  relTab: {
-    border: '1px solid rgba(92,61,46,0.12)',
-    background: '#FEFCF8',
-    color: '#5C4A35',
-    fontSize: 12,
-    padding: '8px 0',
-    borderRadius: 10,
-    cursor: 'pointer',
+  relAvatarRow: {
+    display: 'flex', flexDirection: 'row', gap: 14, overflowX: 'auto',
+    paddingBottom: 4, WebkitOverflowScrolling: 'touch',
   },
-  relTabOn: {
-    background: '#2C1810',
-    color: '#FEFCF8',
-    borderColor: '#2C1810',
+  relAvatarBtn: {
+    flexShrink: 0, width: 64, border: 'none', background: 'none', padding: 0, cursor: 'pointer',
+    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
   },
-  relationList: { display: 'flex', flexDirection: 'column', gap: 8 },
-  relationRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-    padding: '10px 12px',
-    background: '#FEFCF8',
-    borderRadius: 12,
-    border: '1px solid rgba(92,61,46,0.08)',
-    minWidth: 0,
+  relAvatarCircle: {
+    width: 52, height: 52, borderRadius: '50%',
+    background: 'linear-gradient(135deg, #4A5240, #C17F3C)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    overflow: 'hidden', boxShadow: '0 2px 8px rgba(44,24,16,0.12)',
   },
-  relationName: {
-    flex: 1,
-    fontSize: 13,
-    color: '#2C1810',
-    fontWeight: 500,
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
-    minWidth: 0,
+  relAvatarImg: { width: '100%', height: '100%', objectFit: 'cover' },
+  relAvatarInitial: { fontSize: 18, color: '#FEFCF8', fontWeight: 600 },
+  relAvatarName: {
+    fontSize: 10, color: '#5C4A35', maxWidth: 64, overflow: 'hidden',
+    textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'center',
   },
-  badgeOk: {
-    fontSize: 10,
-    color: '#4A5240',
-    background: 'rgba(74,82,64,0.12)',
-    padding: '2px 8px',
-    borderRadius: 999,
-    flexShrink: 0,
+  pendingBlock: { marginTop: 12, display: 'flex', flexDirection: 'column', gap: 6 },
+  pendingRow: {
+    display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
+    background: '#FEFCF8', borderRadius: 10, border: '1px solid rgba(92,61,46,0.08)',
+  },
+  pendingName: {
+    flex: 1, fontSize: 12, color: '#2C1810', overflow: 'hidden',
+    textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0,
+  },
+  pendingTag: {
+    fontSize: 10, color: '#9A8470', background: '#F5F0E8',
+    padding: '2px 7px', borderRadius: 999, flexShrink: 0,
   },
   relAccept: {
-    border: 'none',
-    background: '#2C1810',
-    color: '#fff',
-    fontSize: 11,
-    padding: '6px 10px',
-    borderRadius: 8,
-    cursor: 'pointer',
-    flexShrink: 0,
+    border: 'none', background: '#2C1810', color: '#fff', fontSize: 11,
+    padding: '5px 9px', borderRadius: 8, cursor: 'pointer', flexShrink: 0,
   },
   relGhost: {
-    border: '1px solid rgba(92,61,46,0.12)',
-    background: '#fff',
-    color: '#5C4A35',
-    fontSize: 11,
-    padding: '6px 10px',
-    borderRadius: 8,
-    cursor: 'pointer',
-    flexShrink: 0,
+    border: '1px solid rgba(92,61,46,0.12)', background: '#fff', color: '#5C4A35',
+    fontSize: 11, padding: '5px 9px', borderRadius: 8, cursor: 'pointer', flexShrink: 0,
   },
-  publicSection: {
-    padding: '16px 0 28px',
-    borderTop: '1px solid rgba(92,61,46,0.08)',
-  },
+  publicSection: { padding: '16px 0 28px', borderTop: '1px solid rgba(92,61,46,0.08)' },
   publicHeader: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: '0 16px',
-    marginBottom: 12,
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    padding: '0 16px', marginBottom: 12,
   },
   publicHint: { fontSize: 11, color: '#9A8470' },
-  setStage: {
-    position: 'relative',
-    padding: '0 16px',
-  },
+  setStage: { position: 'relative', padding: '0 16px' },
   setArrow: {
-    position: 'absolute',
-    top: '40%',
-    transform: 'translateY(-50%)',
-    zIndex: 2,
-    width: 28,
-    height: 36,
-    borderRadius: 10,
-    border: '1px solid rgba(92,61,46,0.12)',
-    background: 'rgba(254,252,248,0.95)',
-    color: '#2C1810',
-    fontSize: 20,
-    lineHeight: '36px',
-    padding: 0,
-    cursor: 'pointer',
-    boxShadow: '0 2px 8px rgba(44,24,16,0.08)',
+    position: 'absolute', top: '40%', transform: 'translateY(-50%)', zIndex: 2,
+    width: 28, height: 36, borderRadius: 10, border: '1px solid rgba(92,61,46,0.12)',
+    background: 'rgba(254,252,248,0.95)', color: '#2C1810', fontSize: 20, lineHeight: '36px',
+    padding: 0, cursor: 'pointer', boxShadow: '0 2px 8px rgba(44,24,16,0.08)',
   },
-  setCard: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 4,
-    minWidth: 0,
-  },
-  setDots: {
-    display: 'flex',
-    justifyContent: 'center',
-    gap: 6,
-    marginTop: 14,
-  },
-  setDot: {
-    width: 7,
-    height: 7,
-    borderRadius: '50%',
-    border: 'none',
-    padding: 0,
-    cursor: 'pointer',
-  },
+  setCard: { display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 },
+  setDots: { display: 'flex', justifyContent: 'center', gap: 6, marginTop: 14 },
+  setDot: { width: 7, height: 7, borderRadius: '50%', border: 'none', padding: 0, cursor: 'pointer' },
   morePosts: {
-    border: 'none',
-    background: 'none',
-    color: '#9A8470',
-    fontSize: 12,
-    cursor: 'pointer',
-    padding: '2px 2px 0',
-    textAlign: 'left',
+    border: 'none', background: 'none', color: '#9A8470', fontSize: 12,
+    cursor: 'pointer', padding: '2px 2px 0', textAlign: 'left',
   },
 }
