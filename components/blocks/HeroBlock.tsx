@@ -31,7 +31,7 @@ export interface HeroBlockProps {
 }
 
 const DEFAULT_GRADIENT = 'linear-gradient(135deg, #4A5240 0%, #7A8C6E 60%, #C8D5B9 100%)'
-const RING_SIZE = 156
+const RING_SIZE = 230
 const BG_HEIGHT = 220
 
 export default function HeroBlock({ background, ring, avatar, doorplate, heroControls }: HeroBlockProps) {
@@ -119,9 +119,8 @@ const styles: Record<string, React.CSSProperties> = {
   },
   heroControls: {
     position: 'absolute',
-    left: 16,
+    top: 16,
     right: 16,
-    bottom: 12,
     zIndex: 3,
   },
   ringHolder: {
