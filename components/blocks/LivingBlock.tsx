@@ -19,6 +19,7 @@ export interface LivingBlockProps {
   ring: RingData
   avatar?: React.ReactNode
   doorplate: HeroDoorplate
+  heroControls?: React.ReactNode
 
   posters: PosterData[]
   onPosterClick?: (roomId: string) => void
@@ -49,6 +50,7 @@ export default function LivingBlock({
   ring,
   avatar,
   doorplate,
+  heroControls,
   posters,
   onPosterClick,
   roomViews,
@@ -90,7 +92,7 @@ export default function LivingBlock({
 
   return (
     <div>
-      <HeroBlock background={background} ring={ring} avatar={avatar} doorplate={doorplate} />
+      <HeroBlock background={background} ring={ring} avatar={avatar} doorplate={doorplate} heroControls={heroControls} />
 
       {onCreateRoomClick && (
         <div style={styles.createRow}>

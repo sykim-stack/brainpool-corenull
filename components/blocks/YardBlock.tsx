@@ -27,6 +27,7 @@ export interface YardBlockProps {
   ring: RingData
   avatar?: React.ReactNode
   doorplate: HeroDoorplate
+  heroControls?: React.ReactNode
   loading?: boolean
   visitorMode?: boolean
   discoveries?: DiscoveryItem[]
@@ -88,6 +89,7 @@ export default function YardBlock({
   ring,
   avatar,
   doorplate,
+  heroControls,
   loading = false,
   visitorMode = false,
   discoveries = [],
@@ -125,7 +127,7 @@ export default function YardBlock({
 
   return (
     <div>
-      <HeroBlock background={background} ring={ring} avatar={avatar} doorplate={doorplate} />
+      <HeroBlock background={background} ring={ring} avatar={avatar} doorplate={doorplate} heroControls={heroControls} />
 
       {discoveries.length > 0 && (
         <section style={styles.discoverySection}>

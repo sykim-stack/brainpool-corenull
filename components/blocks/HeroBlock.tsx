@@ -27,13 +27,14 @@ export interface HeroBlockProps {
   ring: RingData
   avatar?: React.ReactNode
   doorplate: HeroDoorplate
+  heroControls?: React.ReactNode
 }
 
 const DEFAULT_GRADIENT = 'linear-gradient(135deg, #4A5240 0%, #7A8C6E 60%, #C8D5B9 100%)'
 const RING_SIZE = 156
 const BG_HEIGHT = 220
 
-export default function HeroBlock({ background, ring, avatar, doorplate }: HeroBlockProps) {
+export default function HeroBlock({ background, ring, avatar, doorplate, heroControls }: HeroBlockProps) {
   const stats = [doorplate.since, formatCount(doorplate.roomCount, '방'), formatCount(doorplate.neighborCount, '이웃')]
     .filter(Boolean)
     .join(' · ')
@@ -55,6 +56,7 @@ export default function HeroBlock({ background, ring, avatar, doorplate }: HeroB
       >
         <div style={styles.backgroundShade} />
         <div style={styles.backgroundGlow} />
+        {heroControls && <div style={styles.heroControls}>{heroControls}</div>}
       </div>
 
       <div style={styles.ringHolder}>
@@ -114,6 +116,13 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'rgba(255,244,194,0.18)',
     filter: 'blur(18px)',
     pointerEvents: 'none',
+  },
+  heroControls: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    bottom: 12,
+    zIndex: 3,
   },
   ringHolder: {
     position: 'absolute',

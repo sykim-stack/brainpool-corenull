@@ -8,6 +8,7 @@ import YardBlock, { YardRelationRow } from '@/components/blocks/YardBlock'
 import CoreNullLogo from '@/components/corenull/CoreNullLogo'
 import ShareModal from '@/components/corenull/ShareModal'
 import OwnerGate from '@/components/corenull/OwnerGate'
+import InlineHeroImageControls from '@/components/corenull/InlineHeroImageControls'
 import { PostBlockData } from '@/components/blocks/PostBlock'
 import { RingData } from '@/components/blocks/RingBlock'
 import { NeighborChip, NeighborRoomSlot } from '@/components/blocks/NeighborContentBlock'
@@ -369,6 +370,18 @@ export default function YardPage() {
       <YardBlock
         loading={loading}
         background={houseHeroBackground(house, 'yard')}
+        heroControls={
+          house && ownerKey ? (
+            <InlineHeroImageControls
+              houseId={house.id}
+              ownerKey={ownerKey}
+              view="yard"
+              imageUrl={house.yard_image_url}
+              position={house.yard_image_position}
+              onSaved={(nextHouse) => setHouse(nextHouse)}
+            />
+          ) : undefined
+        }
         ring={buildRingData(rooms.length, acceptedCount)}
         avatar={
           houseAvatarUrl(house) ? (

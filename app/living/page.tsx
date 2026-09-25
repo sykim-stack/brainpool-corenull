@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { getDeviceId } from '@/lib/deviceId'
+import { getOwnerKey } from '@/lib/ownerKey'
 import TopBar from '@/components/blocks/TopBar'
 import LivingBlock from '@/components/blocks/LivingBlock'
 import CoreNullLogo from '@/components/corenull/CoreNullLogo'
@@ -10,6 +10,7 @@ import { PostBlockData } from '@/components/blocks/PostBlock'
 import { PosterData } from '@/components/blocks/PosterBlock'
 import { RingData } from '@/components/blocks/RingBlock'
 import { houseHeroBackground, houseAvatarUrl } from '@/lib/houseImages'
+import InlineHeroImageControls from '@/components/corenull/InlineHeroImageControls'
 
 const LANG_FLAG: Record<string, string> = {
   ko: '🇰🇷', vi: '🇻🇳', en: '🇺🇸', ja: '🇯🇵', zh: '🇨🇳',
@@ -60,7 +61,7 @@ export default function LivingPage() {
   const [interestLoadingId, setInterestLoadingId] = useState<string | null>(null)
 
   useEffect(() => {
-    const key = getDeviceId()
+    const key = getOwnerKey()
     setOwnerKey(key)
     if (!key) return
 
@@ -196,6 +197,18 @@ export default function LivingPage() {
       <LivingBlock
         loading={loading}
         background={houseHeroBackground(house, 'living')}
+        heroControls={
+          house && ownerKey ? (
+            <InlineHeroImageControls
+              houseId={house.id}
+              ownerKey={ownerKey}
+              view="living"
+              imageUrl={house.living_image_url}
+              position={house.living_image_position}
+              onSaved={(nextHouse) => setHouse(nextHouse)}
+            />
+          ) : undefined
+        }
         ring={buildRingData(posters.length)}
         avatar={
           houseAvatarUrl(house) ? (
