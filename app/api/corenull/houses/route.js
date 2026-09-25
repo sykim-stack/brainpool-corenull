@@ -6,6 +6,20 @@
 export const dynamic = 'force-dynamic'
 
 const HOUSE_IMAGE_FIELDS = ['avatar_url', 'yard_image_url', 'living_image_url']
+const HERO_POSITION_FIELDS = ['yard_image_position', 'living_image_position']
+
+function normalizeHeroPosition(value) {
+  const input = value && typeof value === 'object' ? value : {}
+  const clamp = (n, min, max, fallback) => {
+    const parsed = Number(n)
+    return Number.isFinite(parsed) ? Math.min(max, Math.max(min, parsed)) : fallback
+  }
+  return {
+    x: clamp(input.x, 0, 100, 50),
+    y: clamp(input.y, 0, 100, 50),
+    scale: clamp(input.scale, 1, 2.5, 1),
+  }
+}
 
 const handler = async (req) => {
   const traceId = crypto.randomUUID()
@@ -126,6 +140,20 @@ const handleHousePatch = async (req, traceId) => {
     if (Object.prototype.hasOwnProperty.call(body, key)) {
       const v = body[key]
       patch[key] = v === '' || v === undefined ? null : v
+    }
+  }
+  // 원본 이미지는 재생성하지 않고, Hero별 표시 설정만 저장한다.
+  // 임의 필드는 받지 않으며 숫자 범위도 서버에서 한 번 더 제한한다.
+  for (const key of HERO_POSITION_FIELDS) {
+    if (Object.prototype.hasOwnProperty.call(body, key)) {
+      patch[key] = normalizeHeroPosition(body[key])
+    }
+  }
+  // 원본 이미지는 재생성하지 않고, Hero별 표시 설정만 저장한다.
+  // 임의 필드는 받지 않으며 숫자 범위도 서버에서 한 번 더 제한한다.
+  for (const key of HERO_POSITION_FIELDS) {
+    if (Object.prototype.hasOwnProperty.call(body, key)) {
+      patch[key] = normalizeHeroPosition(body[key])
     }
   }
   if (Object.prototype.hasOwnProperty.call(body, 'title') && body.title != null) {

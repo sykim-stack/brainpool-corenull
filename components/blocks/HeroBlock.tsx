@@ -5,6 +5,7 @@ import RingBlock, { RingData } from './RingBlock'
 export interface HeroBackground {
   imageUrl?: string | null
   gradient?: string
+  position?: { x?: number; y?: number; scale?: number } | null
 }
 
 export interface HeroDoorplate {
@@ -36,6 +37,8 @@ export default function HeroBlock({ background, ring, avatar, doorplate }: HeroB
   const stats = [doorplate.since, formatCount(doorplate.roomCount, '방'), formatCount(doorplate.neighborCount, '이웃')]
     .filter(Boolean)
     .join(' · ')
+  // DB에 예전 House가 있어 설정이 일부만 와도 Hero는 안전한 기본값으로 렌더링한다.
+  const imagePosition = { x: 50, y: 50, scale: 1, ...(background.position || {}) }
 
   return (
     <div style={styles.wrapper}>
@@ -46,8 +49,8 @@ export default function HeroBlock({ background, ring, avatar, doorplate }: HeroB
           backgroundImage: background.imageUrl
             ? `url(${background.imageUrl})`
             : background.gradient || DEFAULT_GRADIENT,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
+          backgroundSize: imagePosition.scale === 1 ? 'cover' : `${imagePosition.scale * 100}%`,
+          backgroundPosition: `${imagePosition.x ?? 50}% ${imagePosition.y ?? 50}%`,
         }}
       >
         <div style={styles.backgroundShade} />

@@ -2,14 +2,16 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { getDeviceId } from '@/lib/deviceId'
+import { getOwnerKey } from '@/lib/ownerKey'
 import { prepareUploadFile } from '@/lib/compressMedia'
 import TopBar from '@/components/blocks/TopBar'
 import CoreNullLogo from '@/components/corenull/CoreNullLogo'
+import HeroImageEditor, { HeroImagePosition } from '@/components/corenull/HeroImageEditor'
 
 // House 이미지 등록 — /write 업로드 파이프라인 재사용 + 클라이언트 압축.
 
 type SlotKey = 'avatar_url' | 'yard_image_url' | 'living_image_url'
+type HeroSlotKey = Exclude<SlotKey, 'avatar_url'>
 
 const SLOTS: { key: SlotKey; label: string; hint: string }[] = [
   { key: 'avatar_url', label: '프로필', hint: 'Ring · 이웃 프로필' },
@@ -24,12 +26,14 @@ export default function HouseImagesPage() {
   const [house, setHouse] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [activeSlot, setActiveSlot] = useState<SlotKey | null>(null)
+  const [editingHero, setEditingHero] = useState<HeroSlotKey | null>(null)
   const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState('')
 
   useEffect(() => {
-    const key = getDeviceId()
+    // House 이미지와 Hero 위치 설정은 House Owner에 귀속한다.
+    const key = getOwnerKey()
     setOwnerKey(key)
     if (!key) {
       setLoading(false)
@@ -127,6 +131,29 @@ export default function HouseImagesPage() {
     setSaving(false)
   }
 
+  const saveHeroPosition = async (key: HeroSlotKey, position: HeroImagePosition) => {
+    if (!house || !ownerKey) return
+    setSaving(true)
+    setMsg('위치 저장 중…')
+    const positionKey = key === 'yard_image_url' ? 'yard_image_position' : 'living_image_position'
+    try {
+      const res = await fetch('/api/corenull/houses', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ house_id: house.id, owner_key: ownerKey, [positionKey]: position }),
+      })
+      const data = await res.json()
+      if (data.data) {
+        setHouse(data.data)
+        setMsg('Hero 위치가 저장됐어요')
+      } else {
+        throw new Error(data._error || '저장 실패')
+      }
+    } finally {
+      setSaving(false)
+    }
+  }
+
   if (loading) {
     return <div style={styles.loading}>🏡</div>
   }
@@ -172,6 +199,14 @@ export default function HouseImagesPage() {
                 style={{
                   ...styles.preview,
                   backgroundImage: url ? `url(${url})` : undefined,
+                  backgroundPosition: url
+                    ? `${house[slot.key === 'yard_image_url' ? 'yard_image_position' : 'living_image_position']?.x ?? 50}% ${house[slot.key === 'yard_image_url' ? 'yard_image_position' : 'living_image_position']?.y ?? 50}%`
+                    : 'center',
+                  backgroundSize: url
+                    ? ((house[slot.key === 'yard_image_url' ? 'yard_image_position' : 'living_image_position']?.scale ?? 1) === 1
+                        ? 'cover'
+                        : `${(house[slot.key === 'yard_image_url' ? 'yard_image_position' : 'living_image_position']?.scale ?? 1) * 100}%`)
+                    : 'cover',
                   background: url
                     ? undefined
                     : slot.key === 'living_image_url'
@@ -202,6 +237,15 @@ export default function HouseImagesPage() {
                     기본으로
                   </button>
                 )}
+                {url && slot.key !== 'avatar_url' && (
+                  <button
+                    style={styles.adjustBtn}
+                    disabled={uploading || saving}
+                    onClick={() => setEditingHero(slot.key as HeroSlotKey)}
+                  >
+                    위치 조절
+                  </button>
+                )}
               </div>
             </div>
           )
@@ -215,6 +259,15 @@ export default function HouseImagesPage() {
         style={{ display: 'none' }}
         onChange={onFile}
       />
+      {editingHero && house?.[editingHero] && (
+        <HeroImageEditor
+          url={house[editingHero]}
+          label={editingHero === 'yard_image_url' ? '마당 Hero' : '거실 Hero'}
+          value={house[editingHero === 'yard_image_url' ? 'yard_image_position' : 'living_image_position']}
+          onSave={(position) => saveHeroPosition(editingHero, position)}
+          onClose={() => setEditingHero(null)}
+        />
+      )}
     </div>
   )
 }
@@ -259,5 +312,10 @@ const styles: Record<string, React.CSSProperties> = {
     height: 44, padding: '0 12px', background: 'none',
     border: '1px solid rgba(92,61,46,0.15)', borderRadius: 10,
     fontSize: 12, color: '#9A8470', cursor: 'pointer',
+  },
+  adjustBtn: {
+    height: 44, padding: '0 12px', background: 'rgba(193,127,60,0.08)',
+    border: '1px solid rgba(193,127,60,0.22)', borderRadius: 10,
+    fontSize: 12, color: '#8A5A22', cursor: 'pointer',
   },
 }
