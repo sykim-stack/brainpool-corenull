@@ -87,6 +87,12 @@ body {
     grid-template-columns: minmax(140px, 1.1fr) minmax(0, 1fr) minmax(0, 1fr);
     gap: 12px;
   }
+  .cn-alley-row[data-posts="0"] {
+    grid-template-columns: minmax(220px, 1fr);
+  }
+  .cn-alley-row[data-posts="1"] {
+    grid-template-columns: minmax(180px, 1.1fr) minmax(0, 1.6fr);
+  }
 }
 
 .cn-alley-dots {

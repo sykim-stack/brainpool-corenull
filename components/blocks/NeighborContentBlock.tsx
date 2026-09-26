@@ -133,6 +133,7 @@ export default function NeighborContentBlock({
 
           <div
             className="cn-alley-row"
+            data-posts={Number(!!postA) + Number(!!postB)}
             onTouchStart={(event) => setTouchStartX(event.touches[0]?.clientX ?? null)}
             onTouchEnd={handleTouchEnd}
           >
@@ -182,23 +183,19 @@ export default function NeighborContentBlock({
               )}
             </div>
 
-            <div style={styles.colPost}>
-              {roomA && <div style={styles.roomTag}>{roomA.roomName}</div>}
-              {postA ? (
+            {postA && (
+              <div style={styles.colPost}>
+                {roomA && <div style={styles.roomTag}>{roomA.roomName}</div>}
                 <PostBlock post={postA} showViewMeta={false} showComments={false} onClick={() => onPostClick?.(postA.id, roomA?.roomId)} />
-              ) : (
-                <div style={styles.postEmpty}>{rooms.length === 0 ? '공개 방 없음' : '글 없음'}</div>
-              )}
-            </div>
+              </div>
+            )}
 
-            <div style={styles.colPost}>
-              {roomB && <div style={styles.roomTag}>{roomB.roomName}</div>}
-              {postB ? (
+            {postB && (
+              <div style={styles.colPost}>
+                {roomB && <div style={styles.roomTag}>{roomB.roomName}</div>}
                 <PostBlock post={postB} showViewMeta={false} showComments={false} onClick={() => onPostClick?.(postB.id, roomB?.roomId)} />
-              ) : (
-                <div style={styles.postEmpty}>{rooms.length <= 1 ? '—' : '글 없음'}</div>
-              )}
-            </div>
+              </div>
+            )}
           </div>
 
           {rooms.length > 2 && (

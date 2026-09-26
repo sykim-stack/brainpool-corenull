@@ -122,7 +122,7 @@ export default function PlazaPage() {
 
     const discHouses = disc.data || []
     const rec: NeighborChip[] = await Promise.all(
-      discHouses.map(async (h: any) => {
+      discHouses.map(async (h: any, index: number) => {
         const roomSlots = await loadHouseRoomSlots(h)
         return {
           neighborId: `plaza-${h.id}`,
@@ -130,7 +130,8 @@ export default function PlazaPage() {
           title: h.title,
           langFlag: LANG_FLAG[h.primary_language] || '🌐',
           avatarUrl: h.avatar_url || null,
-          coverUrl: h.yard_image_url || null,
+          // 광장은 집마다 다른 배경이 아니라, 걷는 장면이 이어지는 공용 골목이다.
+          coverUrl: `/alley/alley-${String((index % 5) + 1).padStart(2, '0')}.${index % 5 === 2 || index % 5 === 4 ? 'jpeg' : 'jpg'}`,
           rooms: roomSlots,
           requestPending: pendingTargetIds.has(h.id),
         }
@@ -244,7 +245,13 @@ export default function PlazaPage() {
         <div style={styles.loading}>🏛️</div>
       ) : (
         <>
-          <PlazaHeroBlock />
+          <PlazaHeroBlock
+            onRandomVisit={() => {
+              if (recommended.length === 0) return
+              const target = recommended[Math.floor(Math.random() * recommended.length)]
+              router.push(`/houses/${target.houseId}/yard`)
+            }}
+          />
           <NeighborContentBlock
             tier="public"
             mode="recommend"
