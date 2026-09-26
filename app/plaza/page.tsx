@@ -11,7 +11,6 @@ import PlazaHeroBlock from '@/components/blocks/PlazaHeroBlock'
 import RoomCard from '@/components/corenull/RoomCard'
 import CoreNullLogo from '@/components/corenull/CoreNullLogo'
 import { PostBlockData } from '@/components/blocks/PostBlock'
-import type { YardRelationRow } from '@/components/blocks/YardBlock'
 
 const LANG_FLAG: Record<string, string> = {
   ko: '🇰🇷', vi: '🇻🇳', en: '🇺🇸', ja: '🇯🇵', zh: '🇨🇳',
@@ -77,9 +76,6 @@ export default function PlazaPage() {
   const [recommended, setRecommended] = useState<NeighborChip[]>([])
   const [applyLoadingHouseId, setApplyLoadingHouseId] = useState<string | null>(null)
 
-  const [relations, setRelations] = useState<YardRelationRow[]>([])
-  const [relationActingId, setRelationActingId] = useState<string | null>(null)
-
   const [publicRooms, setPublicRooms] = useState<any[]>([])
   const [publicPage, setPublicPage] = useState(0)
 
@@ -99,20 +95,6 @@ export default function PlazaPage() {
     ])
 
     const nbRows = nb.data || []
-    setRelations(
-      nbRows
-        .filter((n: any) => n.house)
-        .map((n: any) => ({
-          id: n.id,
-          status: n.status,
-          direction: n.direction,
-          title: n.house.title,
-          houseId: n.house.id,
-          avatarUrl: n.house.avatar_url || null,
-          langFlag: LANG_FLAG[n.house.primary_language] || undefined,
-        }))
-    )
-
     const pendingTargetIds = new Set(
       nbRows.filter((n: any) => n.status === 'pending' && n.house).map((n: any) => n.house.id)
     )
@@ -191,37 +173,10 @@ export default function PlazaPage() {
     setApplyLoadingHouseId(null)
   }
 
-  const handleAcceptRelation = async (neighborId: string) => {
-    if (relationActingId) return
-    setRelationActingId(neighborId)
-    await fetch('/api/corenull/houses?action=neighbor-accept', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ neighbor_id: neighborId, owner_key: ownerKey }),
-    })
-    await loadAll(ownerKey)
-    setRelationActingId(null)
-  }
-
-  const handleRemoveRelation = async (neighborId: string) => {
-    if (relationActingId) return
-    setRelationActingId(neighborId)
-    await fetch(
-      `/api/corenull/houses?action=neighbor-remove&neighbor_id=${neighborId}&owner_key=${ownerKey}`,
-      { method: 'DELETE' }
-    )
-    await loadAll(ownerKey)
-    setRelationActingId(null)
-  }
-
   const handlePostClick = (postId: string, roomId?: string) => {
     if (roomId) router.push(`/rooms/${roomId}`)
     else router.push(`/posts/${postId}`)
   }
-
-  const received = relations.filter((r) => r.status === 'pending' && r.direction === 'incoming')
-  const sent = relations.filter((r) => r.status === 'pending' && r.direction === 'outgoing')
-  const accepted = relations.filter((r) => r.status === 'accepted')
 
   const needsSwipe = publicRooms.length > PUBLIC_ROOMS_PAGE
   const pageCount = needsSwipe ? Math.ceil(publicRooms.length / PUBLIC_ROOMS_PAGE) : 1
@@ -262,89 +217,6 @@ export default function PlazaPage() {
             onApplyNeighbor={handleApplyNeighbor}
             applyLoadingHouseId={applyLoadingHouseId}
           />
-
-          <section style={styles.relationSection}>
-            <div style={styles.relationHeader}>
-              <span style={styles.relationTitle}>이웃 관계</span>
-              <button type="button" style={styles.relationMore} onClick={() => router.push('/me/neighbors')}>
-                전체 ›
-              </button>
-            </div>
-
-            {accepted.length === 0 && received.length === 0 && sent.length === 0 ? (
-              <div style={styles.relationEmpty}>이웃이 생기면 여기에 보여요</div>
-            ) : (
-              <>
-                {accepted.length > 0 && (
-                  <div style={styles.relAvatarRow}>
-                    {accepted.map((r) => {
-                      const initial = (r.title || '?').trim().charAt(0)
-                      return (
-                        <button
-                          key={r.id}
-                          type="button"
-                          title={r.title}
-                          aria-label={r.title}
-                          style={styles.relAvatarBtn}
-                          onClick={() => r.houseId && router.push(`/houses/${r.houseId}/living`)}
-                        >
-                          <div style={styles.relAvatarCircle}>
-                            {r.avatarUrl ? (
-                              <img src={r.avatarUrl} alt="" style={styles.relAvatarImg} />
-                            ) : (
-                              <span style={styles.relAvatarInitial}>{r.langFlag || initial}</span>
-                            )}
-                          </div>
-                          <span style={styles.relAvatarName}>{r.title}</span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                )}
-
-                {(received.length > 0 || sent.length > 0) && (
-                  <div style={styles.pendingBlock}>
-                    {received.map((r) => (
-                      <div key={r.id} style={styles.pendingRow}>
-                        <span style={styles.pendingName}>{r.title}</span>
-                        <span style={styles.pendingTag}>요청</span>
-                        <button
-                          type="button"
-                          style={styles.relAccept}
-                          disabled={relationActingId === r.id}
-                          onClick={() => handleAcceptRelation(r.id)}
-                        >
-                          수락
-                        </button>
-                        <button
-                          type="button"
-                          style={styles.relGhost}
-                          disabled={relationActingId === r.id}
-                          onClick={() => handleRemoveRelation(r.id)}
-                        >
-                          거절
-                        </button>
-                      </div>
-                    ))}
-                    {sent.map((r) => (
-                      <div key={r.id} style={styles.pendingRow}>
-                        <span style={styles.pendingName}>{r.title}</span>
-                        <span style={styles.pendingTag}>신청</span>
-                        <button
-                          type="button"
-                          style={styles.relGhost}
-                          disabled={relationActingId === r.id}
-                          onClick={() => handleRemoveRelation(r.id)}
-                        >
-                          취소
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </>
-            )}
-          </section>
 
           <section style={styles.publicSection}>
             <div style={styles.publicHeader}>

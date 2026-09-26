@@ -178,7 +178,7 @@ export default function NeighborContentBlock({
                     ? '신청중'
                     : applyLoadingHouseId === current.houseId
                       ? '…'
-                      : '이웃 신청'}
+                      : '신청'}
                 </button>
               )}
             </div>
@@ -292,8 +292,8 @@ const styles: Record<string, React.CSSProperties> = {
     whiteSpace: 'nowrap', maxWidth: '100%',
   },
   applyBtn: {
-    width: '100%', padding: '8px 0', borderRadius: 10, border: 'none',
-    background: '#2C1810', color: '#FEFCF8', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+    alignSelf: 'center', padding: '5px 16px', borderRadius: 999, border: 'none',
+    background: '#2C1810', color: '#FEFCF8', fontSize: 11, fontWeight: 600, cursor: 'pointer',
   },
   colPost: { minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 },
   roomTag: {
