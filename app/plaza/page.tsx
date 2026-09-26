@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import { getOwnerKey } from '@/lib/ownerKey'
 import TopBar from '@/components/blocks/TopBar'
 import NeighborContentBlock, { NeighborChip, NeighborRoomSlot } from '@/components/blocks/NeighborContentBlock'
+import PlazaHeroBlock from '@/components/blocks/PlazaHeroBlock'
 import RoomCard from '@/components/corenull/RoomCard'
 import CoreNullLogo from '@/components/corenull/CoreNullLogo'
 import { PostBlockData } from '@/components/blocks/PostBlock'
@@ -243,10 +244,12 @@ export default function PlazaPage() {
         <div style={styles.loading}>🏛️</div>
       ) : (
         <>
+          <PlazaHeroBlock />
           <NeighborContentBlock
             tier="public"
             mode="recommend"
             neighbors={recommended}
+            showNeighborSelector
             onNeighborClick={(houseId) => router.push(`/houses/${houseId}/yard`)}
             onPostClick={handlePostClick}
             onApplyNeighbor={handleApplyNeighbor}
