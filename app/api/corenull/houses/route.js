@@ -205,7 +205,9 @@ const handleDiscover = async (req, traceId) => {
 
   if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
 
-  const candidates = (houses || []).filter((h) => !exclude.has(h.id)).slice(0, 12)
+  // 광장은 한 번 보고 끝나는 목록이 아니라 골목을 계속 걷는 공간이다.
+  // 화면에는 현재 한 명만 크게 보이고 아래 선택기에서 나머지를 탐색한다.
+  const candidates = (houses || []).filter((h) => !exclude.has(h.id)).slice(0, 24)
   return Response.json({ data: candidates, traceId })
 }
 

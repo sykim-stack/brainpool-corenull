@@ -27,6 +27,8 @@ export interface NeighborContentBlockProps {
   mode?: 'recommend' | 'neighbor'
   neighbors: NeighborChip[]
   onNeighborClick: (houseId: string) => void
+  // 광장에서는 아래 프로필이 위 골목 무대의 선택기 역할을 한다.
+  showNeighborSelector?: boolean
   onPostClick?: (postId: string, roomId?: string) => void
   onApplyNeighbor?: (houseId: string) => void
   applyLoadingHouseId?: string | null
@@ -51,12 +53,14 @@ export default function NeighborContentBlock({
   mode = 'neighbor',
   neighbors,
   onNeighborClick,
+  showNeighborSelector = false,
   onPostClick,
   onApplyNeighbor,
   applyLoadingHouseId = null,
 }: NeighborContentBlockProps) {
   const [neighborIdx, setNeighborIdx] = useState(0)
   const [roomIdx, setRoomIdx] = useState(0)
+  const [touchStartX, setTouchStartX] = useState<number | null>(null)
 
   useEffect(() => {
     if (neighborIdx >= neighbors.length) setNeighborIdx(Math.max(0, neighbors.length - 1))
@@ -83,6 +87,14 @@ export default function NeighborContentBlock({
   const goNeighbor = (dir: -1 | 1) => {
     if (neighbors.length <= 1) return
     setNeighborIdx((i) => (i + dir + neighbors.length) % neighbors.length)
+  }
+
+  // 설명 문구 없이도 골목을 걷는 감각을 주도록 모바일 터치 이동을 같은 선택 상태에 연결한다.
+  const handleTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (touchStartX === null) return
+    const delta = (event.changedTouches[0]?.clientX || touchStartX) - touchStartX
+    setTouchStartX(null)
+    if (Math.abs(delta) > 40) goNeighbor(delta < 0 ? 1 : -1)
   }
 
   const title =
@@ -119,7 +131,12 @@ export default function NeighborContentBlock({
             </>
           )}
 
-          <div className="cn-alley-row">
+          <div
+            className="cn-alley-row"
+            data-posts={Number(!!postA) + Number(!!postB)}
+            onTouchStart={(event) => setTouchStartX(event.touches[0]?.clientX ?? null)}
+            onTouchEnd={handleTouchEnd}
+          >
             <div style={styles.col1}>
               <div
                 style={{
@@ -161,28 +178,24 @@ export default function NeighborContentBlock({
                     ? '신청중'
                     : applyLoadingHouseId === current.houseId
                       ? '…'
-                      : '이웃 신청'}
+                      : '신청'}
                 </button>
               )}
             </div>
 
-            <div style={styles.colPost}>
-              {roomA && <div style={styles.roomTag}>{roomA.roomName}</div>}
-              {postA ? (
+            {postA && (
+              <div style={styles.colPost}>
+                {roomA && <div style={styles.roomTag}>{roomA.roomName}</div>}
                 <PostBlock post={postA} showViewMeta={false} showComments={false} onClick={() => onPostClick?.(postA.id, roomA?.roomId)} />
-              ) : (
-                <div style={styles.postEmpty}>{rooms.length === 0 ? '공개 방 없음' : '글 없음'}</div>
-              )}
-            </div>
+              </div>
+            )}
 
-            <div style={styles.colPost}>
-              {roomB && <div style={styles.roomTag}>{roomB.roomName}</div>}
-              {postB ? (
+            {postB && (
+              <div style={styles.colPost}>
+                {roomB && <div style={styles.roomTag}>{roomB.roomName}</div>}
                 <PostBlock post={postB} showViewMeta={false} showComments={false} onClick={() => onPostClick?.(postB.id, roomB?.roomId)} />
-              ) : (
-                <div style={styles.postEmpty}>{rooms.length <= 1 ? '—' : '글 없음'}</div>
-              )}
-            </div>
+              </div>
+            )}
           </div>
 
           {rooms.length > 2 && (
@@ -197,6 +210,37 @@ export default function NeighborContentBlock({
                   />
                 ))}
               </div>
+            </div>
+          )}
+
+          {showNeighborSelector && neighbors.length > 1 && (
+            <div style={styles.neighborSelector} aria-label="골목 이웃 선택">
+              {neighbors.map((neighbor, index) => (
+                <button
+                  key={neighbor.neighborId}
+                  type="button"
+                  aria-label={neighbor.title}
+                  aria-pressed={index === neighborIdx}
+                  style={styles.selectorItem}
+                  onClick={() => setNeighborIdx(index)}
+                >
+                  <span
+                    style={{
+                      ...styles.selectorAvatar,
+                      ...(index === neighborIdx ? styles.selectorAvatarActive : {}),
+                    }}
+                  >
+                    {neighbor.avatarUrl ? (
+                      <img src={neighbor.avatarUrl} alt="" style={styles.selectorImage} />
+                    ) : (
+                      neighbor.langFlag || '🏡'
+                    )}
+                  </span>
+                  <span style={{ ...styles.selectorName, ...(index === neighborIdx ? styles.selectorNameActive : {}) }}>
+                    {neighbor.title}
+                  </span>
+                </button>
+              ))}
             </div>
           )}
         </div>
@@ -248,8 +292,8 @@ const styles: Record<string, React.CSSProperties> = {
     whiteSpace: 'nowrap', maxWidth: '100%',
   },
   applyBtn: {
-    width: '100%', padding: '8px 0', borderRadius: 10, border: 'none',
-    background: '#2C1810', color: '#FEFCF8', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+    alignSelf: 'center', padding: '5px 16px', borderRadius: 999, border: 'none',
+    background: '#2C1810', color: '#FEFCF8', fontSize: 11, fontWeight: 600, cursor: 'pointer',
   },
   colPost: { minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 },
   roomTag: {
@@ -263,4 +307,21 @@ const styles: Record<string, React.CSSProperties> = {
   },
   dots: { display: 'flex', justifyContent: 'center', gap: 6 },
   dot: { width: 7, height: 7, borderRadius: '50%', border: 'none', padding: 0, cursor: 'pointer' },
+  neighborSelector: {
+    display: 'flex', gap: 14, overflowX: 'auto', padding: '14px 4px 2px',
+    WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none',
+  },
+  selectorItem: {
+    flex: '0 0 58px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
+    border: 0, background: 'none', padding: 0, cursor: 'pointer',
+  },
+  selectorAvatar: {
+    width: 44, height: 44, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+    overflow: 'hidden', background: 'linear-gradient(135deg, #4A5240, #C17F3C)',
+    border: '2px solid transparent', transition: 'transform 160ms ease, border-color 160ms ease',
+  },
+  selectorAvatarActive: { borderColor: '#2C1810', transform: 'scale(1.1)' },
+  selectorImage: { width: '100%', height: '100%', objectFit: 'cover' },
+  selectorName: { maxWidth: 58, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 10, color: '#9A8470' },
+  selectorNameActive: { color: '#2C1810', fontWeight: 600 },
 }
