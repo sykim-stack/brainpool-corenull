@@ -117,11 +117,16 @@ body {
   }
 }
 
+/* 공개방 그리드: 1·2·3 / many=3열(최대 4행·12개 후 스와이프)
+   모바일 many는 2열로 풍성하게 */
 .cn-post-grid {
   display: grid;
   grid-template-columns: 1fr;
   gap: 12px;
 }
+.cn-post-grid[data-count="2"] { grid-template-columns: 1fr 1fr; }
+.cn-post-grid[data-count="3"] { grid-template-columns: 1fr 1fr; }
+.cn-post-grid[data-count="many"] { grid-template-columns: 1fr 1fr; }
 @media (min-width: 768px) {
   .cn-post-grid[data-count="1"] { grid-template-columns: 1fr; }
   .cn-post-grid[data-count="2"] { grid-template-columns: 1fr 1fr; }

@@ -1,6 +1,6 @@
 'use client'
 
-// 광장 = 비이웃 발견·신청 + 관계 관리 + 공개방 둘러보기
+// 광장 = 비이웃 발견·신청 + 공개방 둘러보기 (관계 관리는 마당)
 
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -16,7 +16,8 @@ const LANG_FLAG: Record<string, string> = {
   ko: '🇰🇷', vi: '🇻🇳', en: '🇺🇸', ja: '🇯🇵', zh: '🇨🇳',
 }
 
-const PUBLIC_ROOMS_PAGE = 6
+/** 비이웃 공개방: 3열 × 4행 = 12, 그다음 스와이프 */
+const PUBLIC_ROOMS_PAGE = 12
 
 function isYardVisibleRoom(rm: any) {
   return rm.visibility === 'public' || rm.visibility === 'invite'
@@ -189,8 +190,9 @@ export default function PlazaPage() {
     if (publicPage >= pageCount) setPublicPage(Math.max(0, pageCount - 1))
   }, [pageCount, publicPage])
 
+  // 1·2·3 → 열 수 맞춤, 4+ → 3열 그리드 (최대 4행 = 12)
   const gridCount =
-    visibleRooms.length >= 3 ? 'many' : String(Math.max(1, visibleRooms.length))
+    visibleRooms.length <= 1 ? '1' : visibleRooms.length === 2 ? '2' : visibleRooms.length === 3 ? '3' : 'many'
 
   return (
     <div>
@@ -223,7 +225,9 @@ export default function PlazaPage() {
               <span style={styles.relationTitle}>비이웃 공개방 최신</span>
               {publicRooms.length > 0 && (
                 <span style={styles.publicHint}>
-                  {needsSwipe ? `${safePage + 1}/${pageCount} · 더보기` : `${publicRooms.length}개`}
+                  {needsSwipe
+                    ? `${safePage + 1}/${pageCount} · ${publicRooms.length}개`
+                    : `${publicRooms.length}개`}
                 </span>
               )}
             </div>
@@ -303,58 +307,12 @@ const styles: Record<string, React.CSSProperties> = {
   loading: {
     display: 'flex', alignItems: 'center', justifyContent: 'center', height: '50vh', fontSize: 40,
   },
-  relationSection: { padding: '16px', borderTop: '1px solid rgba(92,61,46,0.08)' },
-  relationHeader: {
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12,
-  },
-  relationTitle: {
-    fontFamily: "'Noto Serif KR', serif", fontSize: 15, fontWeight: 600, color: '#2C1810',
-  },
-  relationMore: { border: 'none', background: 'none', color: '#9A8470', fontSize: 12, cursor: 'pointer' },
   relationEmpty: {
     fontSize: 13, color: '#9A8470', padding: '16px', textAlign: 'center',
     background: '#FEFCF8', borderRadius: 12, border: '1px dashed rgba(92,61,46,0.12)',
   },
-  relAvatarRow: {
-    display: 'flex', flexDirection: 'row', gap: 14, overflowX: 'auto',
-    paddingBottom: 4, WebkitOverflowScrolling: 'touch',
-  },
-  relAvatarBtn: {
-    flexShrink: 0, width: 64, border: 'none', background: 'none', padding: 0, cursor: 'pointer',
-    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-  },
-  relAvatarCircle: {
-    width: 52, height: 52, borderRadius: '50%',
-    background: 'linear-gradient(135deg, #4A5240, #C17F3C)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    overflow: 'hidden', boxShadow: '0 2px 8px rgba(44,24,16,0.12)',
-  },
-  relAvatarImg: { width: '100%', height: '100%', objectFit: 'cover' },
-  relAvatarInitial: { fontSize: 18, color: '#FEFCF8', fontWeight: 600 },
-  relAvatarName: {
-    fontSize: 10, color: '#5C4A35', maxWidth: 64, overflow: 'hidden',
-    textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'center',
-  },
-  pendingBlock: { marginTop: 12, display: 'flex', flexDirection: 'column', gap: 6 },
-  pendingRow: {
-    display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
-    background: '#FEFCF8', borderRadius: 10, border: '1px solid rgba(92,61,46,0.08)',
-  },
-  pendingName: {
-    flex: 1, fontSize: 12, color: '#2C1810', overflow: 'hidden',
-    textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0,
-  },
-  pendingTag: {
-    fontSize: 10, color: '#9A8470', background: '#F5F0E8',
-    padding: '2px 7px', borderRadius: 999, flexShrink: 0,
-  },
-  relAccept: {
-    border: 'none', background: '#2C1810', color: '#fff', fontSize: 11,
-    padding: '5px 9px', borderRadius: 8, cursor: 'pointer', flexShrink: 0,
-  },
-  relGhost: {
-    border: '1px solid rgba(92,61,46,0.12)', background: '#fff', color: '#5C4A35',
-    fontSize: 11, padding: '5px 9px', borderRadius: 8, cursor: 'pointer', flexShrink: 0,
+  relationTitle: {
+    fontFamily: "'Noto Serif KR', serif", fontSize: 15, fontWeight: 600, color: '#2C1810',
   },
   publicSection: { padding: '16px 0 28px', borderTop: '1px solid rgba(92,61,46,0.08)' },
   publicHeader: {
