@@ -194,7 +194,7 @@ export default function PostBlock({
           style={isGallery ? styles.mediaGallery : undefined}
           onClick={(e) => e.stopPropagation()}
         >
-          <MediaRenderer media={post.media} aspect={isGallery ? '16 / 10' : '4 / 3'} />
+          <MediaRenderer media={post.media} aspect="4 / 3" />
         </div>
       )}
 
