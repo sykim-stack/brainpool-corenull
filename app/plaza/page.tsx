@@ -16,7 +16,7 @@ const LANG_FLAG: Record<string, string> = {
   ko: '🇰🇷', vi: '🇻🇳', en: '🇺🇸', ja: '🇯🇵', zh: '🇨🇳',
 }
 
-const PUBLIC_ROOMS_PAGE = 6
+const PUBLIC_ROOMS_PAGE = 10
 
 function isYardVisibleRoom(rm: any) {
   return rm.visibility === 'public' || rm.visibility === 'invite'
@@ -232,9 +232,6 @@ export default function PlazaPage() {
     if (publicPage >= pageCount) setPublicPage(Math.max(0, pageCount - 1))
   }, [pageCount, publicPage])
 
-  const gridCount =
-    visibleRooms.length >= 3 ? 'many' : String(Math.max(1, visibleRooms.length))
-
   return (
     <div>
       <TopBar logo={<CoreNullLogo size="sm" />} title="광장" />
@@ -370,26 +367,34 @@ export default function PlazaPage() {
                   </>
                 )}
 
-                <div className="cn-post-grid" data-count={gridCount}>
-                  {visibleRooms.map((room: any) => (
-                    <div key={room.id} style={styles.setCard}>
-                      <RoomCard
-                        room={room}
-                        houseName={room.corenull_houses?.title || null}
-                        onClick={() => router.push(`/houses/${room.house_id}/yard`)}
-                      />
-                      <button
-                        type="button"
-                        style={styles.morePosts}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          router.push(`/rooms/${room.id}`)
-                        }}
-                      >
-                        글 더보기 ›
-                      </button>
-                    </div>
-                  ))}
+                <div style={styles.plazaGrid}>
+                  {[0, 3, 5, 8].map((start, rowIndex) => {
+                    const rowRooms = visibleRooms.slice(start, start + (rowIndex % 2 === 0 ? 3 : 2))
+                    if (rowRooms.length === 0) return null
+                    return (
+                      <div key={`row-${rowIndex}`} style={styles.plazaRow}>
+                        {rowRooms.map((room: any) => (
+                          <div key={room.id} style={styles.setCard}>
+                            <RoomCard
+                              room={room}
+                              houseName={room.corenull_houses?.title || null}
+                              onClick={() => router.push(`/houses/${room.house_id}/yard`)}
+                            />
+                            <button
+                              type="button"
+                              style={styles.morePosts}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                router.push(`/rooms/${room.id}`)
+                              }}
+                            >
+                              글 더보기 ›
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  })}
                 </div>
 
                 {needsSwipe && (
@@ -481,6 +486,8 @@ const styles: Record<string, React.CSSProperties> = {
   },
   publicHint: { fontSize: 11, color: '#9A8470' },
   setStage: { position: 'relative', padding: '0 16px' },
+  plazaGrid: { display: 'flex', flexDirection: 'column', gap: 8 },
+  plazaRow: { display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: 8 },
   setArrow: {
     position: 'absolute', top: '40%', transform: 'translateY(-50%)', zIndex: 2,
     width: 28, height: 36, borderRadius: 10, border: '1px solid rgba(92,61,46,0.12)',
