@@ -2,6 +2,7 @@
   --shell-mobile: 430px;
   --shell-tablet: 720px;
   --shell-desktop: 1000px;
+  --cn-alley-frame: 260px;
 }
 
 * { box-sizing: border-box; }
@@ -74,7 +75,8 @@ body {
   margin-right: -50vw;
 }
 
-/* ── CoreNull 반응형 유틸 (마당/골목/카드) ── */
+/* ── CoreNull 반응형 유틸 (마당/골목/카드) ──
+   골목 창 높이 = 옆 포스트 카드 높이 (갤러리 한 줄) */
 .cn-alley-row {
   display: grid;
   grid-template-columns: 1fr;
@@ -84,14 +86,14 @@ body {
 }
 @media (min-width: 768px) {
   .cn-alley-row {
-    grid-template-columns: minmax(140px, 1.1fr) minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-columns: minmax(160px, 1.15fr) minmax(0, 1fr) minmax(0, 1fr);
     gap: 12px;
   }
   .cn-alley-row[data-posts="0"] {
-    grid-template-columns: minmax(220px, 1fr);
+    grid-template-columns: minmax(240px, 1fr);
   }
   .cn-alley-row[data-posts="1"] {
-    grid-template-columns: minmax(180px, 1.1fr) minmax(0, 1.6fr);
+    grid-template-columns: minmax(180px, 1.15fr) minmax(0, 1.6fr);
   }
 }
 
@@ -104,7 +106,7 @@ body {
 @media (min-width: 768px) {
   .cn-alley-dots {
     display: grid;
-    grid-template-columns: minmax(140px, 1.1fr) minmax(0, 2fr);
+    grid-template-columns: minmax(160px, 1.15fr) minmax(0, 2fr);
     gap: 12px;
   }
   .cn-alley-dots-inner {

@@ -48,6 +48,9 @@ const DEFAULT_RING: RingData = {
   ],
 }
 
+/** 골목 창 = 옆 포스트 카드 공통 높이 (갤러리 한 줄) */
+const ALLEY_FRAME_HEIGHT = 260
+
 export default function NeighborContentBlock({
   tier,
   mode = 'neighbor',
@@ -162,38 +165,58 @@ export default function NeighborContentBlock({
                   />
                   <div style={styles.profileName}>{current?.title}</div>
                 </div>
-              </div>
 
-              {mode === 'recommend' && onApplyNeighbor && current && (
-                <button
-                  type="button"
-                  style={{
-                    ...styles.applyBtn,
-                    opacity: current.requestPending || applyLoadingHouseId === current.houseId ? 0.55 : 1,
-                  }}
-                  disabled={!!current.requestPending || applyLoadingHouseId === current.houseId}
-                  onClick={() => onApplyNeighbor(current.houseId)}
-                >
-                  {current.requestPending
-                    ? '신청중'
-                    : applyLoadingHouseId === current.houseId
-                      ? '…'
-                      : '신청'}
-                </button>
-              )}
+                {/* 신청은 골목 창 안 — 갤러리 행 높이를 깨지 않음 */}
+                {mode === 'recommend' && onApplyNeighbor && current && (
+                  <button
+                    type="button"
+                    style={{
+                      ...styles.applyBtnInCover,
+                      opacity: current.requestPending || applyLoadingHouseId === current.houseId ? 0.55 : 1,
+                    }}
+                    disabled={!!current.requestPending || applyLoadingHouseId === current.houseId}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onApplyNeighbor(current.houseId)
+                    }}
+                  >
+                    {current.requestPending
+                      ? '신청중'
+                      : applyLoadingHouseId === current.houseId
+                        ? '…'
+                        : '신청'}
+                  </button>
+                )}
+              </div>
             </div>
 
             {postA && (
               <div style={styles.colPost}>
                 {roomA && <div style={styles.roomTag}>{roomA.roomName}</div>}
-                <PostBlock post={postA} showViewMeta={false} showComments={false} onClick={() => onPostClick?.(postA.id, roomA?.roomId)} />
+                <div style={styles.postFrame}>
+                  <PostBlock
+                    post={postA}
+                    variant="gallery"
+                    showViewMeta={false}
+                    showComments={false}
+                    onClick={() => onPostClick?.(postA.id, roomA?.roomId)}
+                  />
+                </div>
               </div>
             )}
 
             {postB && (
               <div style={styles.colPost}>
                 {roomB && <div style={styles.roomTag}>{roomB.roomName}</div>}
-                <PostBlock post={postB} showViewMeta={false} showComments={false} onClick={() => onPostClick?.(postB.id, roomB?.roomId)} />
+                <div style={styles.postFrame}>
+                  <PostBlock
+                    post={postB}
+                    variant="gallery"
+                    showViewMeta={false}
+                    showComments={false}
+                    onClick={() => onPostClick?.(postB.id, roomB?.roomId)}
+                  />
+                </div>
               </div>
             )}
           </div>
@@ -272,18 +295,29 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'rgba(254,252,248,0.95)', color: '#2C1810', fontSize: 20, lineHeight: '36px',
     padding: 0, cursor: 'pointer', boxShadow: '0 2px 8px rgba(44,24,16,0.08)',
   },
-  col1: { display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 },
+  col1: {
+    display: 'flex',
+    flexDirection: 'column',
+    minWidth: 0,
+    height: ALLEY_FRAME_HEIGHT,
+  },
   cover: {
-    position: 'relative', flex: 1, minHeight: 200, borderRadius: 14, overflow: 'hidden', cursor: 'pointer',
+    position: 'relative',
+    flex: 1,
+    height: '100%',
+    minHeight: ALLEY_FRAME_HEIGHT,
+    borderRadius: 14,
+    overflow: 'hidden',
+    cursor: 'pointer',
   },
   coverShade: {
     position: 'absolute', inset: 0,
-    background: 'linear-gradient(180deg, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.35) 100%)',
+    background: 'linear-gradient(180deg, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.42) 100%)',
     pointerEvents: 'none',
   },
   profileCenter: {
     position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
-    alignItems: 'center', justifyContent: 'center', gap: 8, zIndex: 1, padding: 8,
+    alignItems: 'center', justifyContent: 'center', gap: 8, zIndex: 1, padding: '8px 8px 40px',
   },
   avatarImg: { width: 48, height: 48, borderRadius: '50%', objectFit: 'cover' },
   profileName: {
@@ -291,19 +325,38 @@ const styles: Record<string, React.CSSProperties> = {
     textShadow: '0 1px 3px rgba(0,0,0,0.45)', overflow: 'hidden', textOverflow: 'ellipsis',
     whiteSpace: 'nowrap', maxWidth: '100%',
   },
-  applyBtn: {
-    alignSelf: 'center', padding: '5px 16px', borderRadius: 999, border: 'none',
-    background: '#2C1810', color: '#FEFCF8', fontSize: 11, fontWeight: 600, cursor: 'pointer',
+  applyBtnInCover: {
+    position: 'absolute',
+    left: '50%',
+    bottom: 12,
+    transform: 'translateX(-50%)',
+    zIndex: 2,
+    padding: '5px 16px',
+    borderRadius: 999,
+    border: '1px solid rgba(254,252,248,0.35)',
+    background: 'rgba(28,18,8,0.72)',
+    color: '#FEFCF8',
+    fontSize: 11,
+    fontWeight: 600,
+    cursor: 'pointer',
+    backdropFilter: 'blur(6px)',
   },
-  colPost: { minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 },
+  colPost: {
+    minWidth: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 4,
+    height: ALLEY_FRAME_HEIGHT,
+  },
   roomTag: {
     fontSize: 10, color: '#9A8470', paddingLeft: 2, overflow: 'hidden',
-    textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+    textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 0,
   },
-  postEmpty: {
-    flex: 1, minHeight: 120, borderRadius: 14, border: '1px dashed rgba(92,61,46,0.15)',
-    background: '#FEFCF8', display: 'flex', alignItems: 'center', justifyContent: 'center',
-    fontSize: 12, color: '#9A8470',
+  postFrame: {
+    flex: 1,
+    minHeight: 0,
+    display: 'flex',
+    flexDirection: 'column',
   },
   dots: { display: 'flex', justifyContent: 'center', gap: 6 },
   dot: { width: 7, height: 7, borderRadius: '50%', border: 'none', padding: 0, cursor: 'pointer' },

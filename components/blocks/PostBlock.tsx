@@ -36,6 +36,8 @@ export interface PostBlockProps {
   enableInlineComment?: boolean
   ownerKey?: string
   onCommentSubmitted?: () => void
+  /** gallery: 골목 옆 통일 높이 — 이미지 우선, 글 clamp */
+  variant?: 'default' | 'gallery'
 }
 
 function formatDate(iso: string) {
@@ -64,6 +66,7 @@ export default function PostBlock({
   enableInlineComment = false,
   ownerKey,
   onCommentSubmitted,
+  variant = 'default',
 }: PostBlockProps) {
   const [commentOpen, setCommentOpen] = useState(false)
   const [commentText, setCommentText] = useState('')
@@ -73,6 +76,8 @@ export default function PostBlock({
     { id: string; content: string; created_at: string }[]
   >([])
   const [commentsLoading, setCommentsLoading] = useState(false)
+
+  const isGallery = variant === 'gallery'
 
   useEffect(() => {
     if (!commentOpen || !enableInlineComment) return
@@ -167,8 +172,16 @@ export default function PostBlock({
     }
   }
 
+  const cardStyle: React.CSSProperties = isGallery
+    ? { ...styles.card, ...styles.cardGallery }
+    : styles.card
+
+  const contentStyle: React.CSSProperties = isGallery
+    ? { ...styles.content, ...styles.contentGallery }
+    : styles.content
+
   return (
-    <div style={styles.card} onClick={onClick} role={onClick ? 'button' : undefined}>
+    <div style={cardStyle} onClick={onClick} role={onClick ? 'button' : undefined}>
       {(status || stage) && (
         <div style={styles.badgeRow}>
           {status && <span style={styles.statusBadge}>{status}</span>}
@@ -177,12 +190,15 @@ export default function PostBlock({
       )}
 
       {post.media && post.media.length > 0 && (
-        <div onClick={(e) => e.stopPropagation()}>
-          <MediaRenderer media={post.media} aspect="4 / 3" />
+        <div
+          style={isGallery ? styles.mediaGallery : undefined}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <MediaRenderer media={post.media} aspect={isGallery ? '16 / 10' : '4 / 3'} />
         </div>
       )}
 
-      <div style={styles.content}>{post.content}</div>
+      <div style={contentStyle}>{post.content}</div>
 
       <div style={styles.footerRow}>
         <div style={styles.footerLeft}>
@@ -311,6 +327,20 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: 'column',
     gap: 10,
   },
+  cardGallery: {
+    height: '100%',
+    minHeight: 0,
+    padding: '10px',
+    gap: 6,
+    borderRadius: 14,
+    overflow: 'hidden',
+  },
+  mediaGallery: {
+    flex: '1 1 auto',
+    minHeight: 0,
+    borderRadius: 10,
+    overflow: 'hidden',
+  },
   badgeRow: { display: 'flex', alignItems: 'center', gap: 6 },
   statusBadge: {
     fontSize: 10,
@@ -321,7 +351,16 @@ const styles: Record<string, React.CSSProperties> = {
   },
   stageDot: { fontSize: 12 },
   content: { fontSize: 14.5, lineHeight: 1.7, color: '#1C1208', whiteSpace: 'pre-wrap' },
-  footerRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
+  contentGallery: {
+    fontSize: 12.5,
+    lineHeight: 1.45,
+    display: '-webkit-box',
+    WebkitLineClamp: 2,
+    WebkitBoxOrient: 'vertical',
+    overflow: 'hidden',
+    flexShrink: 0,
+  },
+  footerRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 },
   footerLeft: { display: 'flex', alignItems: 'center', gap: 12 },
   date: { fontSize: 11, color: '#9A8470' },
   commentBtn: {
