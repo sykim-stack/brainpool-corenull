@@ -372,9 +372,21 @@ export default function PlazaPage() {
                     const rowRooms = visibleRooms.slice(start, start + (rowIndex % 2 === 0 ? 3 : 2))
                     if (rowRooms.length === 0) return null
                     return (
-                      <div key={`row-${rowIndex}`} style={styles.plazaRow}>
+                      <div
+                        key={`row-${rowIndex}`}
+                        style={{
+                          ...styles.plazaRow,
+                          gridTemplateColumns: 'repeat(6, minmax(0, 1fr))',
+                        }}
+                      >
                         {rowRooms.map((room: any) => (
-                          <div key={room.id} style={styles.setCard}>
+                          <div
+                            key={room.id}
+                            style={{
+                              ...styles.setCard,
+                              gridColumn: rowRooms.length === 2 ? 'span 3' : 'span 2',
+                            }}
+                          >
                             <RoomCard
                               room={room}
                               houseName={room.corenull_houses?.title || null}
@@ -487,7 +499,7 @@ const styles: Record<string, React.CSSProperties> = {
   publicHint: { fontSize: 11, color: '#9A8470' },
   setStage: { position: 'relative', padding: '0 16px' },
   plazaGrid: { display: 'flex', flexDirection: 'column', gap: 8 },
-  plazaRow: { display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: 8 },
+  plazaRow: { display: 'grid', gap: 8 },
   setArrow: {
     position: 'absolute', top: '40%', transform: 'translateY(-50%)', zIndex: 2,
     width: 28, height: 36, borderRadius: 10, border: '1px solid rgba(92,61,46,0.12)',
