@@ -295,16 +295,6 @@ export default function PlazaPage() {
                             large={row.cols === 'large'}
                             onClick={() => router.push(`/houses/${room.house_id}/yard`)}
                           />
-                          <button
-                            type="button"
-                            style={styles.morePosts}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              router.push(`/rooms/${room.id}`)
-                            }}
-                          >
-                            글 더보기 ›
-                          </button>
                         </div>
                       ))}
                     </div>
@@ -370,10 +360,6 @@ const styles: Record<string, React.CSSProperties> = {
   setCard: { display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 },
   setDots: { display: 'flex', justifyContent: 'center', gap: 6, marginTop: 14 },
   setDot: { width: 7, height: 7, borderRadius: '50%', border: 'none', padding: 0, cursor: 'pointer' },
-  morePosts: {
-    border: 'none', background: 'none', color: '#9A8470', fontSize: 12,
-    cursor: 'pointer', padding: '2px 2px 0', textAlign: 'left',
-  },
   bgHero: {
     height: 200, borderRadius: 16, overflow: 'hidden', margin: '0 16px',
     background: 'center/cover no-repeat url(/alley/alley-05.jpeg)',

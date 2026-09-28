@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { getDeviceId } from '@/lib/deviceId'
+import { getOwnerKey } from '@/lib/ownerKey'
 import { prepareUploadFile } from '@/lib/compressMedia'
 import TopBar from '@/components/blocks/TopBar'
 import CoreNullLogo from '@/components/corenull/CoreNullLogo'
+import OwnerGate from '@/components/corenull/OwnerGate'
 
 const LANG_FLAG: Record<string, string> = {
   ko: '🇰🇷', vi: '🇻🇳', en: '🇺🇸', ja: '🇯🇵', zh: '🇨🇳',
@@ -22,6 +23,7 @@ export default function WritePage() {
   const [uploadLabel, setUploadLabel] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [ownerKey, setOwnerKey] = useState('')
+  const [ownerReady, setOwnerReady] = useState(false)
   const [submitError, setSubmitError] = useState('')
 
   const [showNewRoom, setShowNewRoom] = useState(false)
@@ -36,8 +38,14 @@ export default function WritePage() {
   const today = new Date().toISOString().split('T')[0]
 
   useEffect(() => {
-    const key = getDeviceId()
+    const key = getOwnerKey()
     setOwnerKey(key)
+    setOwnerReady(true)
+
+    if (!key) {
+      // 신규/미인증 사용자 — 글쓰기 위해서는 먼저 집이 필요
+      return
+    }
 
     const params = new URLSearchParams(window.location.search)
     const preselectedRoomId = params.get('room_id')
@@ -191,6 +199,10 @@ export default function WritePage() {
 
   const removeMedia = (index: number) => {
     setMediaFiles(prev => prev.filter((_, i) => i !== index))
+  }
+
+  if (ownerReady && !ownerKey) {
+    return <OwnerGate />
   }
 
   return (
