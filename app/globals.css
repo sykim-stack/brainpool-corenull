@@ -136,6 +136,35 @@ body {
   }
 }
 
+/* 공개방 벽돌 배치: 3-2-3-2 (한 페이지 10개), 솔로 글은 full-width · 더 높게 */
+.cn-brick {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.cn-brick-row {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1fr 1fr;
+}
+.cn-brick-row[data-cols="large"] {
+  grid-template-columns: 1fr;
+}
+@media (min-width: 768px) {
+  .cn-brick-row[data-cols="3"] {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .cn-brick-row[data-cols="2"] {
+    grid-template-columns: 1fr 1fr;
+    /* 벽돌 절반 칸 오프셋: 위 3열 간귝에 맞게 2열 카드를 이동 */
+    margin-left: calc(100% / 6 + 2px);
+    margin-right: calc(100% / 6 + 2px);
+  }
+}
+.cn-post-card[data-large="true"] {
+  grid-column: 1 / -1;
+}
+
 .cn-relation-grid {
   display: grid;
   grid-template-columns: 1fr;

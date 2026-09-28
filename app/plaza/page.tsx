@@ -16,8 +16,27 @@ const LANG_FLAG: Record<string, string> = {
   ko: '🇰🇷', vi: '🇻🇳', en: '🇺🇸', ja: '🇯🇵', zh: '🇨🇳',
 }
 
-/** 비이웃 공개방: 3열 × 4행 = 12, 그다음 스와이프 */
-const PUBLIC_ROOMS_PAGE = 12
+/** 비이웃 공개방: 벽돌(3-2-3-2) 배치, 페이지당 10개, 10개 넘으면 스와이프 */
+const PUBLIC_ROOMS_PAGE = 10
+/** 한 페이지를 채우는 벽돌 행무늬: 3-2-3-2 (=10). 남는 글 1개면 크게(full-width). */
+const BRICK_PATTERN = [3, 2, 3, 2]
+
+function partitionBrick<T>(items: T[]): { cards: T[]; cols: string; offset: boolean }[] {
+  const rows: { cards: T[]; cols: string; offset: boolean }[] = []
+  let i = 0
+  let pi = 0
+  let prevCols = ''
+  while (i < items.length) {
+    const want = BRICK_PATTERN[pi % BRICK_PATTERN.length]
+    const cards = items.slice(i, i + want)
+    const cols = cards.length === 1 ? 'large' : cards.length === 3 ? '3' : '2'
+    rows.push({ cards, cols, offset: cols === '2' && prevCols === '3' })
+    prevCols = cols
+    i += cards.length
+    pi++
+  }
+  return rows
+}
 
 function isYardVisibleRoom(rm: any) {
   return rm.visibility === 'public' || rm.visibility === 'invite'
@@ -190,9 +209,8 @@ export default function PlazaPage() {
     if (publicPage >= pageCount) setPublicPage(Math.max(0, pageCount - 1))
   }, [pageCount, publicPage])
 
-  // 1·2·3 → 열 수 맞춤, 4+ → 3열 그리드 (최대 4행 = 12)
-  const gridCount =
-    visibleRooms.length <= 1 ? '1' : visibleRooms.length === 2 ? '2' : visibleRooms.length === 3 ? '3' : 'many'
+  /** 비이웃 공개방: 솔로 글 1개면 크게(full-width), 10개 넘으면 스와이프 */
+  const brickRows = partitionBrick(visibleRooms)
 
   return (
     <div>
@@ -256,24 +274,39 @@ export default function PlazaPage() {
                   </>
                 )}
 
-                <div className="cn-post-grid" data-count={gridCount}>
-                  {visibleRooms.map((room: any) => (
-                    <div key={room.id} style={styles.setCard}>
-                      <RoomCard
-                        room={room}
-                        houseName={room.corenull_houses?.title || null}
-                        onClick={() => router.push(`/houses/${room.house_id}/yard`)}
-                      />
-                      <button
-                        type="button"
-                        style={styles.morePosts}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          router.push(`/rooms/${room.id}`)
-                        }}
-                      >
-                        글 더보기 ›
-                      </button>
+                <div className="cn-brick">
+                  {brickRows.map((row, ri) => (
+                    <div
+                      key={ri}
+                      className="cn-brick-row"
+                      data-cols={row.cols}
+                      data-offset={row.offset ? 'true' : 'false'}
+                    >
+                      {row.cards.map((room: any) => (
+                        <div
+                          key={room.id}
+                          className="cn-post-card"
+                          data-large={row.cols === 'large' ? 'true' : 'false'}
+                          style={styles.setCard}
+                        >
+                          <RoomCard
+                            room={room}
+                            houseName={room.corenull_houses?.title || null}
+                            large={row.cols === 'large'}
+                            onClick={() => router.push(`/houses/${room.house_id}/yard`)}
+                          />
+                          <button
+                            type="button"
+                            style={styles.morePosts}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              router.push(`/rooms/${room.id}`)
+                            }}
+                          >
+                            글 더보기 ›
+                          </button>
+                        </div>
+                      ))}
                     </div>
                   ))}
                 </div>
@@ -296,6 +329,13 @@ export default function PlazaPage() {
                 )}
               </div>
             )}
+          </section>
+
+          <section style={styles.bgHero} aria-label="광장 배경">
+            <div style={styles.bgHeroOverlay}>
+              <span style={styles.bgHeroTitle}>광장</span>
+              <span style={styles.bgHeroSubtitle}>열려 있는 방, 이 장에서 시작돼요</span>
+            </div>
           </section>
         </>
       )}
@@ -334,4 +374,20 @@ const styles: Record<string, React.CSSProperties> = {
     border: 'none', background: 'none', color: '#9A8470', fontSize: 12,
     cursor: 'pointer', padding: '2px 2px 0', textAlign: 'left',
   },
+  bgHero: {
+    height: 200, borderRadius: 16, overflow: 'hidden', margin: '0 16px',
+    background: 'center/cover no-repeat url(/alley/alley-05.jpeg)',
+    position: 'relative',
+  },
+  bgHeroOverlay: {
+    position: 'absolute', inset: 0,
+    background: 'linear-gradient(180deg, rgba(20,22,16,0.30) 0%, rgba(20,22,16,0.55) 100%)',
+    display: 'flex', flexDirection: 'column', alignItems: 'center',
+    justifyContent: 'center', gap: 6,
+  },
+  bgHeroTitle: {
+    color: '#FEFCF8', fontSize: 26,
+    fontFamily: "'Noto Serif KR', serif", fontWeight: 700,
+  },
+  bgHeroSubtitle: { color: 'rgba(254,252,248,0.85)', fontSize: 13 },
 }

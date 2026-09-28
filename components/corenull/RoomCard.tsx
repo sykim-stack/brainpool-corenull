@@ -42,6 +42,8 @@ export interface RoomCardProps {
   /** 광장 등 — 집 이름 표시 (마당 점프 맥락) */
   houseName?: string | null
   onClick?: () => void
+  /** 공개방 벽돌의 솔로 글: 더 넓게(full-width)·더 높게 */
+  large?: boolean
 }
 
 function formatRelative(iso: string) {
@@ -56,7 +58,7 @@ function formatRelative(iso: string) {
   return `${Math.floor(diff / (86400 * 7))}주 전`
 }
 
-export default function RoomCard({ room, houseName, onClick }: RoomCardProps) {
+export default function RoomCard({ room, houseName, onClick, large = false }: RoomCardProps) {
   const { stage } = room
   const { emoji, daysLeft } = computeStage(stage)
   const hasImage = !!room.latest_message?.image_url
@@ -66,7 +68,7 @@ export default function RoomCard({ room, houseName, onClick }: RoomCardProps) {
 
   return (
     <div
-      style={{ ...styles.card, ...(hasImage ? {} : styles.cardNoImg) }}
+      style={{ ...styles.card, ...(large ? styles.cardLarge : {}), ...(hasImage ? {} : styles.cardNoImg) }}
       onClick={onClick}
       role={onClick ? 'button' : undefined}
     >
@@ -138,6 +140,9 @@ const styles: Record<string, React.CSSProperties> = {
   cardNoImg: {
     background: 'linear-gradient(150deg, #DCD5BE, #C6BC9C)',
     alignItems: 'stretch',
+  },
+  cardLarge: {
+    height: 260,
   },
   img: {
     position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover',
