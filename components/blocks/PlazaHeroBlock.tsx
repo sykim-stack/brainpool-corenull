@@ -16,16 +16,17 @@ const PLAZA_RING: RingData = {
  * 공지 데이터가 생기면 문패 아래 reserved 슬롯에 연결하고,
  * 지금은 비워 둔 채 다음 발견 영역으로 시선을 넘긴다.
  */
-export default function PlazaHeroBlock({ onRandomVisit }: { onRandomVisit?: () => void }) {
+export default function PlazaHeroBlock({ onRandomVisit, backgroundImageUrl }: { onRandomVisit?: () => void; backgroundImageUrl?: string }) {
   return (
     <>
       <HeroBlock
         background={{
+          imageUrl: backgroundImageUrl || '/alley/alley-05.jpeg',
           gradient: 'linear-gradient(135deg, #6D5A47 0%, #A7835E 52%, #D8C4A8 100%)',
         }}
         ring={PLAZA_RING}
         avatar={<span style={{ fontSize: 42 }}>🏛️</span>}
-        doorplate={{ title: '광장' }}
+        doorplate={{ title: '광장', description: '열려 있는 방, 이 장에서 시작돼요' }}
         heroControls={onRandomVisit ? <button type="button" title="문 열기" aria-label="문 열기" onClick={onRandomVisit} style={styles.randomDoor}>🚪</button> : undefined}
       />
       <div aria-label="광장 공지" data-plaza-announcement-slot="reserved" style={styles.announcementSlot} />

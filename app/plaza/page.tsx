@@ -321,12 +321,7 @@ export default function PlazaPage() {
             )}
           </section>
 
-          <section style={styles.bgHero} aria-label="광장 배경">
-            <div style={styles.bgHeroOverlay}>
-              <span style={styles.bgHeroTitle}>광장</span>
-              <span style={styles.bgHeroSubtitle}>열려 있는 방, 이 장에서 시작돼요</span>
-            </div>
-          </section>
+
         </>
       )}
     </div>
@@ -360,21 +355,5 @@ const styles: Record<string, React.CSSProperties> = {
   setCard: { display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 },
   setDots: { display: 'flex', justifyContent: 'center', gap: 6, marginTop: 14 },
   setDot: { width: 7, height: 7, borderRadius: '50%', border: 'none', padding: 0, cursor: 'pointer' },
-  bgHero: {
-    height: 200, borderRadius: 16, overflow: 'hidden', margin: '0 16px',
-    background: 'center/cover no-repeat url(/alley/alley-05.jpeg)',
-    position: 'relative',
-  },
-  bgHeroOverlay: {
-    position: 'absolute', inset: 0,
-    background: 'linear-gradient(180deg, rgba(20,22,16,0.08) 0%, rgba(20,22,16,0.20) 100%)',
-    display: 'flex', flexDirection: 'column', alignItems: 'center',
-    justifyContent: 'center', gap: 6,
-  },
-  bgHeroTitle: {
-    color: '#FEFCF8', fontSize: 26,
-    fontFamily: "'Noto Serif KR', serif", fontWeight: 700,
-    textShadow: '0 2px 8px rgba(0,0,0,0.55)',
-  },
-  bgHeroSubtitle: { color: 'rgba(254,252,248,0.85)', fontSize: 13, textShadow: '0 1px 4px rgba(0,0,0,0.45)' },
+
 }
