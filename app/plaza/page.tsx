@@ -367,13 +367,14 @@ const styles: Record<string, React.CSSProperties> = {
   },
   bgHeroOverlay: {
     position: 'absolute', inset: 0,
-    background: 'linear-gradient(180deg, rgba(20,22,16,0.30) 0%, rgba(20,22,16,0.55) 100%)',
+    background: 'linear-gradient(180deg, rgba(20,22,16,0.08) 0%, rgba(20,22,16,0.20) 100%)',
     display: 'flex', flexDirection: 'column', alignItems: 'center',
     justifyContent: 'center', gap: 6,
   },
   bgHeroTitle: {
     color: '#FEFCF8', fontSize: 26,
     fontFamily: "'Noto Serif KR', serif", fontWeight: 700,
+    textShadow: '0 2px 8px rgba(0,0,0,0.55)',
   },
-  bgHeroSubtitle: { color: 'rgba(254,252,248,0.85)', fontSize: 13 },
+  bgHeroSubtitle: { color: 'rgba(254,252,248,0.85)', fontSize: 13, textShadow: '0 1px 4px rgba(0,0,0,0.45)' },
 }
