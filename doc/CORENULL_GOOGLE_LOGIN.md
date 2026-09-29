@@ -52,7 +52,9 @@ create index if not exists idx_owner_identities_owner on corenull_owner_identiti
    ```
 1. Supabase Dashboard → **Authentication → Providers → Google** 활성화 (Google Cloud에서 발급한 client id/secret 입력).
 2. Supabase SQL Editor에서 위 `corenull_owner_identities` DDL 실행.
+2-1. (중요) `notify pgrst, pgrst;`만으로는 반영 안 될 수 있음 → **Dashboard → Settings → API → "Reload schema cache"** 버튼 클릭.
 3. (선택) `db:push` / `types` 재생성 → `lib/database.types.ts`에 `corenull_owner_identities` 반영.
+4. (Vercel) `NEXT_PUBLIC_GOOGLE_CLIENT_ID`는 **빌드 타임**에 번들에 인라이닝되므로, env 추가 후 반드시 **Redeploy**(Deployments → ... → Redeploy) — "Use existing Build Cache"는 해제 권장. 자동 검증: `node scripts/verify-deploy.mjs --shot`
 
 ## 흐름별 동작
 | 상황 | 동작 |
