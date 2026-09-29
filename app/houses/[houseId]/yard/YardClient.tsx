@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { getDeviceId } from '@/lib/deviceId'
+import { getOwnerKey } from '@/lib/ownerKey'
 import TopBar from '@/components/blocks/TopBar'
 import YardBlock, { DiscoveryItem, YardRelationRow } from '@/components/blocks/YardBlock'
 import CoreNullLogo from '@/components/corenull/CoreNullLogo'
@@ -119,7 +119,7 @@ export default function YardClient() {
   const isVisitor = !isOwner
 
   useEffect(() => {
-    const key = getDeviceId()
+    const key = getOwnerKey()
     setOwnerKey(key || '')
 
     Promise.all([
@@ -228,7 +228,7 @@ export default function YardClient() {
 
   useEffect(() => {
     if (!isOwner) return
-    const key = getDeviceId()
+    const key = getOwnerKey()
     if (!key) return
     fetch(`${COREHUB_URL}?owner_key=${key}`)
       .then((r) => r.json())

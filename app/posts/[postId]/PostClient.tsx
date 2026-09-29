@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { getDeviceId } from '@/lib/deviceId'
+import { getOwnerKey } from '@/lib/ownerKey'
 import ShareModal from '@/components/corenull/ShareModal'
 import MediaRenderer from '@/components/corenull/MediaRenderer'
 import TopBar from '@/components/blocks/TopBar'
@@ -33,7 +33,7 @@ export default function PostDetailPage() {
   const cameraInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    const key = getDeviceId()
+    const key = getOwnerKey()
     setOwnerKey(key)
     if (!postId) return
     Promise.all([

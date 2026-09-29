@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { getDeviceId } from '@/lib/deviceId'
+import { getOwnerKey } from '@/lib/ownerKey'
+import OwnerGate from '@/components/corenull/OwnerGate'
 import TopBar from '@/components/blocks/TopBar'
 import CoreNullLogo from '@/components/corenull/CoreNullLogo'
 import FootprintRow from '@/components/blocks/FootprintRow'
@@ -15,10 +16,15 @@ export default function LibraryPage() {
   const [library, setLibrary] = useState<any>(null)
   const [activeTab, setActiveTab] = useState<Tab>('footprints')
   const [loading, setLoading] = useState(true)
+  const [ownerKey, setOwnerKey] = useState('')
+  const [ownerReady, setOwnerReady] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
-    const key = getDeviceId()
+    const key = getOwnerKey()
+    setOwnerKey(key)
+    setOwnerReady(true)
+    if (!key) return
     fetch(`/api/corenull/library?owner_key=${key}`)
       .then(r => r.json())
       .then(d => {
@@ -26,6 +32,9 @@ export default function LibraryPage() {
         setLoading(false)
       })
   }, [])
+
+  if (!ownerReady) return null
+  if (!ownerKey) return <OwnerGate />
 
   if (loading) return <div style={styles.loading}>📚</div>
 

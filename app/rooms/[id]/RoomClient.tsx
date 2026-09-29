@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { getDeviceId } from '@/lib/deviceId'
+import { getOwnerKey } from '@/lib/ownerKey'
 import TopBar from '@/components/blocks/TopBar'
 import CoreNullLogo from '@/components/corenull/CoreNullLogo'
 import ShareModal from '@/components/corenull/ShareModal'
@@ -83,13 +84,14 @@ export default function RoomPage() {
   }
 
   useEffect(() => {
-    const key = getDeviceId()
-    setOwnerKey(key)
+    const deviceId = getDeviceId()
+    const ownerKey = getOwnerKey()
+    setOwnerKey(ownerKey)
     if (!roomId) return
-    fetchRoom(key)
+    fetchRoom(deviceId, ownerKey)
   }, [roomId])
 
-  async function fetchRoom(key: string) {
+  async function fetchRoom(deviceId: string, ownerKey: string) {
     setLoading(true)
     setError(null)
     try {
@@ -106,12 +108,12 @@ export default function RoomPage() {
       const hData = await hRes.json()
       if (!hData._error && hData.house) {
         setHouse(hData.house)
-        const mRes = await fetch(`/api/corenull/members?house_id=${rData.room.house_id}&device_id=${key}&room_id=${roomId}`)
+        const mRes = await fetch(`/api/corenull/members?house_id=${rData.room.house_id}&device_id=${deviceId}&room_id=${roomId}`)
         const mData = await mRes.json()
         setIsMember(!mData._error && mData.is_member === true)
       }
 
-      const pRes = await fetch(`/api/corenull/posts?room_id=${roomId}&owner_key=${key}`)
+      const pRes = await fetch(`/api/corenull/posts?room_id=${roomId}&owner_key=${ownerKey}`)
       const pData = await pRes.json()
       if (!pData._error && pData.data) {
         setPosts(pData.data.filter((p: Post) => !p.meta?.archived))
