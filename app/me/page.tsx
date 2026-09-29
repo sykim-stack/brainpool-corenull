@@ -6,6 +6,8 @@ import { getOwnerKey, setOwnerKey as persistOwnerKey } from '@/lib/ownerKey'
 import TopBar from '@/components/blocks/TopBar'
 import CoreNullLogo from '@/components/corenull/CoreNullLogo'
 import OwnerGate from '@/components/corenull/OwnerGate'
+import { useGoogleLogin } from '@/hooks/useGoogleLogin'
+import { useInAppBrowser, InAppBrowserNotice } from '@/components/corenull/InAppBrowserGate'
 
 export default function MePage() {
   const [library, setLibrary] = useState<any>(null)
@@ -20,6 +22,9 @@ export default function MePage() {
   const [syncMode, setSyncMode] = useState<'none' | 'show' | 'input'>('none')
   const [syncMsg, setSyncMsg] = useState('')
   const router = useRouter()
+
+  const { googleRef, available: googleAvailable } = useGoogleLogin(handleGoogleConnect)
+  const { isInApp, name: inAppName } = useInAppBrowser()
 
   useEffect(() => {
     const key = getOwnerKey()
@@ -48,6 +53,12 @@ export default function MePage() {
       }
     })
   }, [])
+
+  // Google 계정으로 Owner 연결 (기존 owner_key 보존 → 구글 sub 매핑)
+  function handleGoogleConnect(ownerKey: string, info?: { isNewUser?: boolean }) {
+    persistOwnerKey(ownerKey)
+    setSyncMsg('✅ Google 계정이 연결되었습니다.')
+  }
 
   const handleGenerateCode = async () => {
     if (!ownerKey) return
@@ -220,6 +231,21 @@ export default function MePage() {
               {syncMsg && <div style={styles.syncMsg}>{syncMsg}</div>}
             </div>
           )}
+
+          <div style={styles.syncHeader}>
+            <span style={styles.syncTitle}>🔗 Google 계정 연결</span>
+            <span style={styles.syncDesc}>Chrome/Edge/Safari에서 Google 로그인 후 계정 연결</span>
+          </div>
+          {isInApp && <InAppBrowserNotice name={inAppName} />}
+          {googleAvailable && !isInApp && (
+            <div style={styles.googleConnectBox}>
+              <div ref={googleRef} style={styles.googleBtnWrap} />
+              <div style={styles.syncHint}>Google 계정으로 로그인하면 다른 기기에서도 같은 집에 연결됩니다.</div>
+            </div>
+          )}
+          {!googleAvailable && (
+            <div style={styles.syncHint}>Google 연결은 관리자 설정 중입니다.</div>
+          )}
         </div>
       </div>
     </div>
@@ -289,4 +315,6 @@ const styles: Record<string, React.CSSProperties> = {
     border: 'none', borderRadius: 12, fontSize: 14, fontWeight: 600, cursor: 'pointer',
   },
   syncMsg: { fontSize: 13, color: '#5C4A35', textAlign: 'center' },
+  googleConnectBox: { padding: '0 16px 16px', display: 'flex', flexDirection: 'column', gap: 8 },
+  googleBtnWrap: { width: '100%', display: 'flex', justifyContent: 'center' },
 }

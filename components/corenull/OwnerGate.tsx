@@ -3,12 +3,18 @@
 // Owner 미확인 상태의 진입 게이트.
 // House를 만들기 전에 Owner를 복구하거나 신규임을 명시적으로 확정한다.
 //
-// [기존 집 연결] → recover 코드 입력 → setOwnerKey → 새로고침/진입
-// [새로 시작]   → createOwnerKey → /houses/create
+// [기존 집 연결]  → recover 코드 입력 → setOwnerKey → 재진입
+// [새로 시작]    → createOwnerKey → /houses/create
+// [Google 계정] → GIS → /api/auth/google → google sub ↔ owner_key 매핑
+//                  (기존 owner_key 보존 / 신규면 새 owner_key)
+//
+// 인앱 브라우저(카카오톡 등)에서는 Google 버튼을 감추고 외부 브라우저 안내만 보여준다.
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { setOwnerKey, createOwnerKey } from '@/lib/ownerKey'
+import { useInAppBrowser, InAppBrowserNotice } from '@/components/corenull/InAppBrowserGate'
+import { useGoogleLogin } from '@/hooks/useGoogleLogin'
 
 type Mode = 'choice' | 'recover' | 'done'
 
@@ -18,6 +24,15 @@ export default function OwnerGate() {
   const [code, setCode] = useState('')
   const [msg, setMsg] = useState('')
   const [loading, setLoading] = useState(false)
+
+  const { isInApp, name } = useInAppBrowser()
+  const { googleRef, available } = useGoogleLogin(handleGoogle)
+
+  function handleGoogle(ownerKey: string, info?: { isNewUser?: boolean }) {
+    setOwnerKey(ownerKey)
+    // 복구한 owner_key가 있으면 기족 집 재연결, 없으면(신규) 집 만들기 유도
+    router.push(info?.isNewUser ? '/houses/create' : '/')
+  }
 
   const handleRecover = async () => {
     if (!code.trim() || loading) return
@@ -59,17 +74,24 @@ export default function OwnerGate() {
         <p style={styles.desc}>
           이 기기에서 아직 집이 연결되어 있지 않아요.
           <br />
-          기존 집을 연결하거나, 새로 시작할 수 있어요.
+          기존 집을 연결하거나, 새로 시작하거나 Google 계정으로도 연결할 수 있어요.
         </p>
 
         {mode === 'choice' && (
           <div style={styles.actions}>
+            {isInApp && <InAppBrowserNotice name={name} />}
             <button style={styles.primary} onClick={() => setMode('recover')}>
               기존 집 연결
             </button>
             <button style={styles.secondary} onClick={handleNew}>
               새로 시작
             </button>
+            {available && !isInApp && (
+              <div ref={googleRef} style={styles.googleBtnWrap} />
+            )}
+            {!available && (
+              <p style={styles.googleHint}>Google 계정 연결은 관리자 설정 중입니다.</p>
+            )}
           </div>
         )}
 
@@ -168,6 +190,18 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 15,
     fontWeight: 500,
     cursor: 'pointer',
+  },
+  googleBtnWrap: {
+    marginTop: 14,
+    width: '100%',
+    display: 'flex',
+    justifyContent: 'center',
+  },
+  googleHint: {
+    fontSize: 12,
+    color: '#9A8470',
+    textAlign: 'center',
+    marginTop: 10,
   },
   recover: {
     display: 'flex',
