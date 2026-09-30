@@ -67,14 +67,6 @@ export default function CreateHousePage() {
       <TopBar logo={<CoreNullLogo size="sm" />} title="집 만들기" />
 
       <div style={styles.body}>
-        <button
-          style={{ ...styles.submitBtn, width: '100%', marginBottom: 16, opacity: (!title.trim() || !ownerKey || submitting) ? 0.4 : 1 }}
-          onClick={handleSubmit}
-          disabled={!title.trim() || !ownerKey || submitting}
-        >
-          {submitting ? '...' : '완성'}
-        </button>
-
         <div style={styles.preview}>
           <div style={styles.previewCover}>
             <span style={styles.previewEmoji}>🏡</span>
@@ -127,6 +119,14 @@ export default function CreateHousePage() {
         <div style={styles.notice}>
           🌱 집을 만들면 기본 방 "일상"이 자동으로 생겨요. 집은 딱 하나만 만들 수 있어요.
         </div>
+
+        <button
+          style={{ ...styles.submitBtn, width: '100%', marginTop: 16, opacity: (!title.trim() || !ownerKey || submitting) ? 0.4 : 1 }}
+          onClick={handleSubmit}
+          disabled={!title.trim() || !ownerKey || submitting}
+        >
+          {submitting ? '...' : '완성'}
+        </button>
       </div>
     </div>
   )

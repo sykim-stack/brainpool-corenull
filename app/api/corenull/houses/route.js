@@ -89,9 +89,9 @@ const handlePost = async (req, traceId) => {
     return Response.json({ _error: 'owner_key_and_title_required', traceId }, { status: 500 })
   }
 
-  const { getSupabase } = await import('@/lib/supabase')
-  const supabase = getSupabase()
-  if (!supabase) return Response.json({ _error: 'supabase_init_failed', traceId }, { status: 500 })
+  const { getSupabaseAdmin } = await import('@/lib/supabase')
+  const supabase = getSupabaseAdmin()
+  if (!supabase) return Response.json({ _error: 'supabase_service_role_not_configured', traceId }, { status: 500 })
 
   const { data: house, error } = await supabase
     .from('corenull_houses')
