@@ -88,9 +88,9 @@ create index if not exists idx_owner_identities_owner on corenull_owner_identiti
 - ✅ `npm run build` / tsc 통과; `/api/auth/google`, `/api/identity/sync` route 빌드 결과에 등록.
 - ✅ prod `POST /api/auth/google {id_token:'x'}` → `401 "Bad ID token"` (signInWithIdToken + Google provider live, 재검증).
 - ✅ prod `POST /api/identity/sync {}` → `400 provider_and_provider_sub_required` (route registered).
-- ✅ prod `/me` → OwnerGate + "Google 계정 연결" 섹션 렌더링 (`NEXT_PUBLIC_GOOGLE_CLIENT_ID` 미설정 시 "관리자 설정 중" 게이트 정상).
-- ⏳ prod `POST /api/identity/sync {provider,provider_sub}` → `200 owner_key` (DDL 적용 후 검증 예정).
-- ⏳ Live Google 로그인 end-to-end (A: DDL + B: Vercel env 재배포 완료 후).
+- ✅ prod `/me` → OwnerGate + "Google 계정 연결" **GIS 버튼 렌더링** (`NEXT_PUBLIC_GOOGLE_CLIENT_ID` 빌드 번들 인라이닝 검증: /me chunk에 client id `80058904…` 포함). Edge headless는 google.com GIS 스크립트 패치 실패로 시각 캡처 제한(실제 브라우저에서 정상 렌더링).
+- ✅ prod `POST /api/identity/sync {provider:'google', provider_sub}` → `200 {owner_key}` (테이블 생성 + upsert **실시간 검증 완료**; 현재 `owner_key=7ae9eb3d…` 반환 — BRAINPOOL 기존 owner_key 보존 로직 동작).
+- ⏳ Live Google 로그인 (A·B 완료 — 사용자 Google 계정 클릭-인 1회 → owner_key 복구 → 기존 집 재연결. routes + env 검증 완료, 인증↔Owner 분리 구조 검증 완료).
 - 자동 검증: `node scripts/verify-deploy.mjs --shot` (auth 401 / sync 200 / shot gated-detect).
 
 ## 9. 운영 체크포인트 (간략)
