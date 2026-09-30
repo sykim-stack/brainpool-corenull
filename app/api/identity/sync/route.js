@@ -9,7 +9,7 @@
 //   - 매핑 없고 owner_key 없음 → 새 UUID owner_key 생성       (is_new_user=true)
 //   - google이 다른 owner_key에 이미 연결 → 409 IDENTITY_CONFLICT
 
-import { getSupabase } from '@/lib/supabase'
+import { getSupabaseAdmin } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,9 +28,9 @@ export async function POST(request) {
     return Response.json({ _error: 'provider_and_provider_sub_required', traceId }, { status: 400 })
   }
 
-  const supabase = getSupabase()
+  const supabase = getSupabaseAdmin()
   if (!supabase) {
-    return Response.json({ _error: 'supabase_init_failed', traceId }, { status: 500 })
+    return Response.json({ _error: 'supabase_service_role_not_configured', traceId }, { status: 500 })
   }
 
   try {
