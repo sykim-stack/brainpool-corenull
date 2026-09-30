@@ -23,7 +23,7 @@ export default function MePage() {
   const [syncMsg, setSyncMsg] = useState('')
   const router = useRouter()
 
-  const { googleRef, available: googleAvailable } = useGoogleLogin(handleGoogleConnect)
+  const { googleRef, available: googleAvailable, error: googleError } = useGoogleLogin(handleGoogleConnect)
   const { isInApp, name: inAppName } = useInAppBrowser()
 
   useEffect(() => {
@@ -237,13 +237,19 @@ export default function MePage() {
             <span style={styles.syncDesc}>Chrome/Edge/Safari에서 Google 로그인 후 계정 연결</span>
           </div>
           {isInApp && <InAppBrowserNotice name={inAppName} />}
-          {googleAvailable && !isInApp && (
+          {googleAvailable && !googleError && (
             <div style={styles.googleConnectBox}>
               <div ref={googleRef} style={styles.googleBtnWrap} />
               <div style={styles.syncHint}>Google 계정으로 로그인하면 다른 기기에서도 같은 집에 연결됩니다.</div>
             </div>
           )}
-          {!googleAvailable && (
+          {googleError && !isInApp && (
+            <div style={styles.syncHint}>
+              Google 버튼을 불러오지 못했어요. 브라우저가 google.com을 차단하거나,
+              <button style={{ ...styles.link, display: 'block', marginTop: 4 }} onClick={() => window.location.reload()}>새로고침</button>
+            </div>
+          )}
+          {!googleAvailable && !isInApp && !googleError && (
             <div style={styles.syncHint}>Google 연결은 관리자 설정 중입니다.</div>
           )}
         </div>

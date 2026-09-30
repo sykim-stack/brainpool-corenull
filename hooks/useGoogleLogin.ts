@@ -10,6 +10,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { getOwnerKey } from '@/lib/ownerKey'
+import { useInAppBrowser } from '@/components/corenull/InAppBrowserGate'
 
 type LoginInfo = { isNewUser?: boolean }
 
@@ -45,13 +46,18 @@ export function useGoogleLogin(
   onCredential: (ownerKey: string, info?: LoginInfo) => void
 ) {
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID
+  const { isInApp } = useInAppBrowser()
   const callbackRef = useRef(onCredential)
   callbackRef.current = onCredential
 
   useEffect(() => {
-    if (!clientId || !ref.current) return
+    // 인악(Kakao/LINE 등 WebView): google.com GIS가 차단되어 스크립트 로드 실패 →
+    // 블로킹 alert('불러오지 못했어요') 방지. 인악에선 GIS 시도 자제, 컴포넌트가
+    // InAppBrowserNotice로 외부 브라우저를 안내한다.
+    if (!clientId || !ref.current || isInApp) return
     let cancelled = false
     const handleResponse = (resp: { credential?: string; [k: string]: unknown }) => {
       const id_token = resp?.credential
@@ -89,15 +95,16 @@ export function useGoogleLogin(
           width: 280,
         })
       })
-      .catch(() => {
+      .catch((e) => {
         if (cancelled) return
-        alert('Google 로그인을 불러오지 못했어요.')
+        console.error('[useGoogleLogin] gis_load_failed', e)
+        setError(true)
       })
 
     return () => {
       cancelled = true
     }
-  }, [clientId])
+  }, [clientId, isInApp])
 
-  return { googleRef: ref, loading, available: !!clientId }
+  return { googleRef: ref, loading, available: !!clientId && !isInApp, error }
 }

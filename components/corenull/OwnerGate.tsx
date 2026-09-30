@@ -26,7 +26,7 @@ export default function OwnerGate() {
   const [loading, setLoading] = useState(false)
 
   const { isInApp, name } = useInAppBrowser()
-  const { googleRef, available } = useGoogleLogin(handleGoogle)
+  const { googleRef, available, error } = useGoogleLogin(handleGoogle)
 
   function handleGoogle(ownerKey: string, info?: { isNewUser?: boolean }) {
     setOwnerKey(ownerKey)
@@ -86,10 +86,16 @@ export default function OwnerGate() {
             <button style={styles.secondary} onClick={handleNew}>
               새로 시작
             </button>
-            {available && !isInApp && (
+            {available && !error && (
               <div ref={googleRef} style={styles.googleBtnWrap} />
             )}
-            {!available && (
+            {error && !isInApp && (
+              <div style={styles.googleHint}>
+                Google 버튼을 불러오지 못했어요. 브라우저가 google.com을 차단하거나,
+                <button style={{ ...styles.link, display: 'block', marginTop: 4 }} onClick={() => window.location.reload()}>새로고침</button>
+              </div>
+            )}
+            {!available && !isInApp && !error && (
               <p style={styles.googleHint}>Google 계정 연결은 관리자 설정 중입니다.</p>
             )}
           </div>
