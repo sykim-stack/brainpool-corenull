@@ -11,6 +11,7 @@ import OwnerGate from '@/components/corenull/OwnerGate'
 import InlineHeroImageControls from '@/components/corenull/InlineHeroImageControls'
 import { PostBlockData } from '@/components/blocks/PostBlock'
 import { RingData } from '@/components/blocks/RingBlock'
+import NeighborContentBlock from '@/components/blocks/NeighborContentBlock'
 import { NeighborChip, NeighborRoomSlot } from '@/components/blocks/NeighborContentBlock'
 import { houseHeroBackground, houseAvatarUrl } from '@/lib/houseImages'
 
