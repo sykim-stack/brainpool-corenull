@@ -70,20 +70,19 @@ function newImg() { return new Jimp({ width: W, height: H }); }
 /** Build one scene. `idx` (0..4) selects the palette/variant. */
 function drawScene(img, idx) {
   const d = img.bitmap.data;
-  // palettes per scene
-  const SKY_TOP = [[255,179,122],[138,201,214],[255,169,113],[123,141,147],[15,17,42]];
-  const SKY_BOT = [[255,229,204],[173,228,179],[255,216,168],[164,180,196],[46,58,89]];
-  const GROUND   = [[139,115,85],[89,130,95],[60,58,45],[74,87,97],[44,54,69]];
-  const GRASS    = [[104,126,78],[104,156,90],[82,98,66],[92,108,100],[58,68,78]];
-  const WOOD     = [[60,46,34],[52,58,48],[44,36,28],[48,54,60],[30,34,40]];
-  const LAMP     = [255,216,168];
-  const LAMP_POLE = [44,24,16];
-  const STAR     = [254,252,238];
+  // unified DAY palette (consistent across all 5 scenes - no muddy multi-tone)
+  const SKY_TOP  = [170, 204, 236];   // light day sky (top)
+  const SKY_BOT  = [205, 227, 250];   // near horizon
+  const GROUND   = [146, 119, 84];    // earth path base
+  const GRASS    = [107, 150, 82];    // green grass strips
+  const WOOD     = idx % 2 === 0 ? [58, 44, 32] : [120, 110, 100]; // wall texture
+  const LAMP     = [255, 228, 150];
+  const LAMP_POLE = [44, 24, 16];
 
-  const skyTop = SKY_TOP[idx], skyBot = SKY_BOT[idx], gr = GROUND[idx], ga = GRASS[idx], wd = WOOD[idx];
-  const lamp = idx === 2 || idx === 4;        // dusk / night
-  const rain = idx === 3;                    // rainy
-  const night = idx === 4;                   // night (stars)
+  const skyTop = SKY_TOP, skyBot = SKY_BOT, gr = GROUND, ga = GRASS, wd = WOOD;
+  const lamp = true;                    // day lamps (subtle)
+  const rain = false;                   // day-only (no rain)
+  const night = false;                  // day-only (no stars)
 
   // sky gradient
   vGrad(d, 0, SKY_H, skyTop, skyBot);
@@ -131,8 +130,8 @@ function drawScene(img, idx) {
       rect(d, px, py, px + 6, py + 46, LAMP_POLE);
       ellipse(d, px + 3, py + 18, 14, 18, LAMP);
       glow(d, px + 3, py + 18, 34, LAMP);
-      // ground spill
-      rect(d, px - 24, H - 6, px + 30, H - 2, LAMP);
+      // subtle amber spill (narrow wedge - not a bright cream stain)
+      rect(d, px - 6, H - 4, px + 12, H - 1, [230, 170, 90]);
     }
   }
 
