@@ -27,7 +27,6 @@ export interface NeighborContentBlockProps {
   mode?: 'recommend' | 'neighbor'
   neighbors: NeighborChip[]
   onNeighborClick: (houseId: string) => void
-  // 광장에서는 아래 프로필이 위 골목 무대의 선택기 역할을 한다.
   showNeighborSelector?: boolean
   onPostClick?: (postId: string, roomId?: string) => void
   onApplyNeighbor?: (houseId: string) => void
