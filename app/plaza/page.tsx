@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { getOwnerKey } from '@/lib/ownerKey'
+import { useMediaQuery } from '@/hooks/useMediaQuery'
 import TopBar from '@/components/blocks/TopBar'
 import NeighborContentBlock, { NeighborChip, NeighborRoomSlot } from '@/components/blocks/NeighborContentBlock'
 import PlazaHeroBlock from '@/components/blocks/PlazaHeroBlock'
@@ -16,18 +17,24 @@ const LANG_FLAG: Record<string, string> = {
   ko: '🇰🇷', vi: '🇻🇳', en: '🇺🇸', ja: '🇯🇵', zh: '🇨🇳',
 }
 
-/** 비이웃 공개방: 벽돌(3-2-3-2) 배치, 페이지당 10개, 10개 넘으면 스와이프 */
+/** 비이웃 공개방: 벽돌 배치, 페이지당 10개, 10개 넘으면 스와이프 */
 const PUBLIC_ROOMS_PAGE = 10
-/** 한 페이지를 채우는 벽돌 행무늬: 3-2-3-2 (=10). 남는 글 1개면 크게(full-width). */
-const BRICK_PATTERN = [3, 2, 3, 2]
+/** 데스크탑: 3-2-3-2 (=10). 모바일: 2-1-2-1 (=6, 스와이프 단위 조정). 남는 글 1개면 크게(full-width). */
+const BRICK_PATTERN_DESKTOP = [3, 2, 3, 2]
+const BRICK_PATTERN_MOBILE = [2, 1, 2, 1]
 
-function partitionBrick<T>(items: T[]): { cards: T[]; cols: string; offset: boolean }[] {
+function useBrickPattern(cols: 'desktop' | 'mobile') {
+  return cols === 'mobile' ? BRICK_PATTERN_MOBILE : BRICK_PATTERN_DESKTOP
+}
+
+function partitionBrick<T>(items: T[], viewMode: 'desktop' | 'mobile' = 'desktop'): { cards: T[]; cols: string; offset: boolean }[] {
+  const pattern = useBrickPattern(viewMode)
   const rows: { cards: T[]; cols: string; offset: boolean }[] = []
   let i = 0
   let pi = 0
   let prevCols = ''
   while (i < items.length) {
-    const want = BRICK_PATTERN[pi % BRICK_PATTERN.length]
+    const want = pattern[pi % pattern.length]
     const cards = items.slice(i, i + want)
     const cols = cards.length === 1 ? 'large' : cards.length === 3 ? '3' : '2'
     rows.push({ cards, cols, offset: cols === '2' && prevCols === '3' })
@@ -98,6 +105,7 @@ export default function PlazaPage() {
 
   const [publicRooms, setPublicRooms] = useState<any[]>([])
   const [publicPage, setPublicPage] = useState(0)
+  const isMobile = useMediaQuery('(max-width: 768px)') // 모바일 뷰 감지
 
   const loadAll = useCallback(async (key: string) => {
     const d = await fetch(`/api/corenull/houses?owner_key=${key}`).then((r) => r.json())
@@ -210,7 +218,7 @@ export default function PlazaPage() {
   }, [pageCount, publicPage])
 
   /** 비이웃 공개방: 솔로 글 1개면 크게(full-width), 10개 넘으면 스와이프 */
-  const brickRows = partitionBrick(visibleRooms)
+  const brickRows = partitionBrick(visibleRooms, isMobile ? 'mobile' : 'desktop')
 
   return (
     <div>
