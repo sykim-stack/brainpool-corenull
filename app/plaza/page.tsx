@@ -133,7 +133,7 @@ export default function PlazaPage() {
           langFlag: LANG_FLAG[h.primary_language] || '🌐',
           avatarUrl: h.avatar_url || null,
           // 광장은 집마다 다른 배경이 아니라, 걷는 장면이 이어지는 공용 골목이다.
-          coverUrl: `/alley/alley-${String((index % 5) + 1).padStart(2, '0')}.${index % 5 === 2 || index % 5 === 4 ? 'jpeg' : 'jpg'}`,
+          coverUrl: `/alley/alley-${String((index % 5) + 1).padStart(2, '0')}.jpg`,
           rooms: roomSlots,
           requestPending: pendingTargetIds.has(h.id),
         }

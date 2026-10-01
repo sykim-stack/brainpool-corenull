@@ -157,7 +157,7 @@ function drawScene(img, idx) {
 }
 
 const NAMES = ['alley-01', 'alley-02', 'alley-03', 'alley-04', 'alley-05'];
-const EXTS  = ['jpg', 'jpg', 'jpeg', 'jpg', 'jpeg'];
+const EXTS  = ['jpg', 'jpg', 'jpg', 'jpg', 'jpg'];
 
 (async () => {
   // deterministic-ish per scene (seed via Math.random once at module load is fine; we re-seed below)
