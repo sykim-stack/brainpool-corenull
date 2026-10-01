@@ -164,7 +164,7 @@ export default function YardPage() {
     )
     const discHouses = disc.data || []
     const rec: NeighborChip[] = await Promise.all(
-      discHouses.map(async (h: any) => {
+      discHouses.map(async (h: any, index: number) => {
         const roomSlots = await loadHouseRoomSlots(h)
         return {
           neighborId: `discover-${h.id}`,
@@ -172,7 +172,7 @@ export default function YardPage() {
           title: h.title,
           langFlag: LANG_FLAG[h.primary_language] || '🌐',
           avatarUrl: h.avatar_url || null,
-          coverUrl: h.yard_image_url || null,
+          coverUrl: h.yard_image_url || `/alley/alley-${String((index % 5) + 1).padStart(2, '0')}.jpg`,
           rooms: roomSlots,
           requestPending: pendingTargetIds.has(h.id),
         }
@@ -423,6 +423,16 @@ export default function YardPage() {
         enableInlineComment
         ownerKey={ownerKey}
         onInterestGoLibrary={() => router.push('/me/library')}
+      />
+
+      <NeighborContentBlock
+        tier="invite"
+        mode="neighbor"
+        neighbors={recommended}
+        onNeighborClick={(houseId) => router.push(`/houses/${houseId}/yard`)}
+        onPostClick={handlePostClick}
+        onApplyNeighbor={handleApplyNeighbor}
+        applyLoadingHouseId={applyLoadingHouseId}
       />
 
       {showShare && inviteUrl && (
