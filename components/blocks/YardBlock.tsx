@@ -125,9 +125,6 @@ export default function YardBlock({
   const accepted = relations.filter((r) => r.status === 'accepted')
 
   const canManageRelations = !visitorMode && !!(onAcceptRelation || onRemoveRelation)
-
-  // 마당 골목 = 광장과 동일 블록 (NeighborContentBlock recommend)
-  // 방문 모드에서는 신청 핸들러를 넘기지 않음 (이 집의 이웃 미리보기)
   const alleyMode = visitorMode ? 'neighbor' : 'recommend'
 
   return (
@@ -155,7 +152,6 @@ export default function YardBlock({
         </section>
       )}
 
-      {/* 골목 — 광장과 동일 블록. Hero·발견 바로 아래 */}
       <NeighborContentBlock
         tier="public"
         mode={alleyMode}
@@ -167,7 +163,6 @@ export default function YardBlock({
         applyLoadingHouseId={visitorMode ? null : applyLoadingHouseId}
       />
 
-      {/* 이웃 관계 — 히어로 프로필 아이콘 가로 나열 */}
       <section style={styles.relationSection}>
         <div style={styles.relationHeader}>
           <span style={styles.relationTitle}>이웃 관계</span>
@@ -247,6 +242,7 @@ export default function YardBlock({
       {visitorMode ? (
         <MyContentBlock
           title="공개 방 최신"
+          layout="brick"
           posts={publicPosts}
           onPostClick={onPostClick}
           onCommentClick={onCommentClick}
@@ -260,8 +256,10 @@ export default function YardBlock({
         />
       ) : (
         <>
+          {/* 이웃 공개방 = 광장 벽돌 3-2-3 / 모바일 2-2-2 */}
           <MyContentBlock
             title="이웃 공개 방 최신"
+            layout="brick"
             posts={neighborFeed}
             onPostClick={onPostClick}
             onCommentClick={onCommentClick}
@@ -273,8 +271,10 @@ export default function YardBlock({
             ownerKey={ownerKey}
             onInterestGoLibrary={onInterestGoLibrary}
           />
+          {/* 내 방 최신 = 1·2·3 밀도 */}
           <MyContentBlock
-            title="내 방 최신 콘텐츠"
+            title="내 방 최신"
+            layout="density"
             posts={myPosts}
             onPostClick={onPostClick}
             onCommentClick={onCommentClick}
