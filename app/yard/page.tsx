@@ -426,17 +426,6 @@ export default function YardPage() {
         onInterestGoLibrary={() => router.push('/me/library')}
       />
 
-      <NeighborContentBlock
-        tier="public"
-        mode="recommend"
-        neighbors={recommended}
-        showNeighborSelector
-        onNeighborClick={(houseId) => router.push(`/houses/${houseId}/yard`)}
-        onPostClick={handlePostClick}
-        onApplyNeighbor={handleApplyNeighbor}
-        applyLoadingHouseId={applyLoadingHouseId}
-      />
-
       {showShare && inviteUrl && (
         <ShareModal
           url={inviteUrl}

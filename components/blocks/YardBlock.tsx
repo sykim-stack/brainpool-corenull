@@ -143,16 +143,6 @@ export default function YardBlock({
         </section>
       )}
 
-      <NeighborContentBlock
-        tier="public"
-        mode={visitorMode ? 'neighbor' : 'recommend'}
-        neighbors={recommended}
-        onNeighborClick={(id) => onRecommendHouseClick?.(id)}
-        onPostClick={onPostClick}
-        onApplyNeighbor={visitorMode ? undefined : onApplyNeighbor}
-        applyLoadingHouseId={applyLoadingHouseId}
-      />
-
       {/* 이웃 관계 — 히어로 프로필 아이콘 가로 나열 */}
       <section style={styles.relationSection}>
         <div style={styles.relationHeader}>
@@ -274,7 +264,17 @@ export default function YardBlock({
             onInterestGoLibrary={onInterestGoLibrary}
           />
         </>
-      )}
+      }
+
+      {/* 골목 발견 — 마당 하단 고정 */}
+      <NeighborContentBlock
+        tier="public"
+        mode="recommend"
+        neighbors={recommended}
+        onNeighborClick={(id) => onRecommendHouseClick?.(id)}
+        onPostClick={onPostClick}
+        showNeighborSelector
+      />
     </div>
   )
 }
