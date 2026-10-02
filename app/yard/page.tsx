@@ -11,7 +11,6 @@ import OwnerGate from '@/components/corenull/OwnerGate'
 import InlineHeroImageControls from '@/components/corenull/InlineHeroImageControls'
 import { PostBlockData } from '@/components/blocks/PostBlock'
 import { RingData } from '@/components/blocks/RingBlock'
-import NeighborContentBlock from '@/components/blocks/NeighborContentBlock'
 import { NeighborChip, NeighborRoomSlot } from '@/components/blocks/NeighborContentBlock'
 import { houseHeroBackground, houseAvatarUrl } from '@/lib/houseImages'
 
@@ -164,6 +163,7 @@ export default function YardPage() {
       nbRows.filter((n: any) => n.status === 'pending' && n.house).map((n: any) => n.house.id)
     )
     const discHouses = disc.data || []
+    // 광장과 동일: 공용 골목 이미지로 걷는 연속감 (집별 yard_image 아님)
     const rec: NeighborChip[] = await Promise.all(
       discHouses.map(async (h: any, index: number) => {
         const roomSlots = await loadHouseRoomSlots(h)
@@ -173,7 +173,7 @@ export default function YardPage() {
           title: h.title,
           langFlag: LANG_FLAG[h.primary_language] || '🌐',
           avatarUrl: h.avatar_url || null,
-          coverUrl: h.yard_image_url || `/alley/alley-${String((index % 5) + 1).padStart(2, '0')}.jpg`,
+          coverUrl: `/alley/alley-${String((index % 5) + 1).padStart(2, '0')}.jpg`,
           rooms: roomSlots,
           requestPending: pendingTargetIds.has(h.id),
         }
