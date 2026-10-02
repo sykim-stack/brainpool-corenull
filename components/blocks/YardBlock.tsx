@@ -1,6 +1,5 @@
 'use client'
 
-import { useState } from 'react'
 import HeroBlock, { HeroBackground, HeroDoorplate } from './HeroBlock'
 import MyContentBlock from './MyContentBlock'
 import NeighborContentBlock, { NeighborChip } from './NeighborContentBlock'
@@ -28,6 +27,7 @@ export interface YardBlockProps {
   avatar?: React.ReactNode
   doorplate: HeroDoorplate
   heroControls?: React.ReactNode
+  doorplateHandles?: React.ReactNode
   loading?: boolean
   visitorMode?: boolean
   discoveries?: DiscoveryItem[]
@@ -90,6 +90,7 @@ export default function YardBlock({
   avatar,
   doorplate,
   heroControls,
+  doorplateHandles,
   loading = false,
   visitorMode = false,
   discoveries = [],
@@ -131,7 +132,14 @@ export default function YardBlock({
 
   return (
     <div>
-      <HeroBlock background={background} ring={ring} avatar={avatar} doorplate={doorplate} heroControls={heroControls} />
+      <HeroBlock
+        background={background}
+        ring={ring}
+        avatar={avatar}
+        doorplate={doorplate}
+        heroControls={heroControls}
+        doorplateHandles={!visitorMode ? doorplateHandles : undefined}
+      />
 
       {discoveries.length > 0 && (
         <section style={styles.discoverySection}>
@@ -192,7 +200,6 @@ export default function YardBlock({
               </div>
             )}
 
-            {/* 요청/신청 — 작은 칩 (관리용) */}
             {canManageRelations && (received.length > 0 || sent.length > 0) && (
               <div style={styles.pendingBlock}>
                 {received.map((r) => (

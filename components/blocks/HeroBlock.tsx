@@ -28,13 +28,22 @@ export interface HeroBlockProps {
   avatar?: React.ReactNode
   doorplate: HeroDoorplate
   heroControls?: React.ReactNode
+  /** 마당 전용: 집 전환·문패 수정 등 손잡이 (문패 아래) */
+  doorplateHandles?: React.ReactNode
 }
 
 const DEFAULT_GRADIENT = 'linear-gradient(135deg, #4A5240 0%, #7A8C6E 60%, #C8D5B9 100%)'
 const RING_SIZE = 230
 const BG_HEIGHT = 220
 
-export default function HeroBlock({ background, ring, avatar, doorplate, heroControls }: HeroBlockProps) {
+export default function HeroBlock({
+  background,
+  ring,
+  avatar,
+  doorplate,
+  heroControls,
+  doorplateHandles,
+}: HeroBlockProps) {
   const stats = [doorplate.since, formatCount(doorplate.roomCount, '방'), formatCount(doorplate.neighborCount, '이웃')]
     .filter(Boolean)
     .join(' · ')
@@ -68,6 +77,7 @@ export default function HeroBlock({ background, ring, avatar, doorplate, heroCon
         <div style={styles.title}>{doorplate.title}</div>
         {doorplate.description && <div style={styles.description}>{doorplate.description}</div>}
         {stats && <div style={styles.stats}>{stats}</div>}
+        {doorplateHandles}
         {doorplate.cta && (
           <button
             style={{ ...styles.cta, opacity: doorplate.cta.disabled ? 0.5 : 1 }}
