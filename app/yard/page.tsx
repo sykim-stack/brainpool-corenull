@@ -427,9 +427,10 @@ export default function YardPage() {
       />
 
       <NeighborContentBlock
-        tier="invite"
-        mode="neighbor"
+        tier="public"
+        mode="recommend"
         neighbors={recommended}
+        showNeighborSelector
         onNeighborClick={(houseId) => router.push(`/houses/${houseId}/yard`)}
         onPostClick={handlePostClick}
         onApplyNeighbor={handleApplyNeighbor}
