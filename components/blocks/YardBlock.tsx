@@ -125,6 +125,10 @@ export default function YardBlock({
 
   const canManageRelations = !visitorMode && !!(onAcceptRelation || onRemoveRelation)
 
+  // 마당 골목 = 광장과 동일 블록 (NeighborContentBlock recommend)
+  // 방문 모드에서는 신청 핸들러를 넘기지 않음 (이 집의 이웃 미리보기)
+  const alleyMode = visitorMode ? 'neighbor' : 'recommend'
+
   return (
     <div>
       <HeroBlock background={background} ring={ring} avatar={avatar} doorplate={doorplate} heroControls={heroControls} />
@@ -142,6 +146,18 @@ export default function YardBlock({
           </div>
         </section>
       )}
+
+      {/* 골목 — 광장과 동일 블록. Hero·발견 바로 아래 */}
+      <NeighborContentBlock
+        tier="public"
+        mode={alleyMode}
+        neighbors={recommended}
+        showNeighborSelector
+        onNeighborClick={(id) => onRecommendHouseClick?.(id)}
+        onPostClick={onPostClick}
+        onApplyNeighbor={visitorMode ? undefined : onApplyNeighbor}
+        applyLoadingHouseId={visitorMode ? null : applyLoadingHouseId}
+      />
 
       {/* 이웃 관계 — 히어로 프로필 아이콘 가로 나열 */}
       <section style={styles.relationSection}>
@@ -264,17 +280,7 @@ export default function YardBlock({
             onInterestGoLibrary={onInterestGoLibrary}
           />
         </>
-      }
-
-      {/* 골목 발견 — 마당 하단 고정 */}
-      <NeighborContentBlock
-        tier="public"
-        mode="recommend"
-        neighbors={recommended}
-        onNeighborClick={(id) => onRecommendHouseClick?.(id)}
-        onPostClick={onPostClick}
-        showNeighborSelector
-      />
+      )}
     </div>
   )
 }
