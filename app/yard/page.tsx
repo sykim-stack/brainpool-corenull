@@ -3,12 +3,15 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { getOwnerKey } from '@/lib/ownerKey'
+import { pickActiveHouse, setActiveHouseId } from '@/lib/activeHouse'
 import TopBar from '@/components/blocks/TopBar'
 import YardBlock, { YardRelationRow } from '@/components/blocks/YardBlock'
 import CoreNullLogo from '@/components/corenull/CoreNullLogo'
 import ShareModal from '@/components/corenull/ShareModal'
 import OwnerGate from '@/components/corenull/OwnerGate'
 import InlineHeroImageControls from '@/components/corenull/InlineHeroImageControls'
+import YardHouseHandles from '@/components/corenull/YardHouseHandles'
+import DoorplateEditModal from '@/components/corenull/DoorplateEditModal'
 import { PostBlockData } from '@/components/blocks/PostBlock'
 import { RingData } from '@/components/blocks/RingBlock'
 import { NeighborChip, NeighborRoomSlot } from '@/components/blocks/NeighborContentBlock'
@@ -88,6 +91,7 @@ export default function YardPage() {
 
   const [ownerKey, setOwnerKeyState] = useState('')
   const [ownerReady, setOwnerReady] = useState(false)
+  const [houses, setHouses] = useState<any[]>([])
   const [house, setHouse] = useState<any>(null)
   const [rooms, setRooms] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -105,6 +109,7 @@ export default function YardPage() {
   const [showShare, setShowShare] = useState(false)
   const [inviteUrl, setInviteUrl] = useState('')
   const [inviteLoading, setInviteLoading] = useState(false)
+  const [showDoorplateEdit, setShowDoorplateEdit] = useState(false)
 
   const acceptedCount = relations.filter((r) => r.status === 'accepted').length
 
@@ -124,13 +129,28 @@ export default function YardPage() {
     setInviteLoading(false)
   }
 
-  const loadAll = useCallback(async (key: string) => {
+  const loadAll = useCallback(async (key: string, preferredHouseId?: string) => {
     const d = await fetch(`/api/corenull/houses?owner_key=${key}`).then((r) => r.json())
-    const myHouse = d.data?.[0]
-    if (!myHouse) {
+    const houseList = d.data || []
+    setHouses(houseList)
+
+    if (houseList.length === 0) {
+      setHouse(null)
       setLoading(false)
       return
     }
+
+    let myHouse =
+      (preferredHouseId && houseList.find((h: any) => h.id === preferredHouseId)) ||
+      pickActiveHouse(houseList)
+
+    if (!myHouse) {
+      setHouse(null)
+      setLoading(false)
+      return
+    }
+
+    setActiveHouseId(myHouse.id)
     setHouse(myHouse)
 
     const [r, b, nb, disc] = await Promise.all([
@@ -163,7 +183,7 @@ export default function YardPage() {
       nbRows.filter((n: any) => n.status === 'pending' && n.house).map((n: any) => n.house.id)
     )
     const discHouses = disc.data || []
-    // 광장과 동일: 공용 골목 이미지로 걷는 연속감 (집별 yard_image 아님)
+    // 광장과 동일: 공용 골목 이미지
     const rec: NeighborChip[] = await Promise.all(
       discHouses.map(async (h: any, index: number) => {
         const roomSlots = await loadHouseRoomSlots(h)
@@ -230,7 +250,6 @@ export default function YardPage() {
     setLoading(false)
   }, [])
 
-  // Owner 확인 후 House 조회. Owner 없으면 House를 만들지 않는다.
   useEffect(() => {
     const key = getOwnerKey()
     setOwnerKeyState(key)
@@ -241,6 +260,13 @@ export default function YardPage() {
     }
     loadAll(key)
   }, [loadAll])
+
+  const handleSwitchHouse = (houseId: string) => {
+    if (!ownerKey || houseId === house?.id) return
+    setLoading(true)
+    setActiveHouseId(houseId)
+    loadAll(ownerKey, houseId)
+  }
 
   const handleApplyNeighbor = async (targetHouseId: string) => {
     if (!house || !ownerKey || applyLoadingHouseId) return
@@ -255,7 +281,7 @@ export default function YardPage() {
       setRecommended((prev) =>
         prev.map((x) => (x.houseId === targetHouseId ? { ...x, requestPending: true } : x))
       )
-      await loadAll(ownerKey)
+      await loadAll(ownerKey, house.id)
     }
     setApplyLoadingHouseId(null)
   }
@@ -268,7 +294,7 @@ export default function YardPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ neighbor_id: neighborId, owner_key: ownerKey }),
     })
-    await loadAll(ownerKey)
+    await loadAll(ownerKey, house?.id)
     setRelationActingId(null)
   }
 
@@ -279,7 +305,7 @@ export default function YardPage() {
       `/api/corenull/houses?action=neighbor-remove&neighbor_id=${neighborId}&owner_key=${ownerKey}`,
       { method: 'DELETE' }
     )
-    await loadAll(ownerKey)
+    await loadAll(ownerKey, house?.id)
     setRelationActingId(null)
   }
 
@@ -323,12 +349,10 @@ export default function YardPage() {
 
   const langFlag = house?.primary_language ? LANG_FLAG[house.primary_language] || '🌐' : '🌐'
 
-  // Owner 미확인 → 게이트 (빈 집 생성 금지)
   if (ownerReady && !ownerKey) {
     return <OwnerGate />
   }
 
-  // Owner는 있으나 House 없음 → 집 만들기 유도
   if (ownerReady && ownerKey && !loading && !house) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '70vh', gap: 16 }}>
@@ -383,6 +407,22 @@ export default function YardPage() {
             />
           ) : undefined
         }
+        doorplateHandles={
+          house ? (
+            <YardHouseHandles
+              houses={houses.map((h) => ({
+                id: h.id,
+                title: h.title,
+                langFlag: LANG_FLAG[h.primary_language] || '🏡',
+              }))}
+              activeHouseId={house.id}
+              onSwitch={handleSwitchHouse}
+              onCreate={() => router.push('/houses/create')}
+              onEditDoorplate={() => setShowDoorplateEdit(true)}
+              onOpenImages={() => router.push('/me/house')}
+            />
+          ) : undefined
+        }
         ring={buildRingData(rooms.length, acceptedCount)}
         avatar={
           houseAvatarUrl(house) ? (
@@ -431,6 +471,20 @@ export default function YardPage() {
           url={inviteUrl}
           title={`${house?.title || '우리 집'} 초대`}
           onClose={() => setShowShare(false)}
+        />
+      )}
+
+      {showDoorplateEdit && house && ownerKey && (
+        <DoorplateEditModal
+          houseId={house.id}
+          ownerKey={ownerKey}
+          title={house.title || ''}
+          description={house.description}
+          onClose={() => setShowDoorplateEdit(false)}
+          onSaved={(next) => {
+            setHouse(next)
+            setHouses((prev) => prev.map((h) => (h.id === next.id ? { ...h, ...next } : h)))
+          }}
         />
       )}
     </div>

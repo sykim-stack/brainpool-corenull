@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useOwnerKey } from '@/hooks/useOwnerKey'
+import { setActiveHouseId } from '@/lib/activeHouse'
 import TopBar from '@/components/blocks/TopBar'
 import CoreNullLogo from '@/components/corenull/CoreNullLogo'
 
@@ -19,22 +20,21 @@ export default function CreateHousePage() {
   const [description, setDescription] = useState('')
   const [language, setLanguage] = useState('ko')
   const [submitting, setSubmitting] = useState(false)
-  const [checking, setChecking] = useState(true)
+  const [ready, setReady] = useState(false)
+  const [existingCount, setExistingCount] = useState(0)
   const router = useRouter()
   const ownerKey = useOwnerKey()
 
   useEffect(() => {
     if (!ownerKey) return
     fetch(`/api/corenull/houses?owner_key=${ownerKey}`)
-      .then(r => r.json())
-      .then(d => {
-        if ((d.data || []).length > 0) {
-          router.replace('/')
-          return
-        }
-        setChecking(false)
+      .then((r) => r.json())
+      .then((d) => {
+        setExistingCount((d.data || []).length)
+        setReady(true)
       })
-  }, [ownerKey, router])
+      .catch(() => setReady(true))
+  }, [ownerKey])
 
   const handleSubmit = async () => {
     if (!title.trim() || !ownerKey) return
@@ -52,13 +52,14 @@ export default function CreateHousePage() {
     })
 
     const data = await res.json()
-    if (data.data) {
-      router.push('/')
+    if (data.data?.id) {
+      setActiveHouseId(data.data.id)
+      router.push('/yard')
     }
     setSubmitting(false)
   }
 
-  if (checking) {
+  if (!ready) {
     return <div style={styles.loading}>🏡</div>
   }
 
@@ -73,18 +74,25 @@ export default function CreateHousePage() {
             <div>
               <div style={styles.previewTitle}>{title || '집 이름'}</div>
               <div style={styles.previewLang}>
-                {LANGUAGES.find(l => l.code === language)?.flag} {LANGUAGES.find(l => l.code === language)?.label}
+                {LANGUAGES.find((l) => l.code === language)?.flag}{' '}
+                {LANGUAGES.find((l) => l.code === language)?.label}
               </div>
             </div>
           </div>
         </div>
+
+        {existingCount > 0 && (
+          <div style={styles.multiHint}>
+            이미 {existingCount}채가 있어요. 새 집은 마당에서 바로 전환할 수 있어요.
+          </div>
+        )}
 
         <div style={styles.fieldLabel}>집 이름 *</div>
         <input
           style={styles.input}
           placeholder="우리 가족 집"
           value={title}
-          onChange={e => setTitle(e.target.value)}
+          onChange={(e) => setTitle(e.target.value)}
           maxLength={30}
           autoFocus
         />
@@ -94,14 +102,14 @@ export default function CreateHousePage() {
           style={styles.textarea}
           placeholder="이 집은 어떤 공간인가요?"
           value={description}
-          onChange={e => setDescription(e.target.value)}
+          onChange={(e) => setDescription(e.target.value)}
           maxLength={100}
         />
 
         <div style={styles.fieldLabel}>이 집의 언어</div>
         <div style={styles.fieldDesc}>이 집에서 쓰는 주요 언어예요. 방문자에게는 자동으로 번역돼요.</div>
         <div style={styles.langGrid}>
-          {LANGUAGES.map(lang => (
+          {LANGUAGES.map((lang) => (
             <button
               key={lang.code}
               style={{
@@ -117,11 +125,16 @@ export default function CreateHousePage() {
         </div>
 
         <div style={styles.notice}>
-          🌱 집을 만들면 기본 방 "일상"이 자동으로 생겨요. 집은 딱 하나만 만들 수 있어요.
+          🌱 집을 만들면 기본 방 "일상"이 자동으로 생겨요. 한 Owner가 여러 집을 가질 수 있어요.
         </div>
 
         <button
-          style={{ ...styles.submitBtn, width: '100%', marginTop: 16, opacity: (!title.trim() || !ownerKey || submitting) ? 0.4 : 1 }}
+          style={{
+            ...styles.submitBtn,
+            width: '100%',
+            marginTop: 16,
+            opacity: !title.trim() || !ownerKey || submitting ? 0.4 : 1,
+          }}
           onClick={handleSubmit}
           disabled={!title.trim() || !ownerKey || submitting}
         >
@@ -157,6 +170,11 @@ const styles: Record<string, React.CSSProperties> = {
     color: 'white', textShadow: '0 1px 4px rgba(0,0,0,0.3)',
   },
   previewLang: { fontSize: 11, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
+  multiHint: {
+    marginBottom: 8, padding: '10px 12px',
+    background: 'rgba(193,127,60,0.08)', borderRadius: 10,
+    fontSize: 12, color: '#8A5A22', lineHeight: 1.45,
+  },
   fieldLabel: { fontSize: 12, fontWeight: 500, color: '#5C4A35', marginBottom: 6, marginTop: 16 },
   fieldDesc: { fontSize: 12, color: '#9A8470', marginBottom: 10, lineHeight: 1.5 },
   input: {
