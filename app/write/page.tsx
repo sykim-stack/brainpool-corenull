@@ -7,6 +7,7 @@ import { prepareUploadFile } from '@/lib/compressMedia'
 import TopBar from '@/components/blocks/TopBar'
 import CoreNullLogo from '@/components/corenull/CoreNullLogo'
 import OwnerGate from '@/components/corenull/OwnerGate'
+import VideoCaptureModal from '@/components/corenull/VideoCaptureModal'
 
 const LANG_FLAG: Record<string, string> = {
   ko: '🇰🇷', vi: '🇻🇳', en: '🇺🇸', ja: '🇯🇵', zh: '🇨🇳',
@@ -25,6 +26,7 @@ export default function WritePage() {
   const [ownerKey, setOwnerKey] = useState('')
   const [ownerReady, setOwnerReady] = useState(false)
   const [submitError, setSubmitError] = useState('')
+  const [showCapture, setShowCapture] = useState(false)
 
   const [showNewRoom, setShowNewRoom] = useState(false)
   const [newRoomName, setNewRoomName] = useState('')
@@ -43,7 +45,6 @@ export default function WritePage() {
     setOwnerReady(true)
 
     if (!key) {
-      // 신규/미인증 사용자 — 글쓰기 위해서는 먼저 집이 필요
       return
     }
 
@@ -52,8 +53,8 @@ export default function WritePage() {
     const shouldOpenNewRoom = params.get('new_room') === '1'
 
     fetch(`/api/corenull/houses?owner_key=${key}`)
-      .then(r => r.json())
-      .then(async d => {
+      .then((r) => r.json())
+      .then(async (d) => {
         const houseList = d.data || []
         setHouses(houseList)
         if (houseList.length === 0) return
@@ -119,7 +120,7 @@ export default function WritePage() {
     const data = await res.json()
     if (data.data) {
       const created = data.data
-      setRooms(prev => [...prev, created])
+      setRooms((prev) => [...prev, created])
       setSelectedRoom(created)
       setShowNewRoom(false)
       setNewRoomName('')
@@ -129,6 +130,24 @@ export default function WritePage() {
       setRoomError(data._error || '방 만들기에 실패했어요')
     }
     setCreatingRoom(false)
+  }
+
+  const uploadPrepared = async (prepared: File[]) => {
+    if (prepared.length === 0) return
+    setUploading(true)
+    setUploadLabel('업로드 중…')
+    const form = new FormData()
+    prepared.forEach((f) => form.append('files', f))
+    const res = await fetch('/api/corenull/upload', { method: 'POST', body: form })
+    const data = await res.json()
+    const ok = (data.data || []).filter((x: any) => x.url && !x._error)
+    const failed = (data.data || []).filter((x: any) => x._error)
+    if (failed.length) {
+      setSubmitError(failed[0]._error || '일부 업로드 실패')
+    }
+    setMediaFiles((prev) => [...prev, ...ok])
+    setUploading(false)
+    setUploadLabel('')
   }
 
   const handleFileSelect = async (e: any) => {
@@ -157,19 +176,22 @@ export default function WritePage() {
       return
     }
 
-    setUploadLabel('업로드 중…')
-    const form = new FormData()
-    prepared.forEach((f) => form.append('files', f))
-    const res = await fetch('/api/corenull/upload', { method: 'POST', body: form })
-    const data = await res.json()
-    const ok = (data.data || []).filter((x: any) => x.url && !x._error)
-    const failed = (data.data || []).filter((x: any) => x._error)
-    if (failed.length) {
-      setSubmitError(failed[0]._error || '일부 업로드 실패')
+    await uploadPrepared(prepared)
+  }
+
+  const handleCapture = async (file: File) => {
+    setShowCapture(false)
+    setSubmitError('')
+    setUploading(true)
+    setUploadLabel('영상 준비 중…')
+    const result = await prepareUploadFile(file)
+    if (!result.ok) {
+      setSubmitError(result.error)
+      setUploading(false)
+      setUploadLabel('')
+      return
     }
-    setMediaFiles((prev) => [...prev, ...ok])
-    setUploading(false)
-    setUploadLabel('')
+    await uploadPrepared([result.file])
   }
 
   const handleSubmit = async () => {
@@ -198,7 +220,7 @@ export default function WritePage() {
   }
 
   const removeMedia = (index: number) => {
-    setMediaFiles(prev => prev.filter((_, i) => i !== index))
+    setMediaFiles((prev) => prev.filter((_, i) => i !== index))
   }
 
   if (ownerReady && !ownerKey) {
@@ -207,10 +229,7 @@ export default function WritePage() {
 
   return (
     <div>
-      <TopBar
-        logo={<CoreNullLogo size="sm" />}
-        title="새 이야기"
-      />
+      <TopBar logo={<CoreNullLogo size="sm" />} title="새 이야기" />
 
       <div style={styles.body}>
         {submitError && <div style={styles.errorBox}>⚠️ {submitError}</div>}
@@ -221,7 +240,7 @@ export default function WritePage() {
             <select
               style={styles.roomDropdown}
               value={selectedHouse?.id || ''}
-              onChange={e => handleHouseChange(e.target.value)}
+              onChange={(e) => handleHouseChange(e.target.value)}
             >
               {houses.map((h: any) => (
                 <option key={h.id} value={h.id}>
@@ -238,7 +257,7 @@ export default function WritePage() {
             <select
               style={styles.roomDropdown}
               value={selectedRoom?.id || ''}
-              onChange={e => {
+              onChange={(e) => {
                 if (e.target.value === '__new__') {
                   setShowNewRoom(true)
                   return
@@ -249,7 +268,8 @@ export default function WritePage() {
             >
               {rooms.map((r: any) => (
                 <option key={r.id} value={r.id}>
-                  {r.room_name}{r.seed_mode ? ' 🌱' : ''}
+                  {r.room_name}
+                  {r.seed_mode ? ' 🌱' : ''}
                 </option>
               ))}
               <option value="__new__">+ 새 방 만들기</option>
@@ -261,7 +281,13 @@ export default function WritePage() {
               <span style={styles.roomLabel}>새 방 만들기</span>
               <button
                 style={styles.cancelBtn}
-                onClick={() => { setShowNewRoom(false); setNewRoomName(''); setIsSeed(false); setBloomDate(''); setRoomError('') }}
+                onClick={() => {
+                  setShowNewRoom(false)
+                  setNewRoomName('')
+                  setIsSeed(false)
+                  setBloomDate('')
+                  setRoomError('')
+                }}
               >
                 취소
               </button>
@@ -273,12 +299,12 @@ export default function WritePage() {
               style={styles.newRoomInput}
               placeholder="방 이름"
               value={newRoomName}
-              onChange={e => setNewRoomName(e.target.value)}
+              onChange={(e) => setNewRoomName(e.target.value)}
               maxLength={20}
               autoFocus
             />
 
-            <div style={styles.toggleRow} onClick={() => setIsSeed(v => !v)}>
+            <div style={styles.toggleRow} onClick={() => setIsSeed((v) => !v)}>
               <div style={styles.toggleLeft}>
                 <span style={{ fontSize: 18 }}>🌱</span>
                 <div>
@@ -287,7 +313,12 @@ export default function WritePage() {
                 </div>
               </div>
               <div style={{ ...styles.toggleSwitch, background: isSeed ? '#2C1810' : '#e0d8d0' }}>
-                <div style={{ ...styles.toggleThumb, transform: isSeed ? 'translateX(20px)' : 'translateX(2px)' }} />
+                <div
+                  style={{
+                    ...styles.toggleThumb,
+                    transform: isSeed ? 'translateX(20px)' : 'translateX(2px)',
+                  }}
+                />
               </div>
             </div>
 
@@ -300,13 +331,16 @@ export default function WritePage() {
                   style={styles.dateInput}
                   value={bloomDate}
                   min={today}
-                  onChange={e => setBloomDate(e.target.value)}
+                  onChange={(e) => setBloomDate(e.target.value)}
                 />
               </div>
             )}
 
             <button
-              style={{ ...styles.createRoomBtn, opacity: (!newRoomName.trim() || creatingRoom) ? 0.4 : 1 }}
+              style={{
+                ...styles.createRoomBtn,
+                opacity: !newRoomName.trim() || creatingRoom ? 0.4 : 1,
+              }}
               onClick={handleCreateRoom}
               disabled={!newRoomName.trim() || creatingRoom}
             >
@@ -319,7 +353,7 @@ export default function WritePage() {
           style={styles.textarea}
           placeholder="오늘 어떤 순간을 남기고 싶으세요?"
           value={content}
-          onChange={e => setContent(e.target.value)}
+          onChange={(e) => setContent(e.target.value)}
           autoFocus={!showNewRoom}
         />
 
@@ -332,7 +366,9 @@ export default function WritePage() {
                 ) : (
                   <div style={styles.videoThumb}>🎬</div>
                 )}
-                <button style={styles.removeBtn} onClick={() => removeMedia(i)}>✕</button>
+                <button style={styles.removeBtn} onClick={() => removeMedia(i)}>
+                  ✕
+                </button>
               </div>
             ))}
           </div>
@@ -344,7 +380,14 @@ export default function WritePage() {
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
           >
-            {uploading ? '⏳' : '📷'} {uploading ? (uploadLabel || '업로드 중...') : '사진/영상'}
+            {uploading ? '⏳' : '📷'} {uploading ? uploadLabel || '업로드 중...' : '사진/영상'}
+          </button>
+          <button
+            style={styles.captureBtn}
+            onClick={() => setShowCapture(true)}
+            disabled={uploading}
+          >
+            🎥 촬영
           </button>
         </div>
 
@@ -354,7 +397,7 @@ export default function WritePage() {
             ...styles.submitBtn,
             width: '100%',
             marginBottom: 12,
-            opacity: (!content.trim() || !selectedRoom || submitting) ? 0.4 : 1,
+            opacity: !content.trim() || !selectedRoom || submitting ? 0.4 : 1,
           }}
           onClick={handleSubmit}
           disabled={!content.trim() || !selectedRoom || submitting}
@@ -371,110 +414,233 @@ export default function WritePage() {
           onChange={handleFileSelect}
         />
       </div>
+
+      {showCapture && (
+        <VideoCaptureModal
+          onClose={() => setShowCapture(false)}
+          onCapture={handleCapture}
+        />
+      )}
     </div>
   )
 }
 
 const styles: Record<string, React.CSSProperties> = {
   submitBtn: {
-    padding: '12px 16px', background: '#2C1810', color: 'white',
-    border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 500, cursor: 'pointer',
+    padding: '12px 16px',
+    background: '#2C1810',
+    color: 'white',
+    border: 'none',
+    borderRadius: 10,
+    fontSize: 14,
+    fontWeight: 500,
+    cursor: 'pointer',
   },
   body: { padding: '16px' },
   errorBox: {
-    background: 'rgba(200,60,40,0.08)', border: '1px solid rgba(200,60,40,0.25)',
-    borderRadius: 10, padding: '10px 12px', marginBottom: 12,
-    fontSize: 13, color: '#A33',
+    background: 'rgba(200,60,40,0.08)',
+    border: '1px solid rgba(200,60,40,0.25)',
+    borderRadius: 10,
+    padding: '10px 12px',
+    marginBottom: 12,
+    fontSize: 13,
+    color: '#A33',
   },
   houseSelect: {
-    display: 'flex', alignItems: 'center', gap: 10,
-    background: '#FEFCF8', border: '1px solid rgba(92,61,46,0.12)',
-    borderRadius: 12, padding: '10px 14px', marginBottom: 10,
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+    background: '#FEFCF8',
+    border: '1px solid rgba(92,61,46,0.12)',
+    borderRadius: 12,
+    padding: '10px 14px',
+    marginBottom: 10,
   },
   roomSelect: {
-    display: 'flex', alignItems: 'center', gap: 10,
-    background: '#FEFCF8', border: '1px solid rgba(92,61,46,0.12)',
-    borderRadius: 12, padding: '10px 14px', marginBottom: 12,
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+    background: '#FEFCF8',
+    border: '1px solid rgba(92,61,46,0.12)',
+    borderRadius: 12,
+    padding: '10px 14px',
+    marginBottom: 12,
   },
   roomLabel: { fontSize: 13, color: '#9A8470', flexShrink: 0 },
   roomDropdown: {
-    flex: 1, border: 'none', background: 'none',
-    fontSize: 14, color: '#1C1208', fontFamily: "'Noto Sans KR', sans-serif",
-    outline: 'none', cursor: 'pointer',
+    flex: 1,
+    border: 'none',
+    background: 'none',
+    fontSize: 14,
+    color: '#1C1208',
+    fontFamily: "'Noto Sans KR', sans-serif",
+    outline: 'none',
+    cursor: 'pointer',
   },
   newRoomBox: {
-    background: '#FEFCF8', border: '1px solid rgba(92,61,46,0.12)',
-    borderRadius: 12, padding: '14px', marginBottom: 12,
-    display: 'flex', flexDirection: 'column', gap: 10,
+    background: '#FEFCF8',
+    border: '1px solid rgba(92,61,46,0.12)',
+    borderRadius: 12,
+    padding: '14px',
+    marginBottom: 12,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 10,
   },
-  newRoomHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
-  cancelBtn: { fontSize: 13, color: '#9A8470', background: 'none', border: 'none', cursor: 'pointer' },
+  newRoomHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  cancelBtn: {
+    fontSize: 13,
+    color: '#9A8470',
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+  },
   newRoomInput: {
-    width: '100%', height: 44,
-    background: '#F5F0E8', border: '1px solid rgba(92,61,46,0.12)',
-    borderRadius: 10, padding: '0 12px',
-    fontSize: 14, color: '#1C1208', outline: 'none', boxSizing: 'border-box',
+    width: '100%',
+    height: 44,
+    background: '#F5F0E8',
+    border: '1px solid rgba(92,61,46,0.12)',
+    borderRadius: 10,
+    padding: '0 12px',
+    fontSize: 14,
+    color: '#1C1208',
+    outline: 'none',
+    boxSizing: 'border-box',
     fontFamily: "'Noto Sans KR', sans-serif",
   },
   toggleRow: {
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '10px 12px', background: '#F5F0E8', borderRadius: 10, cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '10px 12px',
+    background: '#F5F0E8',
+    borderRadius: 10,
+    cursor: 'pointer',
   },
   toggleLeft: { display: 'flex', alignItems: 'center', gap: 10 },
   toggleTitle: { fontSize: 13, fontWeight: 500, color: '#1C1208' },
   toggleDesc: { fontSize: 11, color: '#9A8470', marginTop: 1 },
   toggleSwitch: {
-    width: 44, height: 24, borderRadius: 12, position: 'relative',
-    transition: 'background 0.2s', flexShrink: 0,
+    width: 44,
+    height: 24,
+    borderRadius: 12,
+    position: 'relative',
+    transition: 'background 0.2s',
+    flexShrink: 0,
   },
   toggleThumb: {
-    position: 'absolute', top: 2, width: 20, height: 20,
-    borderRadius: '50%', background: 'white',
-    transition: 'transform 0.2s', boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
+    position: 'absolute',
+    top: 2,
+    width: 20,
+    height: 20,
+    borderRadius: '50%',
+    background: 'white',
+    transition: 'transform 0.2s',
+    boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
   },
   bloomBox: {
-    background: 'rgba(193,127,60,0.06)', border: '1px solid rgba(193,127,60,0.2)',
-    borderRadius: 10, padding: '12px',
-    display: 'flex', flexDirection: 'column', gap: 4,
+    background: 'rgba(193,127,60,0.06)',
+    border: '1px solid rgba(193,127,60,0.2)',
+    borderRadius: 10,
+    padding: '12px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 4,
   },
   bloomLabel: { fontSize: 13, fontWeight: 500, color: '#C17F3C' },
   bloomDesc: { fontSize: 11, color: '#9A8470', marginBottom: 6 },
   dateInput: {
-    width: '100%', height: 40,
-    background: '#FEFCF8', border: '1px solid rgba(92,61,46,0.12)',
-    borderRadius: 8, padding: '0 12px',
-    fontSize: 14, color: '#1C1208', outline: 'none', boxSizing: 'border-box',
+    width: '100%',
+    height: 40,
+    background: '#FEFCF8',
+    border: '1px solid rgba(92,61,46,0.12)',
+    borderRadius: 8,
+    padding: '0 12px',
+    fontSize: 14,
+    color: '#1C1208',
+    outline: 'none',
+    boxSizing: 'border-box',
   },
   createRoomBtn: {
-    width: '100%', padding: '12px', background: '#2C1810', color: 'white',
-    border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 500, cursor: 'pointer',
+    width: '100%',
+    padding: '12px',
+    background: '#2C1810',
+    color: 'white',
+    border: 'none',
+    borderRadius: 10,
+    fontSize: 14,
+    fontWeight: 500,
+    cursor: 'pointer',
   },
   textarea: {
-    width: '100%', minHeight: 200,
-    background: '#FEFCF8', border: '1px solid rgba(92,61,46,0.12)',
-    borderRadius: 12, padding: 14,
-    fontFamily: "'Noto Sans KR', sans-serif", fontSize: 15, lineHeight: 1.7,
-    color: '#1C1208', resize: 'none', outline: 'none', marginBottom: 12,
+    width: '100%',
+    minHeight: 200,
+    background: '#FEFCF8',
+    border: '1px solid rgba(92,61,46,0.12)',
+    borderRadius: 12,
+    padding: 14,
+    fontFamily: "'Noto Sans KR', sans-serif",
+    fontSize: 15,
+    lineHeight: 1.7,
+    color: '#1C1208',
+    resize: 'none',
+    outline: 'none',
+    marginBottom: 12,
     boxSizing: 'border-box',
   },
   mediaPreview: { display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 },
   mediaItem: { position: 'relative' },
   mediaThumb: { width: 80, height: 80, borderRadius: 10, objectFit: 'cover' },
   videoThumb: {
-    width: 80, height: 80, borderRadius: 10,
-    background: '#2d4a3e', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28,
+    width: 80,
+    height: 80,
+    borderRadius: 10,
+    background: '#2d4a3e',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: 28,
   },
   removeBtn: {
-    position: 'absolute', top: -6, right: -6,
-    width: 20, height: 20, borderRadius: '50%',
-    background: '#2C1810', color: 'white',
-    border: 'none', fontSize: 10, cursor: 'pointer',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    width: 20,
+    height: 20,
+    borderRadius: '50%',
+    background: '#2C1810',
+    color: 'white',
+    border: 'none',
+    fontSize: 10,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   mediaRow: { display: 'flex', gap: 8, marginBottom: 12 },
   mediaBtn: {
-    flex: 1, height: 48,
-    background: '#FEFCF8', border: '1px dashed rgba(92,61,46,0.2)',
-    borderRadius: 12, fontSize: 14, color: '#9A8470', cursor: 'pointer',
+    flex: 1,
+    height: 48,
+    background: '#FEFCF8',
+    border: '1px dashed rgba(92,61,46,0.2)',
+    borderRadius: 12,
+    fontSize: 14,
+    color: '#9A8470',
+    cursor: 'pointer',
+  },
+  captureBtn: {
+    flex: 1,
+    height: 48,
+    background: '#2C1810',
+    border: 'none',
+    borderRadius: 12,
+    fontSize: 14,
+    color: '#FEFCF8',
+    cursor: 'pointer',
+    fontWeight: 500,
   },
 }
