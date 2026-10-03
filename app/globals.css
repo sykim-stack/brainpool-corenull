@@ -123,6 +123,11 @@ body {
   display: grid;
   grid-template-columns: 1fr;
   gap: 12px;
+  align-items: stretch;
+}
+.cn-post-grid > * {
+  height: 100%;
+  min-height: 0;
 }
 .cn-post-grid[data-count="2"] { grid-template-columns: 1fr 1fr; }
 .cn-post-grid[data-count="3"] { grid-template-columns: 1fr 1fr; }
@@ -146,6 +151,19 @@ body {
   display: grid;
   gap: 12px;
   grid-template-columns: 1fr 1fr;
+  align-items: stretch;
+}
+/* 벽돌 카드 높이 통일 — 이미지 없는 글도 같은 리듬 */
+.cn-brick-row .cn-post-card {
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.cn-brick-row .cn-post-card > * {
+  flex: 1 1 auto;
+  height: 100%;
+  min-height: 0;
 }
 .cn-brick-row[data-cols="large"] {
   grid-template-columns: 1fr;
@@ -156,7 +174,7 @@ body {
   }
   .cn-brick-row[data-cols="2"] {
     grid-template-columns: 1fr 1fr;
-    /* 벽돌 절반 칸 오프셋: 위 3열 간귝에 맞게 2열 카드를 이동 */
+    /* 벽돌 절반 칸 오프셋: 위 3열 간격에 맞게 2열 카드를 이동 */
     margin-left: calc(100% / 6 + 2px);
     margin-right: calc(100% / 6 + 2px);
   }
