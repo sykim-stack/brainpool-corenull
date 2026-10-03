@@ -31,6 +31,9 @@ export interface NeighborContentBlockProps {
   onPostClick?: (postId: string, roomId?: string) => void
   onApplyNeighbor?: (houseId: string) => void
   applyLoadingHouseId?: string | null
+  /** 골목=2(기본) · 거실 복도=1 */
+  roomsPerPage?: 1 | 2
+  emptyLabel?: string
 }
 
 const TIER_LABEL: Record<string, string> = { public: '골목', invite: '복도' }
@@ -47,7 +50,6 @@ const DEFAULT_RING: RingData = {
   ],
 }
 
-/** 골목 창 = 옆 포스트 카드 공통 높이 (갤러리 한 줄) */
 const ALLEY_FRAME_HEIGHT = 260
 
 export default function NeighborContentBlock({
@@ -59,6 +61,8 @@ export default function NeighborContentBlock({
   onPostClick,
   onApplyNeighbor,
   applyLoadingHouseId = null,
+  roomsPerPage = 2,
+  emptyLabel,
 }: NeighborContentBlockProps) {
   const [neighborIdx, setNeighborIdx] = useState(0)
   const [roomIdx, setRoomIdx] = useState(0)
@@ -70,6 +74,7 @@ export default function NeighborContentBlock({
 
   const current = neighbors[neighborIdx] || null
   const rooms = current?.rooms || []
+  const step = roomsPerPage === 1 ? 1 : 2
 
   useEffect(() => {
     setRoomIdx(0)
@@ -79,24 +84,40 @@ export default function NeighborContentBlock({
     if (roomIdx >= rooms.length) setRoomIdx(Math.max(0, rooms.length - 1))
   }, [rooms.length, roomIdx])
 
-  const roomPageCount = Math.max(1, Math.ceil(rooms.length / 2) || 1)
-  const roomPage = Math.min(Math.floor(roomIdx / 2), roomPageCount - 1)
-  const postA = rooms[roomPage * 2]?.latestPost || null
-  const postB = rooms[roomPage * 2 + 1]?.latestPost || null
-  const roomA = rooms[roomPage * 2]
-  const roomB = rooms[roomPage * 2 + 1]
+  const roomPageCount = Math.max(1, Math.ceil(rooms.length / step) || 1)
+  const roomPage = Math.min(Math.floor(roomIdx / step), roomPageCount - 1)
+  const postA = rooms[roomPage * step]?.latestPost || null
+  const postB = step === 2 ? rooms[roomPage * step + 1]?.latestPost || null : null
+  const roomA = rooms[roomPage * step]
+  const roomB = step === 2 ? rooms[roomPage * step + 1] : undefined
+
+  // 집이 하나뿐이면 화살표·스와이프로 방 이동 (거실 복도)
+  const navigateRooms = neighbors.length <= 1 && rooms.length > step
 
   const goNeighbor = (dir: -1 | 1) => {
     if (neighbors.length <= 1) return
     setNeighborIdx((i) => (i + dir + neighbors.length) % neighbors.length)
   }
 
-  // 설명 문구 없이도 골목을 걷는 감각을 주도록 모바일 터치 이동을 같은 선택 상태에 연결한다.
+  const goRoom = (dir: -1 | 1) => {
+    if (rooms.length <= step) return
+    setRoomIdx((i) => {
+      const page = Math.floor(i / step)
+      const next = (page + dir + roomPageCount) % roomPageCount
+      return next * step
+    })
+  }
+
+  const go = (dir: -1 | 1) => {
+    if (navigateRooms) goRoom(dir)
+    else goNeighbor(dir)
+  }
+
   const handleTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
     if (touchStartX === null) return
     const delta = (event.changedTouches[0]?.clientX || touchStartX) - touchStartX
     setTouchStartX(null)
-    if (Math.abs(delta) > 40) goNeighbor(delta < 0 ? 1 : -1)
+    if (Math.abs(delta) > 40) go(delta < 0 ? 1 : -1)
   }
 
   const title =
@@ -107,29 +128,37 @@ export default function NeighborContentBlock({
       : TIER_LABEL[tier] || '이웃'
 
   const emptyText =
-    mode === 'recommend'
+    emptyLabel ||
+    (mode === 'recommend'
       ? '아직 발견할 집이 없어요'
-      : '이 집의 이웃이 아직 없어요'
+      : tier === 'invite'
+        ? '아직 방이 없어요'
+        : '이 집의 이웃이 아직 없어요')
+
+  const showArrows = navigateRooms || neighbors.length > 1
+  const countLabel = navigateRooms
+    ? `${roomPage + 1}/${roomPageCount}`
+    : neighbors.length > 0
+      ? `${neighborIdx + 1}/${neighbors.length}`
+      : null
 
   return (
     <section style={styles.section}>
       <div style={styles.header}>
         <span style={styles.title}>{title}</span>
-        {neighbors.length > 0 && (
-          <span style={styles.count}>
-            {neighborIdx + 1}/{neighbors.length}
-          </span>
-        )}
+        {countLabel && <span style={styles.count}>{countLabel}</span>}
       </div>
 
-      {neighbors.length === 0 ? (
+      {neighbors.length === 0 || (navigateRooms && rooms.length === 0 && neighbors.length > 0) ? (
+        <div style={styles.empty}>{emptyText}</div>
+      ) : neighbors.length === 0 ? (
         <div style={styles.empty}>{emptyText}</div>
       ) : (
         <div style={styles.stage}>
-          {neighbors.length > 1 && (
+          {showArrows && (
             <>
-              <button type="button" style={{ ...styles.edgeArrow, left: 0 }} onClick={() => goNeighbor(-1)} aria-label="이전 이웃">‹</button>
-              <button type="button" style={{ ...styles.edgeArrow, right: 0 }} onClick={() => goNeighbor(1)} aria-label="다음 이웃">›</button>
+              <button type="button" style={{ ...styles.edgeArrow, left: 0 }} onClick={() => go(-1)} aria-label="이전">‹</button>
+              <button type="button" style={{ ...styles.edgeArrow, right: 0 }} onClick={() => go(1)} aria-label="다음">›</button>
             </>
           )}
 
@@ -165,7 +194,6 @@ export default function NeighborContentBlock({
                   <div style={styles.profileName}>{current?.title}</div>
                 </div>
 
-                {/* 신청은 골목 창 안 — 갤러리 행 높이를 깨지 않음 */}
                 {mode === 'recommend' && onApplyNeighbor && current && (
                   <button
                     type="button"
@@ -220,7 +248,7 @@ export default function NeighborContentBlock({
             )}
           </div>
 
-          {rooms.length > 2 && (
+          {roomPageCount > 1 && (
             <div className="cn-alley-dots">
               <div className="cn-alley-dots-inner" style={styles.dots}>
                 {Array.from({ length: roomPageCount }).map((_, i) => (
@@ -228,7 +256,8 @@ export default function NeighborContentBlock({
                     key={i}
                     type="button"
                     style={{ ...styles.dot, background: i === roomPage ? '#2C1810' : 'rgba(92,61,46,0.2)' }}
-                    onClick={() => setRoomIdx(i * 2)}
+                    onClick={() => setRoomIdx(i * step)}
+                    aria-label={`방 페이지 ${i + 1}`}
                   />
                 ))}
               </div>
