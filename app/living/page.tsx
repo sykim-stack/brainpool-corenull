@@ -3,11 +3,12 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { getOwnerKey } from '@/lib/ownerKey'
+import { pickActiveHouse } from '@/lib/activeHouse'
 import TopBar from '@/components/blocks/TopBar'
 import LivingBlock from '@/components/blocks/LivingBlock'
 import CoreNullLogo from '@/components/corenull/CoreNullLogo'
 import { PostBlockData } from '@/components/blocks/PostBlock'
-import { PosterData } from '@/components/blocks/PosterBlock'
+import { NeighborChip, NeighborRoomSlot } from '@/components/blocks/NeighborContentBlock'
 import { RingData } from '@/components/blocks/RingBlock'
 import { houseHeroBackground, houseAvatarUrl } from '@/lib/houseImages'
 import InlineHeroImageControls from '@/components/corenull/InlineHeroImageControls'
@@ -41,11 +42,6 @@ function formatSince(iso?: string) {
   return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')} 부터`
 }
 
-function isLivingVisibleRoom(rm: any, isOwnHouse: boolean) {
-  if (isOwnHouse) return true
-  return rm.visibility === 'public' || rm.visibility === 'invite'
-}
-
 type BookmarkRow = { id: string; message_id: string | null; ended_at: string | null }
 
 export default function LivingPage() {
@@ -53,8 +49,9 @@ export default function LivingPage() {
 
   const [ownerKey, setOwnerKey] = useState('')
   const [house, setHouse] = useState<any>(null)
-  const [posters, setPosters] = useState<PosterData[]>([])
+  const [corridor, setCorridor] = useState<NeighborChip[]>([])
   const [roomViews, setRoomViews] = useState<PostBlockData[]>([])
+  const [roomCount, setRoomCount] = useState(0)
   const [loading, setLoading] = useState(true)
 
   const [bookmarks, setBookmarks] = useState<BookmarkRow[]>([])
@@ -63,14 +60,18 @@ export default function LivingPage() {
   useEffect(() => {
     const key = getOwnerKey()
     setOwnerKey(key)
-    if (!key) return
+    if (!key) {
+      setLoading(false)
+      return
+    }
 
     Promise.all([
       fetch(`/api/corenull/houses?owner_key=${key}`).then((r) => r.json()),
       fetch(`/api/corenull/bookmarks?owner_key=${key}`).then((r) => r.json()),
     ]).then(async ([hData, bData]) => {
       if (bData.data) setBookmarks(bData.data)
-      const h = hData.house || hData.data?.[0]
+      const list = hData.data || []
+      const h = pickActiveHouse(list) || list[0]
       if (!h) {
         setLoading(false)
         return
@@ -79,60 +80,57 @@ export default function LivingPage() {
 
       try {
         const rd = await fetch(`/api/corenull/rooms?house_id=${h.id}`).then((r) => r.json())
-        const list = (rd.data || []).filter((rm: any) => isLivingVisibleRoom(rm, true))
+        const rooms = rd.data || []
+        setRoomCount(rooms.length)
 
-        const slots = await Promise.all(
-          list.map(async (rm: any) => {
+        const slots: NeighborRoomSlot[] = await Promise.all(
+          rooms.map(async (rm: any) => {
             const pd = await fetch(`/api/corenull/posts?room_id=${rm.id}`).then((r) => r.json())
             const latest =
               (pd.data || []).find((p: any) => p.type !== 'comment') || (pd.data || [])[0]
-            const media = latest?.meta?.media
-            const imageUrl =
-              media?.find((m: any) => m.type === 'image')?.url || media?.[0]?.url || null
-
-            const poster: PosterData = {
+            return {
               roomId: rm.id,
               roomName: rm.room_name,
-              status: roomStatusLabel(rm),
-              stageEmoji: rm.seed_mode || rm.room_type === 'seed' ? '🌱' : null,
-              recentContent: latest?.content || null,
-              imageUrl,
-              media: Array.isArray(media) ? media : undefined,
-              createdAt: latest?.created_at || null,
-              houseName: h.title,
+              latestPost: latest
+                ? {
+                    id: latest.id,
+                    content: latest.content,
+                    media: latest.meta?.media,
+                    created_at: latest.created_at,
+                    comment_count: latest.comment_count ?? 0,
+                    room_id: rm.id,
+                    view_meta: {
+                      house_name: h.title,
+                      room_name: rm.room_name,
+                      status: roomStatusLabel(rm),
+                      stage_emoji: rm.seed_mode || rm.room_type === 'seed' ? '🌱' : undefined,
+                      relation: '나',
+                    },
+                  }
+                : null,
             }
-
-            const view: PostBlockData | null = latest
-              ? {
-                  id: latest.id,
-                  content: latest.content,
-                  media: latest.meta?.media,
-                  created_at: latest.created_at,
-                  comment_count: latest.comment_count ?? 0,
-                  room_id: rm.id,
-                  view_meta: {
-                    house_name: h.title,
-                    room_name: rm.room_name,
-                    status: roomStatusLabel(rm),
-                    stage_emoji: rm.seed_mode || rm.room_type === 'seed' ? '🌱' : undefined,
-                    relation: '나',
-                  },
-                }
-              : null
-
-            return { poster, view }
           })
         )
 
-        setPosters(slots.map((s) => s.poster))
-        // 본인 거실: 전체 방 최신 — 상한 없음(화면만 6·스와이프)
+        setCorridor([
+          {
+            neighborId: `living-${h.id}`,
+            houseId: h.id,
+            title: h.title,
+            langFlag: LANG_FLAG[h.primary_language] || '🏡',
+            avatarUrl: h.avatar_url || null,
+            coverUrl: h.living_image_url || null,
+            rooms: slots,
+          },
+        ])
+
         const views = slots
-          .filter((s) => s.view)
-          .map((s) => s.view!)
+          .map((s) => s.latestPost)
+          .filter((p): p is PostBlockData => !!p)
           .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
         setRoomViews(views)
       } catch {
-        setPosters([])
+        setCorridor([])
         setRoomViews([])
       } finally {
         setLoading(false)
@@ -187,7 +185,7 @@ export default function LivingPage() {
                   key: 'yard',
                   emoji: '🌿',
                   label: '마당',
-                  onClick: () => router.push(`/houses/${house.id}/yard`),
+                  onClick: () => router.push('/yard'),
                 },
               ]
             : []
@@ -209,7 +207,7 @@ export default function LivingPage() {
             />
           ) : undefined
         }
-        ring={buildRingData(posters.length)}
+        ring={buildRingData(roomCount)}
         avatar={
           houseAvatarUrl(house) ? (
             <img
@@ -226,16 +224,16 @@ export default function LivingPage() {
           title: house?.title || '',
           description: house?.description,
           since: formatSince(house?.created_at),
-          roomCount: posters.length,
+          roomCount,
           cta: house
             ? {
-                label: '집 꾸미기',
-                onClick: () => router.push('/me/house'),
+                label: '+ 방 만들기',
+                onClick: () => router.push('/write?new_room=1'),
               }
             : undefined,
         }}
-        posters={posters}
-        onPosterClick={(roomId) => router.push(`/rooms/${roomId}`)}
+        corridor={corridor}
+        onCorridorHouseClick={() => {}}
         roomViews={roomViews}
         onPostClick={(postId, roomId) =>
           roomId ? router.push(`/rooms/${roomId}`) : router.push(`/posts/${postId}`)
@@ -248,7 +246,6 @@ export default function LivingPage() {
         onInterestGoLibrary={() => router.push('/me/library')}
         enableInlineComment
         ownerKey={ownerKey}
-        onCreateRoomClick={() => router.push('/write?new_room=1')}
       />
     </div>
   )

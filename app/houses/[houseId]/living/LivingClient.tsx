@@ -7,7 +7,7 @@ import TopBar from '@/components/blocks/TopBar'
 import LivingBlock from '@/components/blocks/LivingBlock'
 import CoreNullLogo from '@/components/corenull/CoreNullLogo'
 import { PostBlockData } from '@/components/blocks/PostBlock'
-import { PosterData } from '@/components/blocks/PosterBlock'
+import { NeighborChip, NeighborRoomSlot } from '@/components/blocks/NeighborContentBlock'
 import { RingData } from '@/components/blocks/RingBlock'
 import { houseHeroBackground, houseAvatarUrl } from '@/lib/houseImages'
 
@@ -61,8 +61,9 @@ export default function LivingClient() {
   const [ownerKey, setOwnerKey] = useState('')
   const [house, setHouse] = useState<any>(null)
   const [relation, setRelation] = useState<RelationState>({ kind: 'none' })
-  const [posters, setPosters] = useState<PosterData[]>([])
+  const [corridor, setCorridor] = useState<NeighborChip[]>([])
   const [roomViews, setRoomViews] = useState<PostBlockData[]>([])
+  const [roomCount, setRoomCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [bookmarks, setBookmarks] = useState<BookmarkRow[]>([])
   const [interestLoadingId, setInterestLoadingId] = useState<string | null>(null)
@@ -115,7 +116,7 @@ export default function LivingClient() {
 
         const allowed = rel.kind === 'self' || rel.kind === 'accepted'
         if (!allowed || !h) {
-          setPosters([])
+          setCorridor([])
           setRoomViews([])
           setLoading(false)
           return
@@ -128,55 +129,53 @@ export default function LivingClient() {
             : roomList.filter(
                 (rm: any) => rm.visibility === 'public' || rm.visibility === 'invite'
               )
+        setRoomCount(list.length)
 
-        const slots = await Promise.all(
+        const slots: NeighborRoomSlot[] = await Promise.all(
           list.map(async (rm: any) => {
             const pd = await fetch(`/api/corenull/posts?room_id=${rm.id}`).then((r) => r.json())
             const latest =
               (pd.data || []).find((p: any) => p.type !== 'comment') || (pd.data || [])[0]
-            const media = latest?.meta?.media
-            const imageUrl =
-              media?.find((m: any) => m.type === 'image')?.url || media?.[0]?.url || null
-
-            const poster: PosterData = {
+            return {
               roomId: rm.id,
               roomName: rm.room_name,
-              status: roomStatusLabel(rm),
-              stageEmoji: rm.seed_mode || rm.room_type === 'seed' ? '🌱' : null,
-              recentContent: latest?.content || null,
-              imageUrl,
-              createdAt: latest?.created_at || null,
-              houseName: h.title,
+              latestPost: latest
+                ? {
+                    id: latest.id,
+                    content: latest.content,
+                    media: latest.meta?.media,
+                    created_at: latest.created_at,
+                    comment_count: latest.comment_count ?? 0,
+                    room_id: rm.id,
+                    view_meta: {
+                      house_name: h.title,
+                      room_name: rm.room_name,
+                      status: roomStatusLabel(rm),
+                      stage_emoji: rm.seed_mode || rm.room_type === 'seed' ? '🌱' : undefined,
+                      relation: rel.kind === 'self' ? '나' : '이웃',
+                    },
+                  }
+                : null,
             }
-
-            const view: PostBlockData | null = latest
-              ? {
-                  id: latest.id,
-                  content: latest.content,
-                  media: latest.meta?.media,
-                  created_at: latest.created_at,
-                  comment_count: latest.comment_count ?? 0,
-                  room_id: rm.id,
-                  view_meta: {
-                    house_name: h.title,
-                    room_name: rm.room_name,
-                    status: roomStatusLabel(rm),
-                    stage_emoji: rm.seed_mode || rm.room_type === 'seed' ? '🌱' : undefined,
-                    relation: rel.kind === 'self' ? '나' : '이웃',
-                  },
-                }
-              : null
-
-            return { poster, view, visibility: rm.visibility }
           })
         )
 
-        setPosters(slots.map((s) => s.poster))
+        setCorridor([
+          {
+            neighborId: `living-${h.id}`,
+            houseId: h.id,
+            title: h.title,
+            langFlag: LANG_FLAG[h.primary_language] || '🏡',
+            avatarUrl: h.avatar_url || null,
+            coverUrl: h.living_image_url || null,
+            rooms: slots,
+          },
+        ])
+
         const views = slots
-          .filter((s) => s.view && (s.visibility === 'public' || s.visibility === 'invite'))
-          .map((s) => s.view!)
+          .map((s) => s.latestPost)
+          .filter((p): p is PostBlockData => !!p)
           .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-          .slice(0, 3)
         setRoomViews(views)
       } finally {
         setLoading(false)
@@ -215,36 +214,6 @@ export default function LivingClient() {
       }
     }
     setInterestLoadingId(null)
-  }
-
-  const getPosterInterestActive = (roomId: string) => {
-    const bm = bookmarks.find((b) => b.room_id === roomId && !b.message_id)
-    return !!(bm && !bm.ended_at)
-  }
-
-  const handlePosterInterest = async (roomId: string) => {
-    if (!ownerKey) return
-    const existing = bookmarks.find((b) => b.room_id === roomId && !b.message_id)
-    if (!existing) {
-      const res = await fetch('/api/corenull/bookmarks', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ owner_key: ownerKey, room_id: roomId }),
-      })
-      const data = await res.json()
-      if (data.data) setBookmarks((prev) => [...prev, data.data])
-    } else {
-      const action = existing.ended_at ? 'resume' : 'end'
-      const res = await fetch('/api/corenull/bookmarks', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: existing.id, owner_key: ownerKey, action }),
-      })
-      const data = await res.json()
-      if (data.data) {
-        setBookmarks((prev) => prev.map((bm) => (bm.id === existing.id ? data.data : bm)))
-      }
-    }
   }
 
   const langFlag = house?.primary_language ? LANG_FLAG[house.primary_language] || '🌐' : '🌐'
@@ -304,7 +273,7 @@ export default function LivingClient() {
       <LivingBlock
         loading={loading}
         background={houseHeroBackground(house, 'living')}
-        ring={buildRingData(posters.length)}
+        ring={buildRingData(roomCount)}
         avatar={
           houseAvatarUrl(house) ? (
             <img
@@ -321,13 +290,16 @@ export default function LivingClient() {
           title: house?.title || '',
           description: house?.description,
           since: formatSince(house?.created_at),
-          roomCount: posters.length,
+          roomCount,
           cta: isOwner
-            ? { label: '집 꾸미기', onClick: () => router.push('/me/house') }
+            ? {
+                label: '+ 방 만들기',
+                onClick: () => router.push('/write?new_room=1'),
+              }
             : undefined,
         }}
-        posters={posters}
-        onPosterClick={(roomId) => router.push(`/rooms/${roomId}`)}
+        corridor={corridor}
+        onCorridorHouseClick={() => {}}
         roomViews={roomViews}
         onPostClick={(postId, roomId) =>
           roomId ? router.push(`/rooms/${roomId}`) : router.push(`/posts/${postId}`)
@@ -337,13 +309,9 @@ export default function LivingClient() {
         getInterestState={getInterestState}
         interestLoadingId={interestLoadingId}
         onInterestClick={handleInterestClick}
-        onInterestGoLibrary={() => router.push('/library')}
-        showPosterInterest={!isOwner}
-        getPosterInterestActive={getPosterInterestActive}
-        onPosterInterestClick={handlePosterInterest}
+        onInterestGoLibrary={() => router.push('/me/library')}
         enableInlineComment
         ownerKey={ownerKey}
-        onCreateRoomClick={isOwner ? () => router.push('/write?new_room=1') : undefined}
       />
     </div>
   )
