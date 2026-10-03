@@ -1,12 +1,14 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { getOwnerKey } from '@/lib/ownerKey'
 import OwnerGate from '@/components/corenull/OwnerGate'
 import TopBar from '@/components/blocks/TopBar'
 import CoreNullLogo from '@/components/corenull/CoreNullLogo'
-import FootprintRow from '@/components/blocks/FootprintRow'
+import FootprintHouseGroup, {
+  groupFootprintsByHouse,
+} from '@/components/blocks/FootprintHouseGroup'
 import PostCompactRow from '@/components/blocks/PostCompactRow'
 import { PostBlockData } from '@/components/blocks/PostBlock'
 
@@ -26,12 +28,17 @@ export default function LibraryPage() {
     setOwnerReady(true)
     if (!key) return
     fetch(`/api/corenull/library?owner_key=${key}`)
-      .then(r => r.json())
-      .then(d => {
+      .then((r) => r.json())
+      .then((d) => {
         setLibrary(d.data)
         setLoading(false)
       })
   }, [])
+
+  const footprintGroups = useMemo(
+    () => groupFootprintsByHouse(library?.footprints || []),
+    [library?.footprints]
+  )
 
   if (!ownerReady) return null
   if (!ownerKey) return <OwnerGate />
@@ -39,14 +46,16 @@ export default function LibraryPage() {
   if (loading) return <div style={styles.loading}>📚</div>
 
   const tabs = [
-    { id: 'footprints', label: '👣 발자취', count: library?.footprints?.length || 0 },
-    { id: 'saved',      label: '🔖 관심',   count: (library?.saved_rooms?.length || 0) + (library?.saved_posts?.length || 0) },
-    { id: 'posts',      label: '📝 내 글',  count: library?.my_posts?.length || 0 },
-    { id: 'fruits',     label: '🍎 서재',   count: library?.harvested_fruits?.length || 0 },
+    { id: 'footprints', label: '👣 발자취', count: footprintGroups.length },
+    {
+      id: 'saved',
+      label: '🔖 관심',
+      count: (library?.saved_rooms?.length || 0) + (library?.saved_posts?.length || 0),
+    },
+    { id: 'posts', label: '📝 내 글', count: library?.my_posts?.length || 0 },
+    { id: 'fruits', label: '🍎 서재', count: library?.harvested_fruits?.length || 0 },
   ]
 
-  // messages(post/fruit) → PostBlockData 변환. 서재 감사(2026-09-04)로
-  // PostCompactRow 연결 — 새 데이터 타입 안 만들고 기존 PostBlockData 그대로.
   const toPostBlockData = (m: any): PostBlockData => ({
     id: m.id,
     content: m.content,
@@ -56,13 +65,10 @@ export default function LibraryPage() {
 
   return (
     <div>
-      <TopBar
-        logo={<CoreNullLogo size="sm" />}
-        title="서재"
-      />
+      <TopBar logo={<CoreNullLogo size="sm" />} title="서재" />
 
       <div style={styles.tabRow}>
-        {tabs.map(tab => (
+        {tabs.map((tab) => (
           <button
             key={tab.id}
             style={{ ...styles.tab, ...(activeTab === tab.id ? styles.tabActive : {}) }}
@@ -75,32 +81,26 @@ export default function LibraryPage() {
       </div>
 
       <div style={styles.body}>
-
-        {/* 발자취 탭 — FootprintRow. "어디를 방문했는가"만, 글 내용 없음
-            (의도적 — 열람기록으로 바꾸지 않기로 확정, 2026-09-04). */}
+        {/* 발자취 — 집 묶음. 탭하면 방문 방 펼침 */}
         {activeTab === 'footprints' && (
           <div style={styles.list}>
-            {(library?.footprints || []).length === 0 ? (
+            {footprintGroups.length === 0 ? (
               <Empty emoji="👣" text="아직 방문한 곳이 없어요" />
             ) : (
-              library.footprints.map((fp: any) => (
-                <FootprintRow
-                  key={fp.id}
-                  footprint={{
-                    id: fp.id,
-                    house_name: fp.corenull_rooms?.corenull_houses?.title || null,
-                    room_name: fp.corenull_rooms?.room_name || null,
-                    visited_at: fp.visited_at,
+              footprintGroups.map((g) => (
+                <FootprintHouseGroup
+                  key={g.house_id || g.house_name || g.last_visited_at}
+                  group={g}
+                  onRoomClick={(roomId) => router.push(`/rooms/${roomId}`)}
+                  onHouseClick={(houseId) => {
+                    if (houseId) router.push(`/houses/${houseId}/living`)
                   }}
-                  onClick={() => router.push(`/rooms/${fp.room_id}`)}
                 />
               ))
             )}
           </div>
         )}
 
-        {/* 관심 탭 — 방과 포스트가 섞여있어 맞는 기존 블록이 없음.
-            블록화를 위한 블록화를 하지 않는다 — 인라인 유지(확정, 2026-09-04). */}
         {activeTab === 'saved' && (
           <div>
             {(library?.saved_rooms || []).length > 0 && (
@@ -108,11 +108,17 @@ export default function LibraryPage() {
                 <div style={styles.subTitle}>관심 방</div>
                 <div style={styles.list}>
                   {library.saved_rooms.map((b: any) => (
-                    <div key={b.id} style={styles.listItem} onClick={() => router.push(`/rooms/${b.room_id}`)}>
+                    <div
+                      key={b.id}
+                      style={styles.listItem}
+                      onClick={() => router.push(`/rooms/${b.room_id}`)}
+                    >
                       <div style={styles.listIcon}>🏠</div>
                       <div style={styles.listInfo}>
                         <div style={styles.listTitle}>{b.corenull_rooms?.room_name || '방'}</div>
-                        <div style={styles.listSub}>{new Date(b.created_at).toLocaleDateString('ko-KR')}</div>
+                        <div style={styles.listSub}>
+                          {new Date(b.created_at).toLocaleDateString('ko-KR')}
+                        </div>
                       </div>
                       <span style={styles.listArrow}>›</span>
                     </div>
@@ -125,13 +131,20 @@ export default function LibraryPage() {
                 <div style={styles.subTitle}>관심 포스트</div>
                 <div style={styles.list}>
                   {library.saved_posts.map((b: any) => (
-                    <div key={b.id} style={styles.listItem} onClick={() => router.push(`/posts/${b.message_id}`)}>
+                    <div
+                      key={b.id}
+                      style={styles.listItem}
+                      onClick={() => router.push(`/posts/${b.message_id}`)}
+                    >
                       <div style={styles.listIcon}>🔖</div>
                       <div style={styles.listInfo}>
                         <div style={styles.listTitle}>
-                          {(b.messages?.content?.slice(0, 30) || '이야기')}{(b.messages?.content?.length || 0) > 30 ? '…' : ''}
+                          {(b.messages?.content?.slice(0, 30) || '이야기')}
+                          {(b.messages?.content?.length || 0) > 30 ? '…' : ''}
                         </div>
-                        <div style={styles.listSub}>{new Date(b.created_at).toLocaleDateString('ko-KR')}</div>
+                        <div style={styles.listSub}>
+                          {new Date(b.created_at).toLocaleDateString('ko-KR')}
+                        </div>
                       </div>
                       <span style={styles.listArrow}>›</span>
                     </div>
@@ -139,13 +152,13 @@ export default function LibraryPage() {
                 </div>
               </>
             )}
-            {(library?.saved_rooms || []).length === 0 && (library?.saved_posts || []).length === 0 && (
-              <Empty emoji="🔖" text="관심이 없어요" />
-            )}
+            {(library?.saved_rooms || []).length === 0 &&
+              (library?.saved_posts || []).length === 0 && (
+                <Empty emoji="🔖" text="관심이 없어요" />
+              )}
           </div>
         )}
 
-        {/* 내 글 탭 — PostCompactRow. badges는 archived/reborn_from 있을 때만. */}
         {activeTab === 'posts' && (
           <div style={styles.list}>
             {(library?.my_posts || []).length === 0 ? (
@@ -167,7 +180,6 @@ export default function LibraryPage() {
           </div>
         )}
 
-        {/* 서재(열매) 탭 — PostCompactRow. 수확일을 뱃지로. */}
         {activeTab === 'fruits' && (
           <div style={styles.list}>
             {(library?.harvested_fruits || []).length === 0 ? (
@@ -185,7 +197,6 @@ export default function LibraryPage() {
             )}
           </div>
         )}
-
       </div>
     </div>
   )
@@ -201,7 +212,13 @@ function Empty({ emoji, text }: { emoji: string; text: string }) {
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  loading: { display: 'flex', alignItems: 'center', justifyContent: 'center', height: '50vh', fontSize: 40 },
+  loading: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: '50vh',
+    fontSize: 40,
+  },
   tabRow: {
     position: 'sticky',
     top: 0,
@@ -213,29 +230,71 @@ const styles: Record<string, React.CSSProperties> = {
     backdropFilter: 'blur(12px)',
   },
   tab: {
-    flex: 1, padding: '12px 4px', border: 'none', background: 'none',
-    fontSize: 12, color: '#9A8470', cursor: 'pointer',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3,
-    borderBottom: '2px solid transparent', transition: 'all 0.2s',
+    flex: 1,
+    padding: '12px 4px',
+    border: 'none',
+    background: 'none',
+    fontSize: 12,
+    color: '#9A8470',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 3,
+    borderBottom: '2px solid transparent',
+    transition: 'all 0.2s',
   },
-  tabActive: { color: '#2C1810', fontWeight: 500, borderBottom: '2px solid #C17F3C' },
+  tabActive: {
+    color: '#2C1810',
+    fontWeight: 500,
+    borderBottom: '2px solid #C17F3C',
+  },
   tabCount: {
-    fontSize: 11, color: '#C17F3C', fontWeight: 600,
-    background: 'rgba(193,127,60,0.12)', padding: '1px 5px', borderRadius: 10,
+    fontSize: 11,
+    color: '#C17F3C',
+    fontWeight: 600,
+    background: 'rgba(193,127,60,0.12)',
+    padding: '1px 5px',
+    borderRadius: 10,
   },
   body: { padding: '16px' },
-  subTitle: { fontSize: 11, color: '#9A8470', letterSpacing: '0.5px', textTransform: 'uppercase', padding: '8px 4px 6px' },
+  subTitle: {
+    fontSize: 11,
+    color: '#9A8470',
+    letterSpacing: '0.5px',
+    textTransform: 'uppercase',
+    padding: '8px 4px 6px',
+  },
   list: { display: 'flex', flexDirection: 'column', gap: 8 },
   listItem: {
-    background: '#FEFCF8', borderRadius: 12, border: '1px solid rgba(92,61,46,0.12)',
-    padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer',
+    background: '#FEFCF8',
+    borderRadius: 12,
+    border: '1px solid rgba(92,61,46,0.12)',
+    padding: '12px 14px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 12,
+    cursor: 'pointer',
   },
   listIcon: {
-    width: 40, height: 40, borderRadius: 10, background: 'rgba(74,82,64,0.1)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    background: 'rgba(74,82,64,0.1)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: 18,
   },
   listInfo: { flex: 1, minWidth: 0 },
-  listTitle: { fontSize: 13, fontWeight: 500, color: '#1C1208', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+  listTitle: {
+    fontSize: 13,
+    fontWeight: 500,
+    color: '#1C1208',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+  },
   listSub: { fontSize: 11, color: '#9A8470', marginTop: 2 },
   listArrow: { fontSize: 16, color: '#9A8470' },
 }
