@@ -10,8 +10,7 @@ export type MediaItem = {
 
 interface MediaRendererProps {
   media: MediaItem[]
-  aspect?: '4 / 3' | '1 / 1'
-  /** 카드 안에서 클릭 시 상위 onClick 막기 */
+  aspect?: '4 / 3' | '1 / 1' | 'fill'
   stopCardClick?: boolean
 }
 
@@ -99,10 +98,21 @@ export default function MediaRenderer({
   }
 
   return (
-    <div style={styles.wrapper} onClick={guard}>
+    <div
+      style={{
+        ...styles.wrapper,
+        ...(aspect === 'fill' ? { height: '100%', display: 'flex', flexDirection: 'column' } : {}),
+      }}
+      onClick={guard}
+    >
       {slides.length > 0 && current && (
         <div
-          style={{ ...styles.stage, aspectRatio: aspect }}
+          style={{
+            ...styles.stage,
+            ...(aspect === 'fill'
+              ? { height: '100%', flex: 1, minHeight: 0 }
+              : { aspectRatio: aspect }),
+          }}
           onTouchStart={onTouchStart}
           onTouchEnd={onTouchEndStage}
         >

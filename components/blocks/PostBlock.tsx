@@ -36,7 +36,6 @@ export interface PostBlockProps {
   enableInlineComment?: boolean
   ownerKey?: string
   onCommentSubmitted?: () => void
-  /** gallery: 골목 옆 통일 높이 — 이미지 우선, 글 clamp */
   variant?: 'default' | 'gallery'
 }
 
@@ -194,7 +193,7 @@ export default function PostBlock({
           style={isGallery ? styles.mediaGallery : styles.mediaSlot}
           onClick={(e) => e.stopPropagation()}
         >
-          <MediaRenderer media={post.media!} aspect="4 / 3" />
+          <MediaRenderer media={post.media!} aspect="fill" />
         </div>
       ) : !isGallery ? (
         <div style={styles.mediaEmpty} aria-hidden>
@@ -303,7 +302,6 @@ export default function PostBlock({
   )
 }
 
-/** 모바일 1열 / 768px+ 1·2·3열 — globals .cn-post-grid */
 export function PostBlockGrid({
   children,
   count = 0,
@@ -324,29 +322,32 @@ const styles: Record<string, React.CSSProperties> = {
     background: '#FEFCF8',
     borderRadius: 16,
     border: '1px solid rgba(92,61,46,0.12)',
-    padding: '16px',
+    padding: '12px',
     boxShadow: '0 2px 12px rgba(44,24,16,0.06)',
     cursor: 'pointer',
     display: 'flex',
     flexDirection: 'column',
-    gap: 10,
-    height: '100%',
+    gap: 8,
+    height: 'var(--cn-post-card-h, 280px)',
+    maxHeight: 'var(--cn-post-card-h, 280px)',
     boxSizing: 'border-box',
+    overflow: 'hidden',
   },
   mediaSlot: {
     borderRadius: 12,
     overflow: 'hidden',
-    flexShrink: 0,
+    flex: '1 1 auto',
+    minHeight: 0,
   },
   mediaEmpty: {
-    aspectRatio: '4 / 3',
     borderRadius: 12,
     background: 'linear-gradient(145deg, rgba(92,61,46,0.06), rgba(74,82,64,0.08))',
     border: '1px dashed rgba(92,61,46,0.12)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    flexShrink: 0,
+    flex: '1 1 auto',
+    minHeight: 0,
   },
   mediaEmptyMark: {
     fontSize: 22,
@@ -354,6 +355,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   cardGallery: {
     height: '100%',
+    maxHeight: '100%',
     minHeight: 0,
     padding: '10px',
     gap: 6,
@@ -366,7 +368,7 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 10,
     overflow: 'hidden',
   },
-  badgeRow: { display: 'flex', alignItems: 'center', gap: 6 },
+  badgeRow: { display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 },
   statusBadge: {
     fontSize: 10,
     color: '#5C4A35',
@@ -375,7 +377,17 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 999,
   },
   stageDot: { fontSize: 12 },
-  content: { fontSize: 14.5, lineHeight: 1.7, color: '#1C1208', whiteSpace: 'pre-wrap', flex: '1 1 auto' },
+  content: {
+    fontSize: 13.5,
+    lineHeight: 1.45,
+    color: '#1C1208',
+    whiteSpace: 'pre-wrap',
+    flexShrink: 0,
+    display: '-webkit-box',
+    WebkitLineClamp: 2,
+    WebkitBoxOrient: 'vertical',
+    overflow: 'hidden',
+  },
   contentGallery: {
     fontSize: 12.5,
     lineHeight: 1.45,
@@ -432,6 +444,6 @@ const styles: Record<string, React.CSSProperties> = {
   },
   viewMeta: {
     display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#9A8470',
-    paddingTop: 8, borderTop: '1px solid rgba(92,61,46,0.08)',
+    paddingTop: 8, borderTop: '1px solid rgba(92,61,46,0.08)', flexShrink: 0,
   },
 }
