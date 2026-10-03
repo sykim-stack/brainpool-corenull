@@ -17,7 +17,7 @@ export interface TopBarProps {
   /** 공간 이름 — 알려진 공간은 아이콘으로 표시 (마당→🌳 등) */
   title?: string
   shareUrl?: string
-  /** ignored — right side fixed: me + 마당↔광장 + 공유 */
+  /** ignored — right side fixed: 광장/마당 + me + 공유 */
   actions?: TopBarAction[]
 }
 
@@ -63,13 +63,15 @@ export default function TopBar({ logo, title, shareUrl }: TopBarProps) {
     } catch { /* ignore */ }
   }
 
+  // 마당에 있으면 광장으로, 그 외에는 내 마당으로
   const spaceAction = onYard
     ? { key: 'plaza', emoji: '🏛️', label: '광장', onClick: () => router.push('/plaza') }
     : { key: 'home', emoji: '🏠', label: '내 마당', onClick: () => router.push('/yard') }
 
+  // 흐름: 공간 전환(광장/마당) → 나 → 공유
   const rightActions = [
-    { key: 'me', emoji: '👤', label: '나', onClick: () => router.push('/me') },
     spaceAction,
+    { key: 'me', emoji: '👤', label: '나', onClick: () => router.push('/me') },
     { key: 'share', emoji: '🔗', label: '공유', onClick: handleShare },
   ]
 
