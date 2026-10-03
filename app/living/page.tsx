@@ -3,6 +3,12 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { getOwnerKey } from '@/lib/ownerKey'
+import {
+  getPostInterestState,
+  findInterestBookmark,
+  interestPostBody,
+  type BookmarkRow as InterestBookmark,
+} from '@/lib/interest'
 import { pickActiveHouse } from '@/lib/activeHouse'
 import TopBar from '@/components/blocks/TopBar'
 import LivingBlock from '@/components/blocks/LivingBlock'
@@ -42,7 +48,7 @@ function formatSince(iso?: string) {
   return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')} 부터`
 }
 
-type BookmarkRow = { id: string; message_id: string | null; ended_at: string | null }
+type BookmarkRow = InterestBookmark
 
 export default function LivingPage() {
   const router = useRouter()
@@ -138,24 +144,23 @@ export default function LivingPage() {
     })
   }, [])
 
-  const getInterestState = (postId: string): 'none' | 'active' | 'ended' => {
-    const bm = bookmarks.find((b) => b.message_id === postId)
-    if (!bm) return 'none'
-    return bm.ended_at ? 'ended' : 'active'
+  const getInterestState = (postId: string, roomId?: string): 'none' | 'active' | 'ended' => {
+    return getPostInterestState(bookmarks, postId, roomId)
   }
 
-  const handleInterestClick = async (postId: string) => {
-    if (!ownerKey) return
+  const handleInterestClick = async (postId: string, roomId?: string) => {
+    if (!ownerKey || interestLoadingId) return
     setInterestLoadingId(postId)
-    const existing = bookmarks.find((b) => b.message_id === postId)
+    const existing = findInterestBookmark(bookmarks, postId, roomId)
     if (!existing) {
       const res = await fetch('/api/corenull/bookmarks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ owner_key: ownerKey, message_id: postId }),
+        body: JSON.stringify(interestPostBody(ownerKey, postId, roomId)),
       })
       const data = await res.json()
       if (data.data) setBookmarks((prev) => [...prev, data.data])
+      else if (data._error) console.error('[interest]', data._error)
     } else {
       const action = existing.ended_at ? 'resume' : 'end'
       const res = await fetch('/api/corenull/bookmarks', {
