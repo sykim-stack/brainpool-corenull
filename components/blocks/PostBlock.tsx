@@ -78,6 +78,7 @@ export default function PostBlock({
   const [commentsLoading, setCommentsLoading] = useState(false)
 
   const isGallery = variant === 'gallery'
+  const hasMedia = !!(post.media && post.media.length > 0)
 
   useEffect(() => {
     if (!commentOpen || !enableInlineComment) return
@@ -90,7 +91,6 @@ export default function PostBlock({
         const list = (data.data || []).filter(
           (m: any) => m.type === 'comment' || !m.type || m.type === 'fruit'
         )
-        // 최근 댓글이 위
         list.sort(
           (a: any, b: any) =>
             new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
@@ -189,14 +189,18 @@ export default function PostBlock({
         </div>
       )}
 
-      {post.media && post.media.length > 0 && (
+      {hasMedia ? (
         <div
-          style={isGallery ? styles.mediaGallery : undefined}
+          style={isGallery ? styles.mediaGallery : styles.mediaSlot}
           onClick={(e) => e.stopPropagation()}
         >
-          <MediaRenderer media={post.media} aspect="4 / 3" />
+          <MediaRenderer media={post.media!} aspect="4 / 3" />
         </div>
-      )}
+      ) : !isGallery ? (
+        <div style={styles.mediaEmpty} aria-hidden>
+          <span style={styles.mediaEmptyMark}>✎</span>
+        </div>
+      ) : null}
 
       <div style={contentStyle}>{post.content}</div>
 
@@ -326,6 +330,27 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     gap: 10,
+    height: '100%',
+    boxSizing: 'border-box',
+  },
+  mediaSlot: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    flexShrink: 0,
+  },
+  mediaEmpty: {
+    aspectRatio: '4 / 3',
+    borderRadius: 12,
+    background: 'linear-gradient(145deg, rgba(92,61,46,0.06), rgba(74,82,64,0.08))',
+    border: '1px dashed rgba(92,61,46,0.12)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  mediaEmptyMark: {
+    fontSize: 22,
+    color: 'rgba(92,61,46,0.28)',
   },
   cardGallery: {
     height: '100%',
@@ -350,7 +375,7 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 999,
   },
   stageDot: { fontSize: 12 },
-  content: { fontSize: 14.5, lineHeight: 1.7, color: '#1C1208', whiteSpace: 'pre-wrap' },
+  content: { fontSize: 14.5, lineHeight: 1.7, color: '#1C1208', whiteSpace: 'pre-wrap', flex: '1 1 auto' },
   contentGallery: {
     fontSize: 12.5,
     lineHeight: 1.45,
