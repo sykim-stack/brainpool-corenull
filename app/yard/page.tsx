@@ -446,8 +446,8 @@ export default function YardPage() {
         <DoorplateEditModal
           houseId={house.id}
           ownerKey={ownerKey}
-          initialTitle={house.title || ''}
-          initialDescription={house.description || ''}
+          title={house.title || ''}
+          description={house.description || ''}
           onClose={() => setShowDoorplateEdit(false)}
           onSaved={(next) => {
             setHouse(next)
