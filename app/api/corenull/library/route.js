@@ -1,13 +1,6 @@
 // CoreNull - Library API
 // 서재 = 나의 활동 기록관
 // 발자취 + 저장한 방 + 저장한 포스트 + 내가 쓴 포스트 + 수확된 열매
-//
-// NOTE(2026-08-31): closed_room_posts(별도 방 폐쇄 컬럼 기반) 되돌림.
-// "방 종료 시 서재로 이동"은 이미 있는 메커니즘(열매 생성 →
-// harvested_at) 하나로 충분했다 — Room 위에 얹힌 "씨드 컨텐츠뷰"가
-// 열매로 끝나면 그 뷰가 서재로 옮겨가는 것이고, 이건 harvested_at
-// 유무로 이미 표현된다. 별도 room.closed_at 컬럼은 불필요한 중복
-// 상태였다.
 
 export const dynamic = 'force-dynamic'
 
@@ -30,10 +23,6 @@ const handleGet = async (req, traceId) => {
   if (!supabase) return Response.json({ _error: 'supabase_init_failed', traceId }, { status: 500 })
 
   const [footprintsRes, bookmarksRes, myPostsRes, harvestedFruitsRes] = await Promise.all([
-
-    // 1. 발자취 — room 이름 + house 이름까지 join.
-    //    (독립 페이지용 /api/corenull/footprints/route.js와 동일한 join
-    //    패턴 — 그때 이 파일은 빠뜨렸던 것을 여기서 맞춘다.)
     supabase
       .from('corenull_footprints')
       .select('*, corenull_rooms(id, room_name, house_id, corenull_houses(id, title))')
@@ -41,15 +30,15 @@ const handleGet = async (req, traceId) => {
       .order('visited_at', { ascending: false })
       .limit(50),
 
-    // 2. 북마크 — room_id면 방 이름, message_id면 글 내용까지 join.
-    //    프론트가 실제 내용을 보여주려면 이 join이 있어야 한다.
+    // 관심 — 방이면 house 이름까지, 글이면 content
     supabase
       .from('corenull_bookmarks')
-      .select('*, corenull_rooms(id, room_name), messages(id, content, meta)')
+      .select(
+        '*, corenull_rooms(id, room_name, house_id, corenull_houses(id, title)), messages(id, content, meta)'
+      )
       .eq('owner_key', owner_key)
       .order('created_at', { ascending: false }),
 
-    // 3. 내가 쓴 포스트 (post 타입만)
     supabase
       .from('messages')
       .select('*')
@@ -58,8 +47,6 @@ const handleGet = async (req, traceId) => {
       .order('created_at', { ascending: false })
       .limit(50),
 
-    // 4. 수확된 열매 — harvested_at IS NOT NULL인 fruit.
-    //    씨드 컨텐츠뷰가 서재로 옮겨가는 유일한 경로가 이것이다.
     supabase
       .from('messages')
       .select('*')
@@ -75,15 +62,15 @@ const handleGet = async (req, traceId) => {
   if (myPostsRes.error) return Response.json({ _error: myPostsRes.error.message, traceId }, { status: 500 })
   if (harvestedFruitsRes.error) return Response.json({ _error: harvestedFruitsRes.error.message, traceId }, { status: 500 })
 
-  const saved_rooms = (bookmarksRes.data || []).filter(b => b.room_id && !b.message_id)
-  const saved_posts = (bookmarksRes.data || []).filter(b => b.message_id && !b.room_id)
+  // 활성 관심만 (ended_at IS NULL)
+  const activeBookmarks = (bookmarksRes.data || []).filter((b) => !b.ended_at)
 
-  // 발자취 dedup — room_id 기준 최근 방문 1건만. DB 기록 자체는 안 건드리고
-  // 조회 단계에서만 정리한다(독립 페이지 /api/corenull/footprints/route.js와
-  // 동일한 원칙). "어디를 방문했는가"가 발자취의 의미이지 "몇 번 방문했는가"가
-  // 아니므로, 같은 방을 반복 방문한 기록을 화면에 그대로 쌓아 보여주지 않는다.
+  // 관심 = Room 우선. room_id 있으면 방. message만 있으면 레거시 글 관심.
+  const saved_rooms = activeBookmarks.filter((b) => !!b.room_id)
+  const saved_posts = activeBookmarks.filter((b) => b.message_id && !b.room_id)
+
   const seenRoom = new Set()
-  const dedupedFootprints = (footprintsRes.data || []).filter(fp => {
+  const dedupedFootprints = (footprintsRes.data || []).filter((fp) => {
     if (seenRoom.has(fp.room_id)) return false
     seenRoom.add(fp.room_id)
     return true
@@ -91,10 +78,10 @@ const handleGet = async (req, traceId) => {
 
   return Response.json({
     data: {
-      footprints:       dedupedFootprints,
+      footprints: dedupedFootprints,
       saved_rooms,
       saved_posts,
-      my_posts:         myPostsRes.data        || [],
+      my_posts: myPostsRes.data || [],
       harvested_fruits: harvestedFruitsRes.data || [],
     },
     traceId,

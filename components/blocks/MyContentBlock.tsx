@@ -3,9 +3,7 @@
 import { useEffect, useState } from 'react'
 import PostBlock, { PostBlockData, PostBlockGrid } from './PostBlock'
 
-/** 내 방 최신: 최대 3 · 1/2/3 밀도 그리드 */
 const DENSITY_MAX = 3
-/** 이웃 공개방 벽돌: 데스크탑 3-2-3-2=10, 모바일 2-2-2=6 */
 const BRICK_PAGE_DESKTOP = 10
 const BRICK_PAGE_MOBILE = 6
 const BRICK_PATTERN_DESKTOP = [3, 2, 3, 2]
@@ -16,15 +14,14 @@ export type MyContentLayout = 'density' | 'brick'
 export interface MyContentBlockProps {
   title?: string
   posts: PostBlockData[]
-  /** density=내방 1·2·3 / brick=이웃공개 3-2-3·모바일 2-2-2 */
   layout?: MyContentLayout
   onPostClick?: (postId: string, roomId?: string) => void
   onCommentClick?: (postId: string) => void
   emptyLabel?: string
   showInterest?: boolean
-  getInterestState?: (postId: string) => 'none' | 'active' | 'ended'
+  getInterestState?: (postId: string, roomId?: string) => 'none' | 'active' | 'ended'
   interestLoadingId?: string | null
-  onInterestClick?: (postId: string) => void
+  onInterestClick?: (postId: string, roomId?: string) => void
   onInterestGoLibrary?: () => void
   enableInlineComment?: boolean
   ownerKey?: string
@@ -101,9 +98,9 @@ export default function MyContentBlock({
       onClick={() => onPostClick?.(post.id, post.room_id)}
       onCommentClick={() => onCommentClick?.(post.id)}
       showInterest={showInterest}
-      interestState={getInterestState?.(post.id) ?? 'none'}
-      interestLoading={interestLoadingId === post.id}
-      onInterestClick={() => onInterestClick?.(post.id)}
+      interestState={getInterestState?.(post.id, post.room_id) ?? 'none'}
+      interestLoading={interestLoadingId === post.id || (!!post.room_id && interestLoadingId === post.room_id)}
+      onInterestClick={() => onInterestClick?.(post.id, post.room_id)}
       onInterestGoLibrary={onInterestGoLibrary}
       enableInlineComment={enableInlineComment}
       ownerKey={ownerKey}
