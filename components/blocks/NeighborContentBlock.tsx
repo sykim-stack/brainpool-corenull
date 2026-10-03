@@ -50,7 +50,7 @@ const DEFAULT_RING: RingData = {
   ],
 }
 
-const ALLEY_FRAME_HEIGHT = 260
+const ALLEY_FRAME_HEIGHT = 280
 
 export default function NeighborContentBlock({
   tier,
@@ -91,7 +91,6 @@ export default function NeighborContentBlock({
   const roomA = rooms[roomPage * step]
   const roomB = step === 2 ? rooms[roomPage * step + 1] : undefined
 
-  // 집이 하나뿐이면 화살표·스와이프로 방 이동 (거실 복도)
   const navigateRooms = neighbors.length <= 1 && rooms.length > step
 
   const goNeighbor = (dir: -1 | 1) => {
