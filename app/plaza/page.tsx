@@ -19,7 +19,7 @@ const LANG_FLAG: Record<string, string> = {
 
 /** 비이웃 공개방: 벽돌 배치, 페이지당 10개, 10개 넘으면 스와이프 */
 const PUBLIC_ROOMS_PAGE = 10
-/** 데스크탑: 3-2-3-2 (=10). 모바일: 2-1-2-1 (=6, 스와이프 단위 조정). 남는 글 1개면 크게(full-width). */
+/** 데스크탑: 3-2-3-2 (=10). 모바일: 2-1-2-1 */
 const BRICK_PATTERN_DESKTOP = [3, 2, 3, 2]
 const BRICK_PATTERN_MOBILE = [2, 1, 2, 1]
 
@@ -105,72 +105,78 @@ export default function PlazaPage() {
 
   const [publicRooms, setPublicRooms] = useState<any[]>([])
   const [publicPage, setPublicPage] = useState(0)
-  const isMobile = useMediaQuery('(max-width: 768px)') // 모바일 뷰 감지
+  const isMobile = useMediaQuery('(max-width: 768px)')
 
   const loadAll = useCallback(async (key: string) => {
-    const d = await fetch(`/api/corenull/houses?owner_key=${key}`).then((r) => r.json())
-    const myHouse = d.data?.[0]
-    if (!myHouse) {
+    setLoading(true)
+    try {
+      const d = await fetch(`/api/corenull/houses?owner_key=${key}`).then((r) => r.json())
+      const myHouse = d.data?.[0]
+      if (!myHouse) {
+        setLoading(false)
+        return
+      }
+      setHouse(myHouse)
+
+      const [nb, disc, plaza] = await Promise.all([
+        fetch(`/api/corenull/houses?action=neighbors&house_id=${myHouse.id}`).then((res) => res.json()),
+        fetch(`/api/corenull/houses?action=discover&house_id=${myHouse.id}`).then((res) => res.json()),
+        fetch('/api/corenull/rooms?scope=plaza&limit=60').then((res) => res.json()),
+      ])
+
+      const nbRows = nb.data || []
+      const pendingTargetIds = new Set(
+        nbRows.filter((n: any) => n.status === 'pending' && n.house).map((n: any) => n.house.id)
+      )
+      const acceptedHouseIds = new Set(
+        nbRows.filter((n: any) => n.status === 'accepted' && n.house).map((n: any) => n.house.id)
+      )
+
+      // 공개방 그리드 먼저 표시
+      const list = plaza.data || []
+      const sorted = [...list]
+        .filter((rm: any) => {
+          const hid = rm.house_id
+          if (!hid) return false
+          if (hid === myHouse.id) return false
+          if (acceptedHouseIds.has(hid)) return false
+          return true
+        })
+        .sort((a: any, b: any) => {
+          const at = a.latest_message?.created_at
+            ? new Date(a.latest_message.created_at).getTime()
+            : 0
+          const bt = b.latest_message?.created_at
+            ? new Date(b.latest_message.created_at).getTime()
+            : 0
+          return bt - at
+        })
+
+      setPublicRooms(sorted)
+      setPublicPage(0)
       setLoading(false)
-      return
+
+      // 골목 칩은 백그라운드
+      const discHouses = (disc.data || []).slice(0, 8)
+      const rec: NeighborChip[] = await Promise.all(
+        discHouses.map(async (h: any, index: number) => {
+          const roomSlots = await loadHouseRoomSlots(h)
+          return {
+            neighborId: `plaza-${h.id}`,
+            houseId: h.id,
+            title: h.title,
+            langFlag: LANG_FLAG[h.primary_language] || '🌐',
+            avatarUrl: h.avatar_url || null,
+            coverUrl: `/alley/alley-${String((index % 5) + 1).padStart(2, '0')}.jpg`,
+            rooms: roomSlots,
+            requestPending: pendingTargetIds.has(h.id),
+          }
+        })
+      )
+      setRecommended(rec)
+    } catch {
+      setLoading(false)
     }
-    setHouse(myHouse)
-
-    const [nb, disc, plaza] = await Promise.all([
-      fetch(`/api/corenull/houses?action=neighbors&house_id=${myHouse.id}`).then((res) => res.json()),
-      fetch(`/api/corenull/houses?action=discover&house_id=${myHouse.id}`).then((res) => res.json()),
-      fetch('/api/corenull/rooms?scope=plaza&limit=60').then((res) => res.json()),
-    ])
-
-    const nbRows = nb.data || []
-    const pendingTargetIds = new Set(
-      nbRows.filter((n: any) => n.status === 'pending' && n.house).map((n: any) => n.house.id)
-    )
-    const acceptedHouseIds = new Set(
-      nbRows.filter((n: any) => n.status === 'accepted' && n.house).map((n: any) => n.house.id)
-    )
-
-    const discHouses = disc.data || []
-    const rec: NeighborChip[] = await Promise.all(
-      discHouses.map(async (h: any, index: number) => {
-        const roomSlots = await loadHouseRoomSlots(h)
-        return {
-          neighborId: `plaza-${h.id}`,
-          houseId: h.id,
-          title: h.title,
-          langFlag: LANG_FLAG[h.primary_language] || '🌐',
-          avatarUrl: h.avatar_url || null,
-          // 광장은 집마다 다른 배경이 아니라, 걷는 장면이 이어지는 공용 골목이다.
-          coverUrl: `/alley/alley-${String((index % 5) + 1).padStart(2, '0')}.jpg`,
-          rooms: roomSlots,
-          requestPending: pendingTargetIds.has(h.id),
-        }
-      })
-    )
-    setRecommended(rec)
-
-    const list = plaza.data || []
-    const sorted = [...list]
-      .filter((rm: any) => {
-        const hid = rm.house_id
-        if (!hid) return false
-        if (hid === myHouse.id) return false
-        if (acceptedHouseIds.has(hid)) return false
-        return true
-      })
-      .sort((a: any, b: any) => {
-        const at = a.latest_message?.created_at
-          ? new Date(a.latest_message.created_at).getTime()
-          : 0
-        const bt = b.latest_message?.created_at
-          ? new Date(b.latest_message.created_at).getTime()
-          : 0
-        return bt - at
-      })
-
-    setPublicRooms(sorted)
-    setPublicPage(0)
-    setLoading(false)
   }, [])
 
   useEffect(() => {
@@ -217,7 +223,6 @@ export default function PlazaPage() {
     if (publicPage >= pageCount) setPublicPage(Math.max(0, pageCount - 1))
   }, [pageCount, publicPage])
 
-  /** 비이웃 공개방: 솔로 글 1개면 크게(full-width), 10개 넘으면 스와이프 */
   const brickRows = partitionBrick(visibleRooms, isMobile ? 'mobile' : 'desktop')
 
   return (
@@ -328,8 +333,6 @@ export default function PlazaPage() {
               </div>
             )}
           </section>
-
-
         </>
       )}
     </div>
@@ -363,5 +366,4 @@ const styles: Record<string, React.CSSProperties> = {
   setCard: { display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 },
   setDots: { display: 'flex', justifyContent: 'center', gap: 6, marginTop: 14 },
   setDot: { width: 7, height: 7, borderRadius: '50%', border: 'none', padding: 0, cursor: 'pointer' },
-
 }
