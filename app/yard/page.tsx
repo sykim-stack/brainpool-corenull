@@ -311,7 +311,7 @@ export default function YardPage() {
     setRelationActingId(null)
   }
 
-  const handleCancelRelation = async (id: string) => {
+  const handleRemoveRelation = async (id: string) => {
     if (!ownerKey || relationActingId) return
     setRelationActingId(id)
     await fetch(
@@ -439,8 +439,9 @@ export default function YardPage() {
         applyLoadingHouseId={applyLoadingHouseId}
         relations={relations}
         onAcceptRelation={handleAcceptRelation}
-        onCancelRelation={handleCancelRelation}
+        onRemoveRelation={handleRemoveRelation}
         relationActingId={relationActingId}
+        onOpenRelations={() => router.push('/me/neighbors')}
         neighborFeed={neighborFeed}
         myPosts={myPosts}
         onPostClick={(postId, roomId) => {
@@ -470,8 +471,12 @@ export default function YardPage() {
         />
       )}
 
-      {showShare && (
-        <ShareModal inviteUrl={inviteUrl} onClose={() => setShowShare(false)} />
+      {showShare && inviteUrl && (
+        <ShareModal
+          url={inviteUrl}
+          title={`${house?.title || '우리 집'} 초대`}
+          onClose={() => setShowShare(false)}
+        />
       )}
     </div>
   )
