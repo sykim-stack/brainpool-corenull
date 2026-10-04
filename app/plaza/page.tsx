@@ -19,18 +19,28 @@ const LANG_FLAG: Record<string, string> = {
 
 /** 비이웃 공개방: 벽돌 배치, 페이지당 10개, 10개 넘으면 스와이프 */
 const PUBLIC_ROOMS_PAGE = 10
-/** 데스크탑: 3-2-3-2 (=10). 모바일: 2-1-2-1 */
+/** 데스크탑: 3-2-3-2 (=10) */
 const BRICK_PATTERN_DESKTOP = [3, 2, 3, 2]
-const BRICK_PATTERN_MOBILE = [2, 1, 2, 1]
 
-function useBrickPattern(cols: 'desktop' | 'mobile') {
-  return cols === 'mobile' ? BRICK_PATTERN_MOBILE : BRICK_PATTERN_DESKTOP
+function useBrickPattern() {
+  return BRICK_PATTERN_DESKTOP
 }
 
+/** 모바일: 1→길게 / 2→나란히 / 3→2+1 (빈 칸 없음). PC: 3-2-3-2 */
 function partitionBrick<T>(items: T[], viewMode: 'desktop' | 'mobile' = 'desktop'): { cards: T[]; cols: string; offset: boolean }[] {
-  const pattern = useBrickPattern(viewMode)
   const rows: { cards: T[]; cols: string; offset: boolean }[] = []
   let i = 0
+  if (viewMode === 'mobile') {
+    while (i < items.length) {
+      const left = items.length - i
+      const take = left === 1 ? 1 : 2
+      const cards = items.slice(i, i + take)
+      rows.push({ cards, cols: cards.length === 1 ? 'large' : '2', offset: false })
+      i += cards.length
+    }
+    return rows
+  }
+  const pattern = useBrickPattern()
   let pi = 0
   let prevCols = ''
   while (i < items.length) {
