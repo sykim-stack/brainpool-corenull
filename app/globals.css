@@ -2,9 +2,17 @@
   --shell-mobile: 430px;
   --shell-tablet: 720px;
   --shell-desktop: 1000px;
+  /* 모바일 카드/골목 높이 */
   --cn-alley-frame: 280px;
-  /* 골목·방 카드 공통 높이 (넓이만 유동) */
   --cn-post-card-h: 280px;
+}
+
+@media (min-width: 768px) {
+  :root {
+    /* PC 카드/골목 높이 */
+    --cn-alley-frame: 400px;
+    --cn-post-card-h: 400px;
+  }
 }
 
 * { box-sizing: border-box; }
