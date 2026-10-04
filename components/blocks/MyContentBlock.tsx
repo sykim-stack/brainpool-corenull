@@ -6,9 +6,9 @@ import PostBlock, { PostBlockData, PostBlockGrid } from './PostBlock'
 const DENSITY_MAX = 3
 const BRICK_PAGE_DESKTOP = 10
 const BRICK_PAGE_MOBILE = 6
-/** PC: 3-2-3-2 / 모바일: 1-2-1-2 (빈 칸 없이 채움) */
+/** PC: 3-2-3-2 / 모바일: 2칸 우선·남은 1칸 가로 풀 */
 const BRICK_PATTERN_DESKTOP = [3, 2, 3, 2]
-const BRICK_PATTERN_MOBILE = [1, 2, 1, 2]
+const BRICK_PATTERN_MOBILE = [2, 1]
 
 export type MyContentLayout = 'density' | 'brick'
 
@@ -29,9 +29,26 @@ export interface MyContentBlockProps {
   showHouseName?: boolean
 }
 
-function partitionBrick<T>(items: T[], pattern: number[]): { cards: T[]; cols: string; offset: boolean }[] {
+/** PC: pattern 반복. 모바일: 2칸 우선, 남는 1칸은 가로 풀(빈 공간 없음)
+ *  1→길게 / 2→나란히 / 3→2+1 */
+function partitionBrick<T>(
+  items: T[],
+  pattern: number[],
+  mobile = false
+): { cards: T[]; cols: string; offset: boolean }[] {
   const rows: { cards: T[]; cols: string; offset: boolean }[] = []
   let i = 0
+  if (mobile) {
+    while (i < items.length) {
+      const left = items.length - i
+      const take = left === 1 ? 1 : 2
+      const cards = items.slice(i, i + take)
+      const cols = cards.length === 1 ? 'large' : '2'
+      rows.push({ cards, cols, offset: false })
+      i += cards.length
+    }
+    return rows
+  }
   let pi = 0
   let prevCols = ''
   while (i < items.length) {
@@ -89,7 +106,7 @@ export default function MyContentBlock({
     : source
 
   const brickRows = isBrick
-    ? partitionBrick(visible, wide ? BRICK_PATTERN_DESKTOP : BRICK_PATTERN_MOBILE)
+    ? partitionBrick(visible, wide ? BRICK_PATTERN_DESKTOP : BRICK_PATTERN_MOBILE, !wide)
     : []
 
   const renderPost = (post: PostBlockData) => (
