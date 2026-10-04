@@ -31,7 +31,6 @@ export interface NeighborContentBlockProps {
   onPostClick?: (postId: string, roomId?: string) => void
   onApplyNeighbor?: (houseId: string) => void
   applyLoadingHouseId?: string | null
-  /** 골목=2(기본) · 거실 복도=1 */
   roomsPerPage?: 1 | 2
   emptyLabel?: string
 }
@@ -50,7 +49,8 @@ const DEFAULT_RING: RingData = {
   ],
 }
 
-const ALLEY_FRAME_HEIGHT = 280
+/** 높이: CSS --cn-alley-frame (모바일 280 / PC 400) */
+const ALLEY_FRAME_HEIGHT = 'var(--cn-alley-frame)'
 
 export default function NeighborContentBlock({
   tier,
