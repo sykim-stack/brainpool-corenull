@@ -202,6 +202,28 @@ export default function MyContentBlock({
             </div>
           )}
         </div>
+      ) : !wide ? (
+        /* 모바일 density도 2+1 팩 — 마지막 1개 빈칸 방지 */
+        <div className="cn-brick">
+          {partitionBrick(visible, BRICK_PATTERN_MOBILE, true).map((row, ri) => (
+            <div
+              key={ri}
+              className="cn-brick-row"
+              data-cols={row.cols}
+              data-offset="false"
+            >
+              {row.cards.map((post) => (
+                <div
+                  key={post.id}
+                  className="cn-post-card"
+                  data-large={row.cols === 'large' ? 'true' : 'false'}
+                >
+                  {renderPost(post)}
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
       ) : (
         <PostBlockGrid count={visible.length}>{visible.map(renderPost)}</PostBlockGrid>
       )}
