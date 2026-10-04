@@ -3,15 +3,15 @@
   --shell-tablet: 720px;
   --shell-desktop: 1000px;
   /* 모바일 카드/골목 높이 */
-  --cn-alley-frame: 280px;
-  --cn-post-card-h: 280px;
+  --cn-alley-frame: 340px;
+  --cn-post-card-h: 340px;
 }
 
 @media (min-width: 768px) {
   :root {
     /* PC 카드/골목 높이 */
-    --cn-alley-frame: 400px;
-    --cn-post-card-h: 400px;
+    --cn-alley-frame: 440px;
+    --cn-post-card-h: 440px;
   }
 }
 
@@ -133,6 +133,15 @@ body {
 .cn-post-grid[data-count="2"] { grid-template-columns: 1fr 1fr; }
 .cn-post-grid[data-count="3"] { grid-template-columns: 1fr 1fr; }
 .cn-post-grid[data-count="many"] { grid-template-columns: 1fr 1fr; }
+/* density/grid: 모바일 3개 → 2+1 (마지막 가로 풀) */
+@media (max-width: 767px) {
+  .cn-post-grid[data-count="3"] > *:last-child {
+    grid-column: 1 / -1;
+  }
+  .cn-post-grid[data-count="1"] {
+    grid-template-columns: 1fr;
+  }
+}
 @media (min-width: 768px) {
   .cn-post-grid[data-count="1"] { grid-template-columns: 1fr; }
   .cn-post-grid[data-count="2"] { grid-template-columns: 1fr 1fr; }
