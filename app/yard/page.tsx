@@ -3,32 +3,27 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { getOwnerKey } from '@/lib/ownerKey'
-import { getActiveHouseId, pickActiveHouse, setActiveHouseId } from '@/lib/activeHouse'
+import {
+  getPostInterestState,
+  findInterestBookmark,
+  interestPostBody,
+} from '@/lib/interest'
+import { pickActiveHouse, setActiveHouseId } from '@/lib/activeHouse'
 import TopBar from '@/components/blocks/TopBar'
 import YardBlock, { YardRelationRow } from '@/components/blocks/YardBlock'
-import { NeighborChip, NeighborRoomSlot } from '@/components/blocks/NeighborContentBlock'
-import { PostBlockData } from '@/components/blocks/PostBlock'
 import CoreNullLogo from '@/components/corenull/CoreNullLogo'
-import OwnerGate from '@/components/corenull/OwnerGate'
 import ShareModal from '@/components/corenull/ShareModal'
+import OwnerGate from '@/components/corenull/OwnerGate'
+import InlineHeroImageControls from '@/components/corenull/InlineHeroImageControls'
 import YardHouseHandles from '@/components/corenull/YardHouseHandles'
 import DoorplateEditModal from '@/components/corenull/DoorplateEditModal'
-import InlineHeroImageControls from '@/components/corenull/InlineHeroImageControls'
-import { houseAvatarUrl, houseHeroBackground } from '@/lib/houseMedia'
-import { getInterestState as interestStateOf, toggleInterest } from '@/lib/interest'
+import { PostBlockData } from '@/components/blocks/PostBlock'
+import { RingData } from '@/components/blocks/RingBlock'
+import { NeighborChip, NeighborRoomSlot } from '@/components/blocks/NeighborContentBlock'
+import { houseHeroBackground, houseAvatarUrl } from '@/lib/houseImages'
 
 const LANG_FLAG: Record<string, string> = {
   ko: '🇰🇷', vi: '🇻🇳', en: '🇺🇸', ja: '🇯🇵', zh: '🇨🇳',
-}
-
-function buildRingData(roomCount: number, neighborCount: number) {
-  return {
-    rings: [
-      { index: 0, weight: Math.min(1, 0.3 + roomCount * 0.12) },
-      { index: 1, weight: Math.min(1, 0.2 + neighborCount * 0.1) },
-      { index: 2, weight: 0.25 },
-    ],
-  }
 }
 
 function isYardVisibleRoom(rm: any) {
@@ -47,6 +42,16 @@ function roomStatusLabel(rm: any): string {
 function formatSince(iso: string) {
   const d = new Date(iso)
   return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')} 부터`
+}
+
+function buildRingData(roomCount: number, neighborCount: number): RingData {
+  return {
+    rings: [
+      { index: 0, weight: Math.min(1, 0.3 + roomCount * 0.12) },
+      { index: 1, weight: Math.min(1, 0.2 + neighborCount * 0.1) },
+      { index: 2, weight: 0.25 },
+    ],
+  }
 }
 
 async function loadHouseRoomSlots(h: any): Promise<NeighborRoomSlot[]> {
@@ -256,8 +261,8 @@ export default function YardPage() {
       const mine = mineNested.filter(Boolean) as PostBlockData[]
       mine.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
       setMyPosts(mine.slice(0, 3))
-    } catch {
-      setLoading(false)
+    } catch (e) {
+      console.error('[yard] loadAll', e)
     } finally {
       setLoading(false)
     }
@@ -271,12 +276,12 @@ export default function YardPage() {
       setLoading(false)
       return
     }
-    loadAll(key, getActiveHouseId() || undefined)
+    loadAll(key)
   }, [loadAll])
 
-  const handleSwitchHouse = (id: string) => {
-    setActiveHouseId(id)
-    if (ownerKey) loadAll(ownerKey, id)
+  const handleSwitchHouse = (houseId: string) => {
+    setActiveHouseId(houseId)
+    if (ownerKey) loadAll(ownerKey, houseId)
   }
 
   const handleApplyNeighbor = async (targetHouseId: string) => {
@@ -321,15 +326,35 @@ export default function YardPage() {
     if (!ownerKey) return
     const targetId = roomId || postId
     setInterestLoadingId(targetId)
+    const existing = findInterestBookmark(bookmarks, postId, roomId)
     try {
-      const next = await toggleInterest(ownerKey, postId, roomId, bookmarks as any)
-      if (next) {
-        const bRes = await fetch(`/api/corenull/bookmarks?owner_key=${ownerKey}`).then((r) => r.json())
-        if (bRes.data) setBookmarks(bRes.data)
+      if (!existing) {
+        const res = await fetch('/api/corenull/bookmarks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(interestPostBody(ownerKey, postId, roomId)),
+        })
+        const data = await res.json()
+        if (data.data) setBookmarks((prev) => [...prev, data.data])
+      } else {
+        const action = existing.ended_at ? 'resume' : 'end'
+        const res = await fetch('/api/corenull/bookmarks', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: existing.id, owner_key: ownerKey, action }),
+        })
+        const data = await res.json()
+        if (data.data) {
+          setBookmarks((prev) => prev.map((bm) => (bm.id === existing.id ? data.data : bm)))
+        }
       }
     } finally {
       setInterestLoadingId(null)
     }
+  }
+
+  const getInterestState = (postId: string, roomId?: string): 'none' | 'active' | 'ended' => {
+    return getPostInterestState(bookmarks, postId, roomId)
   }
 
   const langFlag = LANG_FLAG[house?.primary_language] || '🏡'
@@ -423,7 +448,7 @@ export default function YardPage() {
           else router.push(`/posts/${postId}`)
         }}
         showInterest
-        getInterestState={(postId, roomId) => interestStateOf(bookmarks as any, postId, roomId)}
+        getInterestState={getInterestState}
         interestLoadingId={interestLoadingId}
         onInterestClick={handleInterest}
         onInterestGoLibrary={() => router.push('/me/library')}
@@ -446,10 +471,7 @@ export default function YardPage() {
       )}
 
       {showShare && (
-        <ShareModal
-          inviteUrl={inviteUrl}
-          onClose={() => setShowShare(false)}
-        />
+        <ShareModal inviteUrl={inviteUrl} onClose={() => setShowShare(false)} />
       )}
     </div>
   )
