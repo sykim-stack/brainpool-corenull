@@ -3,10 +3,18 @@
 // Supabase Storage → URL 반환 → messages.meta.media 에 저장
 // 용량 최적화는 클라이언트(lib/compressMedia)에서 먼저 수행한다.
 
-const ALLOWED_IMAGE = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
+const ALLOWED_IMAGE = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif']
 const ALLOWED_VIDEO = ['video/mp4', 'video/webm']
 const MAX_VIDEO_SIZE = 25 * 1024 * 1024 // 25MB
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024  // 5MB (압축 후 기준)
+
+const IMAGE_EXT = {
+  'image/jpeg': 'jpg',
+  'image/jpg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'image/gif': 'gif',
+}
 
 const handler = async (req) => {
   const traceId = crypto.randomUUID()
@@ -17,7 +25,13 @@ const handler = async (req) => {
 }
 
 const handlePost = async (req, traceId) => {
-  const formData = await req.formData()
+  let formData
+  try {
+    formData = await req.formData()
+  } catch {
+    return Response.json({ _error: 'invalid_multipart', traceId }, { status: 500 })
+  }
+
   const files = formData.getAll('files')
   const post_id = formData.get('post_id')
 
@@ -37,7 +51,7 @@ const handlePost = async (req, traceId) => {
     const isVideo = ALLOWED_VIDEO.includes(mime)
 
     if (!isImage && !isVideo) {
-      results.push({ _error: `unsupported_type: ${mime}`, file: file.name })
+      results.push({ _error: `unsupported_type: ${mime || 'unknown'}`, file: file.name })
       continue
     }
 
@@ -51,7 +65,9 @@ const handlePost = async (req, traceId) => {
     }
 
     const bucket = isImage ? 'corenull-images' : 'corenull-videos'
-    const ext = isImage ? 'jpg' : (file.name.split('.').pop() || 'mp4')
+    const ext = isImage
+      ? (IMAGE_EXT[mime] || 'jpg')
+      : (file.name.split('.').pop() || 'mp4')
     const path = post_id
       ? `${post_id}/${crypto.randomUUID()}.${ext}`
       : `orphan/${crypto.randomUUID()}.${ext}`
@@ -61,7 +77,10 @@ const handlePost = async (req, traceId) => {
 
     const { error } = await supabase.storage
       .from(bucket)
-      .upload(path, buffer, { contentType: isImage ? 'image/jpeg' : mime, upsert: false })
+      .upload(path, buffer, {
+        contentType: mime,
+        upsert: false,
+      })
 
     if (error) {
       results.push({ _error: error.message, file: file.name })
