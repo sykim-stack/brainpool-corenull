@@ -85,40 +85,55 @@ export default function LivingPage() {
       setHouse(h)
 
       try {
-        const rd = await fetch(`/api/corenull/rooms?house_id=${h.id}`).then((r) => r.json())
+        const [rd, wr] = await Promise.all([
+          fetch(`/api/corenull/rooms?house_id=${h.id}`).then((r) => r.json()),
+          fetch(`/api/corenull/rooms?scope=writable&owner_key=${encodeURIComponent(key)}`).then((r) =>
+            r.json()
+          ),
+        ])
         const rooms = rd.data || []
-        setRoomCount(rooms.length)
+        const memberRooms = (wr.member || []).filter((rm: any) => rm.house_id !== h.id)
+        setRoomCount(rooms.length + memberRooms.length)
 
-        const slots: NeighborRoomSlot[] = await Promise.all(
-          rooms.map(async (rm: any) => {
-            const pd = await fetch(`/api/corenull/posts?room_id=${rm.id}`).then((r) => r.json())
-            const latest =
-              (pd.data || []).find((p: any) => p.type !== 'comment') || (pd.data || [])[0]
-            return {
-              roomId: rm.id,
-              roomName: rm.room_name,
-              latestPost: latest
-                ? {
-                    id: latest.id,
-                    content: latest.content,
-                    media: latest.meta?.media,
-                    created_at: latest.created_at,
-                    comment_count: latest.comment_count ?? 0,
-                    room_id: rm.id,
-                    view_meta: {
-                      house_name: h.title,
-                      room_name: rm.room_name,
-                      status: roomStatusLabel(rm),
-                      stage_emoji: rm.seed_mode || rm.room_type === 'seed' ? '🌱' : undefined,
-                      relation: '나',
-                    },
-                  }
-                : null,
-            }
-          })
+        const buildSlot = async (rm: any, houseTitle: string, relation: string) => {
+          const pd = await fetch(`/api/corenull/posts?room_id=${rm.id}`).then((r) => r.json())
+          const latest =
+            (pd.data || []).find((p: any) => p.type !== 'comment') || (pd.data || [])[0]
+          const isMember = relation === '참여'
+          return {
+            roomId: rm.id,
+            roomName: isMember
+              ? `참여 · ${rm._house_title || houseTitle || ''} · ${rm.room_name}`.replace(/ ·  · /g, ' · ')
+              : rm.room_name,
+            latestPost: latest
+              ? {
+                  id: latest.id,
+                  content: latest.content,
+                  media: latest.meta?.media,
+                  created_at: latest.created_at,
+                  comment_count: latest.comment_count ?? 0,
+                  room_id: rm.id,
+                  view_meta: {
+                    house_name: rm._house_title || houseTitle,
+                    room_name: rm.room_name,
+                    status: roomStatusLabel(rm),
+                    stage_emoji: rm.seed_mode || rm.room_type === 'seed' ? '🌱' : undefined,
+                    relation,
+                  },
+                }
+              : null,
+          }
+        }
+
+        const ownSlots: NeighborRoomSlot[] = await Promise.all(
+          rooms.map((rm: any) => buildSlot(rm, h.title, '나'))
         )
+        const memberSlots: NeighborRoomSlot[] = await Promise.all(
+          memberRooms.map((rm: any) => buildSlot(rm, rm._house_title || '', '참여'))
+        )
+        const slots = [...ownSlots, ...memberSlots]
 
-        setCorridor([
+        const chips: NeighborChip[] = [
           {
             neighborId: `living-${h.id}`,
             houseId: h.id,
@@ -126,9 +141,21 @@ export default function LivingPage() {
             langFlag: LANG_FLAG[h.primary_language] || '🏡',
             avatarUrl: h.avatar_url || null,
             coverUrl: h.living_image_url || null,
-            rooms: slots,
+            rooms: ownSlots,
           },
-        ])
+        ]
+        if (memberSlots.length > 0) {
+          chips.push({
+            neighborId: `living-member-${key}`,
+            houseId: h.id,
+            title: '참여 방',
+            langFlag: '🚪',
+            avatarUrl: null,
+            coverUrl: null,
+            rooms: memberSlots,
+          })
+        }
+        setCorridor(chips)
 
         const views = slots
           .map((s) => s.latestPost)
