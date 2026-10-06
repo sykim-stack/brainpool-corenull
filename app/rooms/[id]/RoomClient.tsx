@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { getOwnerKey } from '@/lib/ownerKey'
+import { getDeviceId } from '@/lib/deviceId'
 import TopBar from '@/components/blocks/TopBar'
 import CoreNullLogo from '@/components/corenull/CoreNullLogo'
 import ShareModal from '@/components/corenull/ShareModal'
@@ -80,7 +81,6 @@ export default function RoomClient() {
     const ownerKey = getOwnerKey()
     setOwnerKey(ownerKey)
     if (!roomId) return
-    // Membership은 Owner에 귀속 (device_id 컬럼 = Owner ID). Device ID로 조회하지 않는다.
     fetchRoom(ownerKey)
   }, [roomId])
 
@@ -102,8 +102,9 @@ export default function RoomClient() {
       if (!hData._error && hData.house) {
         setHouse(hData.house)
         if (ownerKey) {
+          const deviceId = getDeviceId()
           const mRes = await fetch(
-            `/api/corenull/members?house_id=${rData.room.house_id}&device_id=${encodeURIComponent(ownerKey)}&room_id=${roomId}`
+            `/api/corenull/members?house_id=${rData.room.house_id}&device_id=${encodeURIComponent(deviceId || ownerKey)}&owner_key=${encodeURIComponent(ownerKey)}&room_id=${roomId}`
           )
           const mData = await mRes.json()
           setIsMember(!mData._error && mData.is_member === true)
@@ -221,23 +222,27 @@ export default function RoomClient() {
 
       {showShare && room && (
         <ShareModal
-          open={showShare}
+          url={typeof window !== 'undefined' ? window.location.href : `https://corenull.vercel.app/rooms/${roomId}`}
+          title={room.room_name}
           onClose={() => setShowShare(false)}
-          roomId={roomId}
-          roomName={room.room_name}
-          houseId={room.house_id}
         />
       )}
 
       {showSettings && room && house && (
         <RoomSettingsModal
-          open={showSettings}
-          onClose={() => setShowSettings(false)}
-          room={room}
-          house={house}
+          roomId={roomId}
+          roomName={room.room_name}
+          visibility={room.visibility}
+          seedMode={!!room.seed_mode}
+          houseId={room.house_id}
           ownerKey={ownerKey}
           isOwner={isOwner}
-          onUpdated={() => fetchRoom(ownerKey)}
+          onClose={() => setShowSettings(false)}
+          onUpdate={(updated) => {
+            setRoom((prev) => prev ? { ...prev, ...updated } : prev)
+            setShowSettings(false)
+          }}
+          onLeft={() => router.push('/living')}
         />
       )}
     </div>
