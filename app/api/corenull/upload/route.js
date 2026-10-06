@@ -6,7 +6,7 @@
 const ALLOWED_IMAGE = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif']
 const ALLOWED_VIDEO = ['video/mp4', 'video/webm']
 const MAX_VIDEO_SIZE = 25 * 1024 * 1024 // 25MB
-const MAX_IMAGE_SIZE = 5 * 1024 * 1024  // 5MB (압축 후 기준)
+const MAX_IMAGE_SIZE = 4 * 1024 * 1024  // 4MB — Vercel 4.5MB request body 한도 및 multipart 오버헤드 고려
 
 const IMAGE_EXT = {
   'image/jpeg': 'jpg',

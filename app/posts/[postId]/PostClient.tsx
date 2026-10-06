@@ -2,6 +2,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { getOwnerKey } from '@/lib/ownerKey'
+import { prepareUploadFile } from '@/lib/compressMedia'
 import ShareModal from '@/components/corenull/ShareModal'
 import MediaRenderer from '@/components/corenull/MediaRenderer'
 import TopBar from '@/components/blocks/TopBar'
@@ -28,6 +29,7 @@ export default function PostDetailPage() {
   const [editMedia, setEditMedia] = useState<any[]>([])
   const [editSaving, setEditSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [uploadMessage, setUploadMessage] = useState('')
   const [deleting, setDeleting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const cameraInputRef = useRef<HTMLInputElement>(null)
@@ -80,17 +82,51 @@ export default function PostDetailPage() {
     setEditMedia(prev => prev.filter((_: any, i: number) => i !== index))
   }
 
-  const handleAddMedia = async (e: any) => {
+  const handleAddMedia = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
+    e.target.value = ''
     if (files.length === 0) return
     setUploading(true)
-    const form = new FormData()
-    files.forEach((f: any) => form.append('files', f))
-    const res = await fetch('/api/corenull/upload', { method: 'POST', body: form })
-    const data = await res.json()
-    setEditMedia(prev => [...prev, ...(data.data || [])])
-    setUploading(false)
-    e.target.value = ''
+    setUploadMessage('사진 압축 및 업로드 준비 중…')
+    const failures: string[] = []
+    const savings: string[] = []
+    let uploadedCount = 0
+    try {
+      for (const file of files) {
+        const prepared = await prepareUploadFile(file)
+        if (!prepared.ok) {
+          failures.push(`${file.name}: ${prepared.error}`)
+          continue
+        }
+        if (prepared.note) savings.push(`${file.name}: ${prepared.note}`)
+
+        // 파일별 요청으로 분리해 이미지 여러 장의 합계가 Vercel 4.5MB 한도를 넘지 않게 한다.
+        const form = new FormData()
+        form.append('files', prepared.file)
+        if (postId) form.append('post_id', String(postId))
+        setUploadMessage(`${file.name}: 업로드 중…`)
+        const res = await fetch('/api/corenull/upload', { method: 'POST', body: form })
+        const data = await res.json().catch(() => null)
+        const item = data?.data?.[0]
+        if (!res.ok || data?._error || !item?.url || item._error) {
+          failures.push(`${file.name}: ${item?._error || data?._error || `업로드 실패 (HTTP ${res.status})`}`)
+          continue
+        }
+        setEditMedia(prev => [...prev, item])
+        uploadedCount++
+      }
+
+      if (failures.length) {
+        setUploadMessage(failures.join(' · '))
+      } else {
+        const suffix = savings.length ? ` (${savings.join('; ')})` : ''
+        setUploadMessage(`${uploadedCount}개 파일을 추가했어요.${suffix}`)
+      }
+    } catch (error) {
+      setUploadMessage(error instanceof Error ? error.message : '업로드 중 오류가 발생했어요.')
+    } finally {
+      setUploading(false)
+    }
   }
 
   const handleEdit = async () => {
@@ -259,6 +295,12 @@ export default function PostDetailPage() {
               style={{ display: 'none' }}
               onChange={handleAddMedia}
             />
+
+            {uploadMessage && (
+              <div role="status" aria-live="polite" style={{ fontSize: 12, color: '#7A6248', marginTop: 8, wordBreak: 'break-word' }}>
+                {uploadMessage}
+              </div>
+            )}
 
             <textarea
               style={styles.editTextarea}
