@@ -2,9 +2,9 @@
 // 업로드 전 클라이언트 압축 — 원본 휴대폰 사진을 그대로 올리지 않는다.
 // 서버는 중계만 하므로 용량·시간을 여기서 줄인다.
 
-const MAX_EDGE = 1600
-const JPEG_QUALITY = 0.82
-const SKIP_IF_UNDER = 400 * 1024 // 이미 작으면 재인코딩 생략
+const MAX_EDGE = 1280
+const JPEG_QUALITY = 0.74
+const SKIP_IF_UNDER = 200 * 1024 // 200KB 이하 파일은 재인코딩 생략
 
 export type CompressResult = {
   file: File
