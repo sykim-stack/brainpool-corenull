@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { getOwnerKey } from '@/lib/ownerKey'
+import { getDeviceId } from '@/lib/deviceId'
 import { prepareUploadFile } from '@/lib/compressMedia'
 import TopBar from '@/components/blocks/TopBar'
 import CoreNullLogo from '@/components/corenull/CoreNullLogo'
@@ -49,7 +50,7 @@ export default function WritePage() {
 
     Promise.all([
       fetch(`/api/corenull/houses?owner_key=${key}`).then((r) => r.json()),
-      fetch(`/api/corenull/rooms?scope=writable&owner_key=${encodeURIComponent(key)}`).then((r) => r.json()),
+      fetch(`/api/corenull/rooms?scope=writable&owner_key=${encodeURIComponent(key)}&device_id=${encodeURIComponent(getDeviceId())}`).then((r) => r.json()),
     ]).then(([hData, rData]) => {
       const houseList = hData.data || []
       setHouses(houseList)
@@ -71,7 +72,7 @@ export default function WritePage() {
 
   const loadRoomsForHouse = async (houseId: string) => {
     const key = ownerKey || getOwnerKey()
-    const r = await fetch(`/api/corenull/rooms?scope=writable&owner_key=${encodeURIComponent(key)}`)
+    const r = await fetch(`/api/corenull/rooms?scope=writable&owner_key=${encodeURIComponent(key)}&device_id=${encodeURIComponent(getDeviceId())}`)
     const rd = await r.json()
     const all = rd.data || []
     const filtered = all.filter((rm: any) => rm._source === 'member' || rm.house_id === houseId)
