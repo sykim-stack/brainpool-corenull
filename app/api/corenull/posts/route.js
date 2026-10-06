@@ -1,0 +1,272 @@
+export const dynamic = 'force-dynamic'
+
+const COREHUB_URL = 'https://brainpool-corehub.vercel.app/api/corehub/facts'
+
+const pushFact = async (fact) => {
+  await fetch(COREHUB_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(fact),
+  }).catch(() => null)
+}
+
+const handler = async (req) => {
+  const traceId = crypto.randomUUID()
+  if (req.method === 'GET') return handleGet(req, traceId)
+  if (req.method === 'POST') return handlePost(req, traceId)
+  if (req.method === 'PATCH') return handlePatch(req, traceId)
+  return Response.json({ _error: 'method_not_allowed', traceId }, { status: 500 })
+}
+
+const handleGet = async (req, traceId) => {
+  const { searchParams } = new URL(req.url)
+  const room_id = searchParams.get('room_id')
+  const post_id = searchParams.get('post_id')
+  const parent_id = searchParams.get('parent_id')
+  const owner_key = searchParams.get('owner_key')
+
+  const { getSupabase } = await import('@/lib/supabase')
+  const supabase = getSupabase()
+  if (!supabase) return Response.json({ _error: 'supabase_init_failed', traceId }, { status: 500 })
+
+  if (post_id) {
+    const { data, error } = await supabase.from('messages').select('*').eq('id', post_id).single()
+    if (error || !data) return Response.json({ _error: 'post_not_found', traceId }, { status: 500 })
+    return Response.json({ data, traceId })
+  }
+
+  if (parent_id) {
+    const { data, error } = await supabase
+      .from('messages')
+      .select('*')
+      .in('type', ['comment', 'fruit'])
+      .contains('relations', { parent_id })
+      .order('created_at', { ascending: true })
+    if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
+    return Response.json({ data, traceId })
+  }
+
+  if (!room_id) {
+    return Response.json({ _error: 'room_id_or_post_id_or_parent_id_required', traceId }, { status: 500 })
+  }
+
+  if (owner_key) {
+    await supabase.from('corenull_footprints').insert({ owner_key, room_id })
+  }
+
+  const { data, error } = await supabase
+    .from('messages')
+    .select('*')
+    .eq('room_id', room_id)
+    .in('type', ['post', 'fruit'])
+    .not('meta', 'cs', '{"deleted":true}')
+    .order('created_at', { ascending: false })
+  if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
+  return Response.json({ data, traceId })
+}
+
+const handlePost = async (req, traceId) => {
+  const body = JSON.parse(await req.text())
+  const { room_id, owner_key, content, meta, type, relations } = body
+
+  if (!room_id || !owner_key || !content) {
+    return Response.json({ _error: 'room_id_owner_key_content_required', traceId }, { status: 500 })
+  }
+
+  const { getSupabase } = await import('@/lib/supabase')
+  const supabase = getSupabase()
+  if (!supabase) return Response.json({ _error: 'supabase_init_failed', traceId }, { status: 500 })
+
+  const messageType = type || 'post'
+  const insertPayload = {
+    room_id,
+    owner_key,
+    type: messageType,
+    content,
+    meta: meta || {},
+    relations: relations || {},
+  }
+
+  if (messageType !== 'comment') {
+    const { data: room, error: roomError } = await supabase
+      .from('corenull_rooms')
+      .select('house_id')
+      .eq('id', room_id)
+      .single()
+    if (roomError || !room) {
+      return Response.json({ _error: 'room_not_found', traceId }, { status: 500 })
+    }
+
+    const { data: house } = await supabase
+      .from('corenull_houses')
+      .select('owner_key, primary_language')
+      .eq('id', room.house_id)
+      .single()
+
+    const isOwner = house?.owner_key === owner_key
+    let isMember = false
+    if (!isOwner) {
+      const { data: members } = await supabase
+        .from('corenull_house_members')
+        .select('device_id, room_id')
+        .eq('house_id', room.house_id)
+        .eq('device_id', owner_key)
+      isMember = (members || []).some((m) => m.room_id === null || m.room_id === room_id)
+    }
+
+    if (!isOwner && !isMember) {
+      return Response.json({ _error: 'not_authorized', traceId }, { status: 500 })
+    }
+
+    const sourceLang = house?.primary_language || 'ko'
+    insertPayload.house_id = room.house_id
+    insertPayload.language = sourceLang
+    insertPayload.translated_ko = null
+    insertPayload.translation_status = sourceLang === 'ko' ? 'completed' : 'pending'
+  }
+
+  const { data, error } = await supabase.from('messages').insert(insertPayload).select().single()
+  if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
+
+  if (messageType === 'fruit') {
+    await pushFact({
+      source: 'CoreNull',
+      fact_type: 'space.fruit.created',
+      owner_key,
+      house_id: insertPayload.house_id || null,
+      payload: {
+        post_id: data.id,
+        room_id,
+        parent_id: relations?.parent_id || null,
+      },
+    })
+  }
+
+  return Response.json({ data, traceId })
+}
+
+const handlePatch = async (req, traceId) => {
+  const body = JSON.parse(await req.text())
+  const { post_id, owner_key, action, content, meta, room_id } = body
+
+  if (!post_id || !owner_key || !action) {
+    return Response.json({ _error: 'post_id_owner_key_action_required', traceId }, { status: 500 })
+  }
+
+  const { getSupabase } = await import('@/lib/supabase')
+  const supabase = getSupabase()
+  if (!supabase) return Response.json({ _error: 'supabase_init_failed', traceId }, { status: 500 })
+
+  const { data: original, error: fetchError } = await supabase
+    .from('messages')
+    .select('*')
+    .eq('id', post_id)
+    .single()
+  if (fetchError || !original) {
+    return Response.json({ _error: 'post_not_found', traceId }, { status: 500 })
+  }
+
+  if (original.owner_key !== owner_key) {
+    return Response.json({ _error: 'not_authorized', traceId }, { status: 500 })
+  }
+
+  if (action === 'edit') {
+    if (!content) {
+      return Response.json({ _error: 'content_required', traceId }, { status: 500 })
+    }
+    const { data, error } = await supabase
+      .from('messages')
+      .update({
+        content,
+        meta: meta ? { ...(original.meta || {}), ...meta } : original.meta,
+      })
+      .eq('id', post_id)
+      .select()
+      .single()
+    if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
+    return Response.json({ data, traceId })
+  }
+
+  if (action === 'delete') {
+    const { data, error } = await supabase
+      .from('messages')
+      .update({ meta: { ...(original.meta || {}), deleted: true } })
+      .eq('id', post_id)
+      .select()
+      .single()
+    if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
+    return Response.json({ data, traceId })
+  }
+
+  if (action === 'archive') {
+    const { data, error } = await supabase
+      .from('messages')
+      .update({ meta: { ...(original.meta || {}), archived: true } })
+      .eq('id', post_id)
+      .select()
+      .single()
+    if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
+    return Response.json({ data, traceId })
+  }
+
+  if (action === 'rebirth') {
+    const newContent = content || original.content
+    const sourceLang = original.language || 'ko'
+    const { data, error } = await supabase
+      .from('messages')
+      .insert({
+        room_id: room_id || original.room_id,
+        owner_key,
+        type: 'post',
+        content: newContent,
+        meta: {
+          ...(original.meta || {}),
+          archived: false,
+          reborn_from: post_id,
+          reborn_at: new Date().toISOString(),
+        },
+        relations: {},
+        language: sourceLang,
+        translated_ko: null,
+        translation_status: sourceLang === 'ko' ? 'completed' : 'pending',
+      })
+      .select()
+      .single()
+    if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
+    return Response.json({ data, traceId })
+  }
+
+  if (action === 'harvest') {
+    if (original.type !== 'fruit') {
+      return Response.json({ _error: 'only_fruit_can_be_harvested', traceId }, { status: 500 })
+    }
+    if (original.harvested_at) {
+      return Response.json({ _error: 'already_harvested', traceId }, { status: 500 })
+    }
+    const { data, error } = await supabase
+      .from('messages')
+      .update({ harvested_at: new Date().toISOString() })
+      .eq('id', post_id)
+      .select()
+      .single()
+    if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
+
+    await pushFact({
+      source: 'CoreNull',
+      fact_type: 'space.fruit.harvested',
+      owner_key,
+      house_id: original.house_id || null,
+      payload: {
+        post_id,
+        room_id: original.room_id,
+        harvested_at: data.harvested_at,
+      },
+    })
+
+    return Response.json({ data, traceId })
+  }
+
+  return Response.json({ _error: 'invalid_action', traceId }, { status: 500 })
+}
+
+export { handler as GET, handler as POST, handler as PATCH }
