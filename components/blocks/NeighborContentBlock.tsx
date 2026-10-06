@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import PostBlock, { PostBlockData } from '@/components/blocks/PostBlock'
 import RingBlock, { RingData } from './RingBlock'
+import { roomCorridorCoverUrl } from '@/lib/corridorImages'
 
 export interface NeighborRoomSlot {
   roomId: string
@@ -93,6 +94,14 @@ export default function NeighborContentBlock({
 
   const navigateRooms = neighbors.length <= 1 && rooms.length > step
 
+  // 복도(invite): 방 순번 % 5 공용 커버 (골목 alley-0N과 동일)
+  // 골목(public): chip.coverUrl (호출측에서 alley-0N 부여)
+  const activeRoomIndex = roomPage * step
+  const resolvedCoverUrl =
+    tier === 'invite' && rooms.length > 0
+      ? roomCorridorCoverUrl(activeRoomIndex)
+      : current?.coverUrl || null
+
   const goNeighbor = (dir: -1 | 1) => {
     if (neighbors.length <= 1) return
     setNeighborIdx((i) => (i + dir + neighbors.length) % neighbors.length)
@@ -171,8 +180,8 @@ export default function NeighborContentBlock({
               <div
                 style={{
                   ...styles.cover,
-                  background: current?.coverUrl
-                    ? `center/cover no-repeat url(${current.coverUrl})`
+                  background: resolvedCoverUrl
+                    ? `center/cover no-repeat url(${resolvedCoverUrl})`
                     : COVER_GRADIENT[tier],
                 }}
                 onClick={() => current && onNeighborClick(current.houseId)}
