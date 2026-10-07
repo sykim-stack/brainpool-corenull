@@ -32,13 +32,17 @@ export interface YardBlockProps {
   visitorMode?: boolean
   discoveries?: DiscoveryItem[]
   onDiscoveryDismiss?: (id: string) => void
+  /** 골목 = 발견 (모르는 집). 연결된 이웃과 합치지 않음 */
   recommended?: NeighborChip[]
   onRecommendHouseClick?: (houseId: string) => void
   onAcceptedNeighborClick?: (houseId: string) => void
   onApplyNeighbor?: (houseId: string) => void
   applyLoadingHouseId?: string | null
+  /** 연결된 이웃 목록용. 화면에는 accepted만 노출. 수락/거절은 /me */
   relations?: YardRelationRow[]
+  /** @deprecated 마당 화면에서 관리 금지. /me/neighbors 로 이동 */
   onAcceptRelation?: (neighborId: string) => void
+  /** @deprecated 마당 화면에서 관리 금지. /me/neighbors 로 이동 */
   onRemoveRelation?: (neighborId: string) => void
   relationActingId?: string | null
   onOpenRelations?: () => void
@@ -56,7 +60,7 @@ export interface YardBlockProps {
   onInterestGoLibrary?: () => void
 }
 
-function RelationAvatar({
+function NeighborAvatar({
   row,
   onClick,
 }: {
@@ -101,9 +105,6 @@ export default function YardBlock({
   onApplyNeighbor,
   applyLoadingHouseId = null,
   relations = [],
-  onAcceptRelation,
-  onRemoveRelation,
-  relationActingId = null,
   onOpenRelations,
   neighborFeed = [],
   myPosts = [],
@@ -120,11 +121,8 @@ export default function YardBlock({
 }: YardBlockProps) {
   if (loading) return <div style={styles.loading}>🌳</div>
 
-  const received = relations.filter((r) => r.status === 'pending' && r.direction === 'incoming')
-  const sent = relations.filter((r) => r.status === 'pending' && r.direction === 'outgoing')
-  const accepted = relations.filter((r) => r.status === 'accepted')
-
-  const canManageRelations = !visitorMode && !!(onAcceptRelation || onRemoveRelation)
+  // 화면: 연결된 이웃만. pending 수락/거절은 관리(/me) — 마당에 두지 않음.
+  const connected = relations.filter((r) => r.status === 'accepted')
   const alleyMode = visitorMode ? 'neighbor' : 'recommend'
 
   return (
@@ -152,6 +150,7 @@ export default function YardBlock({
         </section>
       )}
 
+      {/* 골목 = 발견. 연결된 이웃망과 합치지 않음 */}
       <NeighborContentBlock
         tier="public"
         mode={alleyMode}
@@ -163,79 +162,35 @@ export default function YardBlock({
         applyLoadingHouseId={visitorMode ? null : applyLoadingHouseId}
       />
 
+      {/* 하단 = 이미 연결된 이웃 (방문). 관리 버튼 없음 */}
       <section style={styles.relationSection}>
         <div style={styles.relationHeader}>
-          <span style={styles.relationTitle}>이웃 관계</span>
+          <span style={styles.relationTitle}>이웃</span>
           {onOpenRelations && !visitorMode && (
             <button type="button" style={styles.relationMore} onClick={onOpenRelations}>
-              전체 ›
+              관리 ›
             </button>
           )}
         </div>
 
-        {accepted.length === 0 && received.length === 0 && sent.length === 0 ? (
+        {connected.length === 0 ? (
           <div style={styles.relationEmpty}>
-            {visitorMode ? '이 집의 이웃이 여기 모입니다' : '이웃이 생기면 여기에 보여요'}
+            {visitorMode ? '이 집의 이웃이 여기 모입니다' : '연결된 이웃이 생기면 여기에 보여요'}
           </div>
         ) : (
-          <>
-            {accepted.length > 0 && (
-              <div style={styles.relAvatarRow}>
-                {accepted.map((r) => (
-                  <RelationAvatar
-                    key={r.id}
-                    row={r}
-                    onClick={() => {
-                      if (!r.houseId) return
-                      if (onAcceptedNeighborClick) onAcceptedNeighborClick(r.houseId)
-                      else onRecommendHouseClick?.(r.houseId)
-                    }}
-                  />
-                ))}
-              </div>
-            )}
-
-            {canManageRelations && (received.length > 0 || sent.length > 0) && (
-              <div style={styles.pendingBlock}>
-                {received.map((r) => (
-                  <div key={r.id} style={styles.pendingRow}>
-                    <span style={styles.pendingName}>{r.title}</span>
-                    <span style={styles.pendingTag}>요청</span>
-                    <button
-                      type="button"
-                      style={styles.relAccept}
-                      disabled={relationActingId === r.id}
-                      onClick={() => onAcceptRelation?.(r.id)}
-                    >
-                      수락
-                    </button>
-                    <button
-                      type="button"
-                      style={styles.relGhost}
-                      disabled={relationActingId === r.id}
-                      onClick={() => onRemoveRelation?.(r.id)}
-                    >
-                      거절
-                    </button>
-                  </div>
-                ))}
-                {sent.map((r) => (
-                  <div key={r.id} style={styles.pendingRow}>
-                    <span style={styles.pendingName}>{r.title}</span>
-                    <span style={styles.pendingTag}>신청</span>
-                    <button
-                      type="button"
-                      style={styles.relGhost}
-                      disabled={relationActingId === r.id}
-                      onClick={() => onRemoveRelation?.(r.id)}
-                    >
-                      취소
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </>
+          <div style={styles.relAvatarRow}>
+            {connected.map((r) => (
+              <NeighborAvatar
+                key={r.id}
+                row={r}
+                onClick={() => {
+                  if (!r.houseId) return
+                  if (onAcceptedNeighborClick) onAcceptedNeighborClick(r.houseId)
+                  else onRecommendHouseClick?.(r.houseId)
+                }}
+              />
+            ))}
+          </div>
         )}
       </section>
 
@@ -256,7 +211,6 @@ export default function YardBlock({
         />
       ) : (
         <>
-          {/* 이웃 공개방 = 광장 벽돌 3-2-3 / 모바일 2-2-2 */}
           <MyContentBlock
             title="이웃 공개 방 최신"
             layout="brick"
@@ -271,7 +225,6 @@ export default function YardBlock({
             ownerKey={ownerKey}
             onInterestGoLibrary={onInterestGoLibrary}
           />
-          {/* 내 방 최신 = 1·2·3 밀도 */}
           <MyContentBlock
             title="내 방 최신"
             layout="density"
@@ -364,31 +317,5 @@ const styles: Record<string, React.CSSProperties> = {
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
     textAlign: 'center',
-  },
-  pendingBlock: { marginTop: 12, display: 'flex', flexDirection: 'column', gap: 6 },
-  pendingRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-    padding: '8px 10px',
-    background: '#FEFCF8',
-    borderRadius: 10,
-    border: '1px solid rgba(92,61,46,0.08)',
-  },
-  pendingName: {
-    flex: 1, fontSize: 12, color: '#2C1810', overflow: 'hidden',
-    textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0,
-  },
-  pendingTag: {
-    fontSize: 10, color: '#9A8470', background: '#F5F0E8',
-    padding: '2px 7px', borderRadius: 999, flexShrink: 0,
-  },
-  relAccept: {
-    border: 'none', background: '#2C1810', color: '#fff', fontSize: 11,
-    padding: '5px 9px', borderRadius: 8, cursor: 'pointer', flexShrink: 0,
-  },
-  relGhost: {
-    border: '1px solid rgba(92,61,46,0.12)', background: '#fff', color: '#5C4A35',
-    fontSize: 11, padding: '5px 9px', borderRadius: 8, cursor: 'pointer', flexShrink: 0,
   },
 }
