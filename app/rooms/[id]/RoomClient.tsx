@@ -27,6 +27,7 @@ type House = {
   title: string
   primary_language: string
   owner_key: string
+  avatar_url?: string | null
 }
 
 type Post = {
@@ -37,6 +38,18 @@ type Post = {
   owner_key: string
   meta?: { media?: any; archived?: boolean; deleted?: boolean }
   comment_count?: number
+}
+
+type Participant = {
+  device_id: string
+  room_id: string | null
+  joined_at?: string
+  house?: {
+    id: string
+    title: string
+    avatar_url?: string | null
+    primary_language?: string
+  } | null
 }
 
 const LANG_FLAG: Record<string, string> = {
@@ -53,6 +66,30 @@ function getCountdown(bloomDate: string | null) {
   return { bloomed: false, label: `개화까지 ${days}일` }
 }
 
+function Avatar({ url, label, size = 32 }: { url?: string | null; label?: string; size?: number }) {
+  const style: React.CSSProperties = {
+    width: size,
+    height: size,
+    borderRadius: '50%',
+    objectFit: 'cover',
+    background: '#EFE6E1',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: size * 0.4,
+    flexShrink: 0,
+    border: '1px solid rgba(92,61,46,0.1)',
+  }
+  if (url) {
+    return <img src={url} alt={label || ''} style={style} />
+  }
+  return (
+    <span style={style} aria-hidden>
+      {label ? label.slice(0, 1) : '🏡'}
+    </span>
+  )
+}
+
 export default function RoomClient() {
   const params = useParams()
   const roomId = params?.id as string
@@ -61,6 +98,7 @@ export default function RoomClient() {
   const [room, setRoom] = useState<Room | null>(null)
   const [house, setHouse] = useState<House | null>(null)
   const [posts, setPosts] = useState<Post[]>([])
+  const [participants, setParticipants] = useState<Participant[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isMember, setIsMember] = useState(false)
@@ -72,9 +110,18 @@ export default function RoomClient() {
   const canWrite = isOwner || isMember
   const countdown = room?.seed_mode ? getCountdown(room.bloom_date) : null
 
+  // 참여자: room 스코프 멤버만, Creator(집 주인)는 제외
+  const participantList = participants.filter(
+    (p) => p.room_id === roomId && p.device_id !== house?.owner_key
+  )
+
   const goToLiving = () => {
     if (house?.id) router.push(`/houses/${house.id}/living`)
     else router.push('/living')
+  }
+
+  const goToHouse = (houseId?: string | null) => {
+    if (houseId) router.push(`/houses/${houseId}/living`)
   }
 
   useEffect(() => {
@@ -110,6 +157,15 @@ export default function RoomClient() {
           setIsMember(!mData._error && mData.is_member === true)
         } else {
           setIsMember(false)
+        }
+
+        // 참여자 목록 (프로필 enrich 포함)
+        const listRes = await fetch(
+          `/api/corenull/members?house_id=${rData.room.house_id}&room_id=${roomId}`
+        )
+        const listData = await listRes.json()
+        if (!listData._error && Array.isArray(listData.data)) {
+          setParticipants(listData.data)
         }
       }
 
@@ -193,6 +249,52 @@ export default function RoomClient() {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* 만든 사람 + 참여 중 */}
+      {house && (
+        <div style={peopleStrip}>
+          <div style={peopleRow}>
+            <span style={peopleLabel}>만든 사람</span>
+            <button
+              type="button"
+              onClick={() => goToHouse(house.id)}
+              style={creatorBtn}
+              aria-label={`${house.title} 거실로`}
+            >
+              <Avatar url={house.avatar_url} label={house.title} size={28} />
+              <span style={creatorName}>{house.title}</span>
+            </button>
+          </div>
+
+          {participantList.length > 0 && (
+            <div style={peopleRow}>
+              <span style={peopleLabel}>참여 중 ({participantList.length})</span>
+              <div style={avatarRow}>
+                {participantList.slice(0, 8).map((p) => {
+                  const title = p.house?.title || p.device_id.slice(0, 6)
+                  const avatar = p.house?.avatar_url
+                  const targetHouseId = p.house?.id
+                  return (
+                    <button
+                      key={p.device_id}
+                      type="button"
+                      onClick={() => goToHouse(targetHouseId)}
+                      style={avatarBtn}
+                      title={title}
+                      aria-label={title}
+                    >
+                      <Avatar url={avatar} label={title} size={28} />
+                    </button>
+                  )
+                })}
+                {participantList.length > 8 && (
+                  <span style={moreCount}>+{participantList.length - 8}</span>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -288,4 +390,63 @@ const countdownBanner: React.CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 12, margin: '12px 16px',
   padding: '12px 14px', borderRadius: 12, border: '1px solid',
   background: '#fef3e2', color: '#C17F3C', fontWeight: 600,
+}
+const peopleStrip: React.CSSProperties = {
+  margin: '0 16px',
+  padding: '12px 0',
+  borderBottom: '1px solid rgba(92,61,46,0.08)',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 10,
+}
+const peopleRow: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 10,
+  minWidth: 0,
+}
+const peopleLabel: React.CSSProperties = {
+  fontSize: 11,
+  fontWeight: 600,
+  color: '#9A8470',
+  width: 64,
+  flexShrink: 0,
+}
+const creatorBtn: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 8,
+  border: 'none',
+  background: 'transparent',
+  padding: 0,
+  cursor: 'pointer',
+  minWidth: 0,
+}
+const creatorName: React.CSSProperties = {
+  fontSize: 13,
+  fontWeight: 600,
+  color: '#2C1810',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+}
+const avatarRow: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+  flexWrap: 'wrap',
+  minWidth: 0,
+}
+const avatarBtn: React.CSSProperties = {
+  border: 'none',
+  background: 'transparent',
+  padding: 0,
+  cursor: 'pointer',
+  lineHeight: 0,
+}
+const moreCount: React.CSSProperties = {
+  fontSize: 11,
+  color: '#9A8470',
+  fontWeight: 600,
+  marginLeft: 2,
 }
