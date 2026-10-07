@@ -4,6 +4,8 @@
 // NOTE(2026-08-30): room_id 스코핑 + 양방향 해지 추가.
 // NOTE(2026-10-06): device_id 컬럼 = Owner ID. 구 초대는 Device UUID일 수 있어
 //   GET 시 owner_key를 함께 받아 합집합 조회한다.
+// NOTE(2026-10-07): 목록 GET 시 house 프로필(title/avatar) enrich — 방 상단
+//   만든사람·참여자 표시용. Creator는 members에 없고 House.owner_key다.
 
 export const dynamic = 'force-dynamic'
 
@@ -62,7 +64,35 @@ const handleGet = async (req, traceId) => {
     ? (data || []).filter(m => m.room_id === null || m.room_id === room_id)
     : (data || [])
 
-  return Response.json({ data: filtered, traceId })
+  // 방 상단 참여자 표시용: device_id → house 프로필(title, avatar_url)
+  // Owner 1 : House n 이므로 owner_key당 최신 집 1개를 붙인다.
+  const keys = [...new Set(filtered.map((m) => m.device_id).filter(Boolean))]
+  let houseByOwner = {}
+  if (keys.length > 0) {
+    const { data: houses } = await supabase
+      .from('corenull_houses')
+      .select('id, title, avatar_url, primary_language, owner_key, created_at')
+      .in('owner_key', keys)
+      .order('created_at', { ascending: false })
+
+    for (const h of houses || []) {
+      if (!houseByOwner[h.owner_key]) {
+        houseByOwner[h.owner_key] = {
+          id: h.id,
+          title: h.title,
+          avatar_url: h.avatar_url || null,
+          primary_language: h.primary_language || 'ko',
+        }
+      }
+    }
+  }
+
+  const enriched = filtered.map((m) => ({
+    ...m,
+    house: houseByOwner[m.device_id] || null,
+  }))
+
+  return Response.json({ data: enriched, traceId })
 }
 
 const handlePost = async (req, traceId) => {
