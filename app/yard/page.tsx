@@ -111,7 +111,6 @@ export default function YardPage() {
   const [bookmarks, setBookmarks] = useState<BookmarkRow[]>([])
   const [interestLoadingId, setInterestLoadingId] = useState<string | null>(null)
   const [applyLoadingHouseId, setApplyLoadingHouseId] = useState<string | null>(null)
-  const [relationActingId, setRelationActingId] = useState<string | null>(null)
 
   const loadAll = useCallback(async (key: string, preferredHouseId?: string) => {
     setLoading(true)
@@ -156,6 +155,7 @@ export default function YardPage() {
       const accepted = (nbRes.data || []).filter((n: any) => n.status === 'accepted')
       const pending = (nbRes.data || []).filter((n: any) => n.status === 'pending')
 
+      // relations: 화면 하단용. YardBlock은 accepted만 노출. 관리는 /me/neighbors
       const relRows: YardRelationRow[] = (nbRes.data || []).map((n: any) => ({
         id: n.id,
         status: n.status,
@@ -171,6 +171,7 @@ export default function YardPage() {
         pending.filter((n: any) => n.direction === 'outgoing').map((n: any) => n.house?.id).filter(Boolean)
       )
 
+      // 골목 = 발견 (모르는 집). 연결된 이웃과 합치지 않음
       const discoverList = (discRes.data || []).slice(0, 8)
       const acceptedSlice = accepted.slice(0, 8).filter((n: any) => n.house?.id)
 
@@ -284,6 +285,7 @@ export default function YardPage() {
     if (ownerKey) loadAll(ownerKey, houseId)
   }
 
+  // 골목 발견에서만 신청. 관계 수락/거절/취소는 /me/neighbors
   const handleApplyNeighbor = async (targetHouseId: string) => {
     if (!house || !ownerKey || applyLoadingHouseId) return
     setApplyLoadingHouseId(targetHouseId)
@@ -297,29 +299,6 @@ export default function YardPage() {
     } finally {
       setApplyLoadingHouseId(null)
     }
-  }
-
-  const handleAcceptRelation = async (id: string) => {
-    if (!ownerKey || relationActingId) return
-    setRelationActingId(id)
-    await fetch('/api/corenull/houses?action=neighbor-accept', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ neighbor_id: id, owner_key: ownerKey }),
-    })
-    await loadAll(ownerKey, house?.id)
-    setRelationActingId(null)
-  }
-
-  const handleRemoveRelation = async (id: string) => {
-    if (!ownerKey || relationActingId) return
-    setRelationActingId(id)
-    await fetch(
-      `/api/corenull/houses?action=neighbor-cancel&neighbor_id=${id}&owner_key=${ownerKey}`,
-      { method: 'DELETE' }
-    )
-    await loadAll(ownerKey, house?.id)
-    setRelationActingId(null)
   }
 
   const handleInterest = async (postId: string, roomId?: string) => {
@@ -438,9 +417,6 @@ export default function YardPage() {
         onApplyNeighbor={handleApplyNeighbor}
         applyLoadingHouseId={applyLoadingHouseId}
         relations={relations}
-        onAcceptRelation={handleAcceptRelation}
-        onRemoveRelation={handleRemoveRelation}
-        relationActingId={relationActingId}
         onOpenRelations={() => router.push('/me/neighbors')}
         neighborFeed={neighborFeed}
         myPosts={myPosts}
