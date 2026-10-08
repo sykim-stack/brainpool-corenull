@@ -65,6 +65,39 @@ const handleGet = async (req, traceId) => {
   return Response.json({ data, traceId })
 }
 
+const canWriteRoom = async (supabase, room_id, owner_key) => {
+  const { data: room, error: roomError } = await supabase
+    .from('corenull_rooms')
+    .select('id, house_id')
+    .eq('id', room_id)
+    .single()
+  if (roomError || !room) return { ok: false, error: 'room_not_found' }
+
+  const { data: house } = await supabase
+    .from('corenull_houses')
+    .select('owner_key, primary_language')
+    .eq('id', room.house_id)
+    .single()
+
+  const isOwner = house?.owner_key === owner_key
+  let isMember = false
+  if (!isOwner) {
+    const { data: members } = await supabase
+      .from('corenull_house_members')
+      .select('device_id, room_id')
+      .eq('house_id', room.house_id)
+      .eq('device_id', owner_key)
+    isMember = (members || []).some((m) => m.room_id === null || m.room_id === room_id)
+  }
+
+  if (!isOwner && !isMember) return { ok: false, error: 'not_authorized' }
+  return {
+    ok: true,
+    house_id: room.house_id,
+    primary_language: house?.primary_language || 'ko',
+  }
+}
+
 const handlePost = async (req, traceId) => {
   const body = JSON.parse(await req.text())
   const { room_id, owner_key, content, meta, type, relations } = body
@@ -88,38 +121,11 @@ const handlePost = async (req, traceId) => {
   }
 
   if (messageType !== 'comment') {
-    const { data: room, error: roomError } = await supabase
-      .from('corenull_rooms')
-      .select('house_id')
-      .eq('id', room_id)
-      .single()
-    if (roomError || !room) {
-      return Response.json({ _error: 'room_not_found', traceId }, { status: 500 })
-    }
+    const auth = await canWriteRoom(supabase, room_id, owner_key)
+    if (!auth.ok) return Response.json({ _error: auth.error, traceId }, { status: 500 })
 
-    const { data: house } = await supabase
-      .from('corenull_houses')
-      .select('owner_key, primary_language')
-      .eq('id', room.house_id)
-      .single()
-
-    const isOwner = house?.owner_key === owner_key
-    let isMember = false
-    if (!isOwner) {
-      const { data: members } = await supabase
-        .from('corenull_house_members')
-        .select('device_id, room_id')
-        .eq('house_id', room.house_id)
-        .eq('device_id', owner_key)
-      isMember = (members || []).some((m) => m.room_id === null || m.room_id === room_id)
-    }
-
-    if (!isOwner && !isMember) {
-      return Response.json({ _error: 'not_authorized', traceId }, { status: 500 })
-    }
-
-    const sourceLang = house?.primary_language || 'ko'
-    insertPayload.house_id = room.house_id
+    const sourceLang = auth.primary_language || 'ko'
+    insertPayload.house_id = auth.house_id
     insertPayload.language = sourceLang
     insertPayload.translated_ko = null
     insertPayload.translation_status = sourceLang === 'ko' ? 'completed' : 'pending'
@@ -174,12 +180,23 @@ const handlePatch = async (req, traceId) => {
     if (!content) {
       return Response.json({ _error: 'content_required', traceId }, { status: 500 })
     }
+
+    const updatePayload = {
+      content,
+      meta: meta ? { ...(original.meta || {}), ...meta } : original.meta,
+    }
+
+    // 잘못된 방에 올린 글 → 다른 방으로 이동
+    if (room_id && room_id !== original.room_id) {
+      const auth = await canWriteRoom(supabase, room_id, owner_key)
+      if (!auth.ok) return Response.json({ _error: auth.error, traceId }, { status: 500 })
+      updatePayload.room_id = room_id
+      updatePayload.house_id = auth.house_id
+    }
+
     const { data, error } = await supabase
       .from('messages')
-      .update({
-        content,
-        meta: meta ? { ...(original.meta || {}), ...meta } : original.meta,
-      })
+      .update(updatePayload)
       .eq('id', post_id)
       .select()
       .single()
