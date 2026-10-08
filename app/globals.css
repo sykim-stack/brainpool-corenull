@@ -27,6 +27,21 @@ body {
   overflow-x: hidden;
 }
 
+
+/* 반응형 네비게이션: PC는 상단 메뉴, 모바일은 하단 메뉴 */
+.app-topnav { display: flex; }
+.app-bottombar { display: flex; }
+
+@media (max-width: 767px) {
+  /* 모바일에서는 TopBar의 공간 메뉴를 숨기고 하단 탭만 사용 */
+  .app-topnav { display: none !important; }
+}
+
+@media (min-width: 768px) {
+  /* PC에서는 모바일 하단 탭을 숨김 */
+  .app-bottombar { display: none !important; }
+}
+
 .app-shell-content {
   max-width: var(--shell-mobile);
   margin: 0 auto;
