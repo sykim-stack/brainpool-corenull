@@ -190,12 +190,12 @@ export default function NeighborContentBlock({
                 <div style={styles.profileCenter}>
                   <RingBlock
                     data={current?.ring || DEFAULT_RING}
-                    size={100}
+                    size={128}
                     centerContent={
                       current?.avatarUrl ? (
                         <img src={current.avatarUrl} alt="" style={styles.avatarImg} />
                       ) : (
-                        <span style={{ fontSize: 22 }}>{current?.langFlag || '🏡'}</span>
+                        <span style={{ fontSize: 28 }}>{current?.langFlag || '🏡'}</span>
                       )
                     }
                   />
@@ -355,7 +355,7 @@ const styles: Record<string, React.CSSProperties> = {
     position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
     alignItems: 'center', justifyContent: 'center', gap: 8, zIndex: 1, padding: '8px 8px 40px',
   },
-  avatarImg: { width: 48, height: 48, borderRadius: '50%', objectFit: 'cover' },
+  avatarImg: { width: 72, height: 72, borderRadius: '50%', objectFit: 'cover' },
   profileName: {
     fontSize: 12, fontWeight: 600, color: '#FEFCF8', textAlign: 'center',
     textShadow: '0 1px 3px rgba(0,0,0,0.45)', overflow: 'hidden', textOverflow: 'ellipsis',
