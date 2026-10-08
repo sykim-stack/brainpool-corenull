@@ -27,6 +27,8 @@ export default function PostDetailPage() {
   const [editMode, setEditMode] = useState(false)
   const [editContent, setEditContent] = useState('')
   const [editMedia, setEditMedia] = useState<any[]>([])
+  const [editRoomId, setEditRoomId] = useState('')
+  const [writableRooms, setWritableRooms] = useState<any[]>([])
   const [editSaving, setEditSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [uploadMessage, setUploadMessage] = useState('')
@@ -38,6 +40,12 @@ export default function PostDetailPage() {
     const key = getOwnerKey()
     setOwnerKey(key)
     if (!postId) return
+    if (key) {
+      fetch(`/api/corenull/rooms?scope=writable&owner_key=${encodeURIComponent(key)}`)
+        .then((r) => r.json())
+        .then((d) => setWritableRooms(d.data || []))
+        .catch(() => {})
+    }
     Promise.all([
       fetch(`/api/corenull/posts?post_id=${postId}&owner_key=${key}`).then(r => r.json()),
       fetch(`/api/corenull/posts?parent_id=${postId}`).then(r => r.json()),
@@ -75,6 +83,7 @@ export default function PostDetailPage() {
   const handleEditOpen = () => {
     setEditContent(post.content)
     setEditMedia(post.meta?.media || [])
+    setEditRoomId(post.room_id || '')
     setEditMode(true)
   }
 
@@ -141,11 +150,27 @@ export default function PostDetailPage() {
         action: 'edit',
         content: editContent.trim(),
         meta: { ...post.meta, media: editMedia },
+        room_id: editRoomId || post.room_id,
       }),
     })
     const data = await res.json()
     if (data.data) {
-      setPost((prev: any) => ({ ...prev, content: data.data.content, meta: data.data.meta }))
+      setPost((prev: any) => ({
+        ...prev,
+        content: data.data.content,
+        meta: data.data.meta,
+        room_id: data.data.room_id,
+        house_id: data.data.house_id,
+      }))
+      if (data.data.room_id && data.data.room_id !== room?.id) {
+        const rRes = await fetch(`/api/corenull/rooms?room_id=${data.data.room_id}&owner_key=${ownerKey}`).then((r) => r.json())
+        const roomData = rRes.room || null
+        setRoom(roomData)
+        if (roomData?.house_id) {
+          const hRes = await fetch(`/api/corenull/houses?house_id=${roomData.house_id}`).then((r) => r.json())
+          setHouse(hRes.house || null)
+        }
+      }
       setEditMode(false)
     }
     setEditSaving(false)
@@ -247,6 +272,22 @@ export default function PostDetailPage() {
 
         {editMode ? (
           <div style={styles.editBox}>
+            {writableRooms.length > 0 && (
+              <label style={styles.roomSelectLabel}>
+                <span style={styles.roomSelectTitle}>방 이동</span>
+                <select
+                  style={styles.roomSelect}
+                  value={editRoomId}
+                  onChange={(e) => setEditRoomId(e.target.value)}
+                >
+                  {writableRooms.map((rm: any) => (
+                    <option key={rm.id} value={rm.id}>
+                      {(rm._house_title ? `${rm._house_title} · ` : '') + (rm.room_name || '방')}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             {editMedia.length > 0 && (
               <div style={styles.editMediaRow}>
                 {editMedia.map((m: any, i: number) => (
@@ -419,6 +460,13 @@ const styles: Record<string, React.CSSProperties> = {
   postTime: { fontSize: 11, color: '#9A8470' },
   content: { fontSize: 16, lineHeight: 1.8, color: '#1C1208', marginBottom: 16 },
   editBox: { marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 10 },
+  roomSelectLabel: { display: 'flex', flexDirection: 'column', gap: 6 },
+  roomSelectTitle: { fontSize: 12, fontWeight: 600, color: '#5C4A35' },
+  roomSelect: {
+    width: '100%', padding: '10px 12px', borderRadius: 10,
+    border: '1px solid rgba(92,61,46,0.2)', background: '#F5F0E8',
+    fontSize: 13, color: '#1C1208', outline: 'none',
+  },
   editMediaRow: { display: 'flex', gap: 8, flexWrap: 'wrap' },
   editMediaItem: { position: 'relative' },
   editMediaThumb: { width: 72, height: 72, borderRadius: 10, objectFit: 'cover' },
@@ -450,22 +498,29 @@ const styles: Record<string, React.CSSProperties> = {
   fruitSection: { marginTop: 16, paddingTop: 16, borderTop: '1px solid rgba(92,61,46,0.1)' },
   fruitBtn: { width: '100%', padding: '12px', background: 'linear-gradient(135deg, #4A7C3F, #7AB648)', color: 'white', border: 'none', borderRadius: 12, fontSize: 14, fontWeight: 600, cursor: 'pointer' },
   harvestBtn: { width: '100%', padding: '12px', background: 'linear-gradient(135deg, #C17F3C, #E8A857)', color: 'white', border: 'none', borderRadius: 12, fontSize: 14, fontWeight: 600, cursor: 'pointer' },
-  harvestedBadge: { textAlign: 'center', padding: '10px', fontSize: 13, color: '#4A7C3F', background: 'rgba(74,124,63,0.08)', borderRadius: 10 },
-  divider: { height: 1, background: 'rgba(92,61,46,0.1)', margin: '16px 0' },
-  commentCount: { fontSize: 13, fontWeight: 500, color: '#5C4A35', marginBottom: 12 },
-  emptyComment: { fontSize: 13, color: '#9A8470', textAlign: 'center', padding: '24px 0' },
+  harvestedBadge: { textAlign: 'center', padding: '10px', fontSize: 13, color: '#4A5240', background: 'rgba(74,82,64,0.08)', borderRadius: 10 },
+  divider: { height: 1, background: 'rgba(92,61,46,0.1)', margin: '20px 0 12px' },
+  commentCount: { fontSize: 13, fontWeight: 600, color: '#5C4A35', marginBottom: 12 },
+  emptyComment: { fontSize: 13, color: '#9A8470', textAlign: 'center', padding: '20px 0' },
   commentList: { display: 'flex', flexDirection: 'column', gap: 12 },
   commentItem: { display: 'flex', gap: 10 },
-  commentAvatar: { width: 28, height: 28, borderRadius: '50%', background: 'rgba(74,82,64,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0 },
-  commentBody: { flex: 1 },
-  commentContent: { fontSize: 14, lineHeight: 1.6, color: '#1C1208' },
-  commentTime: { fontSize: 11, color: '#9A8470', marginTop: 3 },
+  commentAvatar: { width: 28, height: 28, borderRadius: '50%', background: 'rgba(74,82,64,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0 },
+  commentBody: { flex: 1, minWidth: 0 },
+  commentContent: { fontSize: 14, color: '#1C1208', lineHeight: 1.5 },
+  commentTime: { fontSize: 11, color: '#9A8470', marginTop: 4 },
   commentInput: {
-    position: 'fixed', bottom: 64, left: '50%', transform: 'translateX(-50%)',
-    width: '100%', maxWidth: '430px',
-    background: 'rgba(254,252,248,0.95)', borderTop: '1px solid rgba(92,61,46,0.12)',
-    padding: '10px 16px', display: 'flex', gap: 8, backdropFilter: 'blur(12px)',
+    position: 'fixed', bottom: 0, left: 0, right: 0,
+    display: 'flex', gap: 8, padding: '10px 16px',
+    background: '#FEFCF8', borderTop: '1px solid rgba(92,61,46,0.1)',
+    maxWidth: 640, margin: '0 auto',
   },
-  commentField: { flex: 1, height: 40, background: '#F5F0E8', border: '1px solid rgba(92,61,46,0.12)', borderRadius: 20, padding: '0 14px', fontFamily: "'Noto Sans KR', sans-serif", fontSize: 14, color: '#1C1208', outline: 'none' },
-  commentSubmit: { width: 40, height: 40, borderRadius: '50%', background: '#2C1810', color: 'white', border: 'none', fontSize: 18, cursor: 'pointer' },
+  commentField: {
+    flex: 1, padding: '10px 14px', borderRadius: 20,
+    border: '1px solid rgba(92,61,46,0.15)', background: '#F5F0E8',
+    fontSize: 14, outline: 'none',
+  },
+  commentSubmit: {
+    width: 40, height: 40, borderRadius: '50%', border: 'none',
+    background: '#2C1810', color: '#FEFCF8', fontSize: 16, cursor: 'pointer',
+  },
 }
