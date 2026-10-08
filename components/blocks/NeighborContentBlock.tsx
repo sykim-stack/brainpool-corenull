@@ -199,7 +199,11 @@ export default function NeighborContentBlock({
                       )
                     }
                   />
-                  <div style={styles.profileName}>{current?.title}</div>
+                  <div style={styles.profileName}>
+                    {navigateRooms && roomA?.roomName
+                      ? roomA.roomName
+                      : current?.title}
+                  </div>
                 </div>
 
                 {mode === 'recommend' && onApplyNeighbor && current && (
