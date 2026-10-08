@@ -200,7 +200,7 @@ export default function NeighborContentBlock({
                     }
                   />
                   <div style={styles.profileName}>
-                    {navigateRooms && roomA?.roomName
+                    {tier === 'invite' && roomA?.roomName
                       ? roomA.roomName
                       : current?.title}
                   </div>
