@@ -47,9 +47,11 @@ export default function RingBlock({
   const minRadius = size * 0.28 // 중앙 아바타 자리 확보
   const ringCount = Math.max(rings.length, 1)
   const step = (maxRadius - minRadius) / ringCount
+  // 정사각 + overflow hidden → 원. 자식이 커도 타원으로 찌그러지지 않음.
+  const centerBox = Math.max(24, minRadius * 2 - 8)
 
   return (
-    <div style={{ position: 'relative', width: size, height: size }}>
+    <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
       <svg
         width={size}
         height={size}
@@ -81,15 +83,17 @@ export default function RingBlock({
             top: '50%',
             left: '50%',
             transform: 'translate(-50%, -50%)',
-            width: minRadius * 2 - 8,
-            height: minRadius * 2 - 8,
+            width: centerBox,
+            height: centerBox,
             borderRadius: '50%',
+            overflow: 'hidden',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             background: '#FEFCF8',
             border: `2px solid ${color}`,
             boxShadow: '0 2px 12px rgba(44,24,16,0.12)',
+            boxSizing: 'border-box',
           }}
         >
           {centerContent}
