@@ -245,10 +245,10 @@ export default function LivingPage() {
             <img
               src={houseAvatarUrl(house)!}
               alt=""
-              style={{ width: 48, height: 48, borderRadius: '50%', objectFit: 'cover' }}
+              style={{ width: 112, height: 112, borderRadius: '50%', objectFit: 'cover' }}
             />
           ) : (
-            <span style={{ fontSize: 20 }}>🏡</span>
+            <span style={{ fontSize: 28 }}>🏡</span>
           )
         }
         doorplate={{
