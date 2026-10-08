@@ -355,7 +355,14 @@ const styles: Record<string, React.CSSProperties> = {
     position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
     alignItems: 'center', justifyContent: 'center', gap: 8, zIndex: 1, padding: '8px 8px 40px',
   },
-  avatarImg: { width: 72, height: 72, borderRadius: '50%', objectFit: 'cover' },
+  // Ring 중앙 칸을 채움. 고정 px이면 칸보다 커서 타원처럼 보임.
+  avatarImg: {
+    width: '100%',
+    height: '100%',
+    borderRadius: '50%',
+    objectFit: 'cover',
+    display: 'block',
+  },
   profileName: {
     fontSize: 12, fontWeight: 600, color: '#FEFCF8', textAlign: 'center',
     textShadow: '0 1px 3px rgba(0,0,0,0.45)', overflow: 'hidden', textOverflow: 'ellipsis',
