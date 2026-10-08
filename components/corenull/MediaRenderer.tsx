@@ -32,6 +32,33 @@ function normalizeItem(m: MediaItem): MediaItem | null {
   return { ...m, type: type as MediaItem['type'], url }
 }
 
+function Thumb({ item, active, onSelect }: { item: MediaItem; active: boolean; onSelect: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation()
+        onSelect()
+      }}
+      aria-label="미디어 선택"
+      aria-pressed={active}
+      style={{
+        ...styles.thumbBtn,
+        ...(active ? styles.thumbBtnActive : {}),
+      }}
+    >
+      {item.type === 'video' ? (
+        <>
+          <video src={item.url} muted playsInline preload="metadata" style={styles.thumbMedia} />
+          <span style={styles.thumbVideoBadge}>▶</span>
+        </>
+      ) : (
+        <img src={item.url} alt="" style={styles.thumbMedia} />
+      )}
+    </button>
+  )
+}
+
 export default function MediaRenderer({
   media,
   aspect = '4 / 3',
@@ -163,22 +190,25 @@ export default function MediaRenderer({
               >
                 ›
               </button>
-              <div style={styles.dots}>
-                {slides.map((_, i) => (
-                  <span
-                    key={i}
-                    style={{
-                      ...styles.dot,
-                      background: i === safeIndex ? '#FEFCF8' : 'rgba(254,252,248,0.4)',
-                    }}
-                  />
-                ))}
-              </div>
               <div style={styles.count}>
                 {safeIndex + 1}/{slides.length}
               </div>
             </>
           )}
+        </div>
+      )}
+
+      {/* 점 대신 썸네일 — 여러 장임을 바로 알 수 있게 */}
+      {slides.length > 1 && (
+        <div style={styles.thumbRow} aria-label="미디어 썸네일">
+          {slides.map((item, i) => (
+            <Thumb
+              key={`${item.url}-${i}`}
+              item={item}
+              active={i === safeIndex}
+              onSelect={() => setIndex(i)}
+            />
+          ))}
         </div>
       )}
 
@@ -250,9 +280,21 @@ export default function MediaRenderer({
               />
             )}
             {slides.length > 1 && (
-              <div style={styles.lbCount}>
-                {lightbox + 1} / {slides.length}
-              </div>
+              <>
+                <div style={styles.lbCount}>
+                  {lightbox + 1} / {slides.length}
+                </div>
+                <div style={styles.lbThumbRow}>
+                  {slides.map((item, i) => (
+                    <Thumb
+                      key={`lb-${item.url}-${i}`}
+                      item={item}
+                      active={i === lightbox}
+                      onSelect={() => setLightbox(i)}
+                    />
+                  ))}
+                </div>
+              </>
             )}
           </div>
         </div>
@@ -293,17 +335,6 @@ const styles: Record<string, React.CSSProperties> = {
     padding: 0,
     zIndex: 2,
   },
-  dots: {
-    position: 'absolute',
-    bottom: 8,
-    left: 0,
-    right: 0,
-    display: 'flex',
-    justifyContent: 'center',
-    gap: 5,
-    zIndex: 2,
-  },
-  dot: { width: 6, height: 6, borderRadius: '50%' },
   count: {
     position: 'absolute',
     top: 8,
@@ -314,6 +345,46 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '2px 7px',
     borderRadius: 999,
     zIndex: 2,
+  },
+  thumbRow: {
+    display: 'flex',
+    gap: 6,
+    overflowX: 'auto',
+    padding: '0 2px',
+    WebkitOverflowScrolling: 'touch',
+  },
+  thumbBtn: {
+    position: 'relative',
+    flex: '0 0 auto',
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+    border: '2px solid transparent',
+    padding: 0,
+    overflow: 'hidden',
+    cursor: 'pointer',
+    background: '#EDE6DC',
+  },
+  thumbBtnActive: {
+    borderColor: '#2C1810',
+    boxShadow: '0 0 0 1px rgba(44,24,16,0.15)',
+  },
+  thumbMedia: {
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover',
+    display: 'block',
+  },
+  thumbVideoBadge: {
+    position: 'absolute',
+    right: 3,
+    bottom: 3,
+    fontSize: 9,
+    color: '#FEFCF8',
+    background: 'rgba(0,0,0,0.5)',
+    borderRadius: 4,
+    padding: '1px 3px',
+    lineHeight: 1.2,
   },
   fileLink: {
     display: 'flex',
@@ -373,7 +444,14 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     gap: 10,
   },
-  lbImg: { maxWidth: '100%', maxHeight: '85vh', objectFit: 'contain' },
-  lbVideo: { maxWidth: '100%', maxHeight: '85vh' },
+  lbImg: { maxWidth: '100%', maxHeight: '75vh', objectFit: 'contain' },
+  lbVideo: { maxWidth: '100%', maxHeight: '75vh' },
   lbCount: { color: 'rgba(255,255,255,0.7)', fontSize: 12 },
+  lbThumbRow: {
+    display: 'flex',
+    gap: 6,
+    overflowX: 'auto',
+    maxWidth: '100%',
+    paddingBottom: 4,
+  },
 }
