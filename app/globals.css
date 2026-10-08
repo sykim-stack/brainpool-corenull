@@ -1,8 +1,8 @@
 :root {
-  --shell-mobile: 430px;
+  --shell-mobile: 100%;
   --shell-tablet: 720px;
-  --shell-desktop: 1000px;
-  /* 모바일 카드/골목 높이 */
+  --shell-desktop: 960px;
+  /* 모바일 카드/골목 높이 — 한 곳에서만 조정 */
   --cn-alley-frame: 340px;
   --cn-post-card-h: 340px;
 }
@@ -42,10 +42,11 @@ body {
 
 .app-fixed-bar {
   position: fixed;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 100%;
+  left: 0;
+  right: 0;
+  z-index: 50;
   max-width: var(--shell-mobile);
+  margin: 0 auto;
 }
 
 @media (min-width: 768px) {
@@ -56,45 +57,37 @@ body {
   .app-fixed-bar { max-width: var(--shell-desktop); }
 }
 
-.app-bottombar { display: flex; }
-@media (min-width: 1200px) {
-  .app-bottombar { display: none; }
-}
-
-.app-topnav { display: none; }
-@media (min-width: 1200px) {
-  .app-topnav { display: flex; }
-}
-
-.app-fab-write {
-}
-
+/* bleed: full-bleed background while content stays in shell */
 .bleed-full {
   width: 100vw;
-  position: relative;
-  left: 50%;
-  right: 50%;
-  margin-left: -50vw;
-  margin-right: -50vw;
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
 }
 
+/* 골목 1|2|3 — PC에서 3열, 모바일에서 1열(커버)+포스트 스택 */
 .cn-alley-row {
   display: grid;
-  grid-template-columns: 1fr;
   gap: 10px;
   align-items: stretch;
-  padding: 0 14px;
+}
+.cn-alley-row[data-posts="0"] {
+  grid-template-columns: 1fr;
+}
+.cn-alley-row[data-posts="1"] {
+  grid-template-columns: 1fr;
+}
+.cn-alley-row[data-posts="2"] {
+  grid-template-columns: 1fr;
 }
 @media (min-width: 768px) {
-  .cn-alley-row {
-    grid-template-columns: minmax(160px, 1.15fr) minmax(0, 1fr) minmax(0, 1fr);
-    gap: 12px;
-  }
   .cn-alley-row[data-posts="0"] {
-    grid-template-columns: minmax(240px, 1fr);
+    grid-template-columns: 1fr;
   }
   .cn-alley-row[data-posts="1"] {
-    grid-template-columns: minmax(180px, 1.15fr) minmax(0, 1.6fr);
+    grid-template-columns: 1.1fr 0.9fr;
+  }
+  .cn-alley-row[data-posts="2"] {
+    grid-template-columns: 1.2fr 0.9fr 0.9fr;
   }
 }
 
@@ -102,27 +95,17 @@ body {
   display: flex;
   justify-content: center;
   margin-top: 10px;
-  padding: 0 14px;
 }
-@media (min-width: 768px) {
-  .cn-alley-dots {
-    display: grid;
-    grid-template-columns: minmax(160px, 1.15fr) minmax(0, 2fr);
-    gap: 12px;
-  }
-  .cn-alley-dots-inner {
-    grid-column: 2;
-    display: flex;
-    justify-content: center;
-    gap: 6px;
-  }
+.cn-alley-dots-inner {
+  display: flex;
+  gap: 6px;
 }
 
+/* 포스트 그리드 — 카드 높이 통일 */
 .cn-post-grid {
   display: grid;
-  grid-template-columns: 1fr;
   gap: 12px;
-  align-items: stretch;
+  grid-template-columns: 1fr;
 }
 .cn-post-grid > * {
   height: var(--cn-post-card-h);
@@ -182,6 +165,9 @@ body {
   }
   .cn-brick-row[data-cols="2"] {
     grid-template-columns: 1fr 1fr;
+  }
+  /* 3열 다음 2열만 가운데 정렬 (벽돌 3-2). 단독 2개는 전체 폭 */
+  .cn-brick-row[data-cols="2"][data-offset="true"] {
     margin-left: calc(100% / 6 + 2px);
     margin-right: calc(100% / 6 + 2px);
   }
