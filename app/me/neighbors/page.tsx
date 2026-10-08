@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { getDeviceId } from '@/lib/deviceId'
+import { getOwnerKey } from '@/lib/ownerKey'
+import { pickActiveHouse } from '@/lib/activeHouse'
 import TopBar from '@/components/blocks/TopBar'
 import CoreNullLogo from '@/components/corenull/CoreNullLogo'
 
@@ -21,52 +22,69 @@ const LANG_FLAG: Record<string, string> = {
 
 export default function MyNeighborsPage() {
   const router = useRouter()
-  const [ownerKey, setOwnerKey] = useState('')
+  const [ownerKey, setOwnerKeyState] = useState('')
   const [neighbors, setNeighbors] = useState<NeighborRow[]>([])
   const [loading, setLoading] = useState(true)
   const [actingId, setActingId] = useState<string | null>(null)
 
   useEffect(() => {
-    const key = getDeviceId()
-    setOwnerKey(key)
+    const key = getOwnerKey()
+    setOwnerKeyState(key)
+    if (!key) {
+      setLoading(false)
+      return
+    }
 
     fetch(`/api/corenull/houses?owner_key=${key}`)
-      .then(r => r.json())
+      .then((r) => r.json())
       .then(async (d) => {
-        const myHouse = d.data?.[0]
+        const list = d.data || []
+        const myHouse = pickActiveHouse(list) || list[0]
         if (!myHouse) {
           setLoading(false)
           return
         }
-        const nb = await fetch(`/api/corenull/houses?action=neighbors&house_id=${myHouse.id}`).then(r => r.json())
+        const nb = await fetch(
+          `/api/corenull/houses?action=neighbors&house_id=${myHouse.id}`
+        ).then((r) => r.json())
         setNeighbors(nb.data || [])
         setLoading(false)
       })
+      .catch(() => setLoading(false))
   }, [])
 
   const handleAccept = async (neighborId: string) => {
-    if (actingId) return
+    if (actingId || !ownerKey) return
     setActingId(neighborId)
-    const res = await fetch('/api/corenull/houses?action=neighbor-accept', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ neighbor_id: neighborId, owner_key: ownerKey }),
-    })
-    const data = await res.json()
-    if (data.data) {
-      setNeighbors((prev) => prev.map((n) => n.id === neighborId ? { ...n, status: 'accepted' } : n))
+    try {
+      const res = await fetch('/api/corenull/houses?action=neighbor-accept', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ neighbor_id: neighborId, owner_key: ownerKey }),
+      })
+      const data = await res.json()
+      if (data.data) {
+        setNeighbors((prev) =>
+          prev.map((n) => (n.id === neighborId ? { ...n, status: 'accepted' } : n))
+        )
+      }
+    } finally {
+      setActingId(null)
     }
-    setActingId(null)
   }
 
   const handleRemove = async (neighborId: string) => {
-    if (actingId) return
+    if (actingId || !ownerKey) return
     setActingId(neighborId)
-    await fetch(`/api/corenull/houses?action=neighbor-remove&neighbor_id=${neighborId}&owner_key=${ownerKey}`, {
-      method: 'DELETE',
-    })
-    setNeighbors((prev) => prev.filter((n) => n.id !== neighborId))
-    setActingId(null)
+    try {
+      await fetch(
+        `/api/corenull/houses?action=neighbor-remove&neighbor_id=${neighborId}&owner_key=${ownerKey}`,
+        { method: 'DELETE' }
+      )
+      setNeighbors((prev) => prev.filter((n) => n.id !== neighborId))
+    } finally {
+      setActingId(null)
+    }
   }
 
   if (loading) return <div style={styles.loading}>🏘️</div>
@@ -84,6 +102,9 @@ export default function MyNeighborsPage() {
           <div style={styles.empty}>
             <div style={{ fontSize: 40, marginBottom: 12 }}>🏘️</div>
             <p style={{ fontSize: 14, color: '#9A8470' }}>아직 이웃이 없어요</p>
+            <p style={{ fontSize: 12, color: '#B8A898', marginTop: 8 }}>
+              마당·광장 골목에서 이웃을 신청할 수 있어요
+            </p>
           </div>
         ) : (
           <>
@@ -95,14 +116,24 @@ export default function MyNeighborsPage() {
                     <NeighborItem key={n.id} n={n} onClick={undefined}>
                       <button
                         style={{ ...styles.actionBtn, ...styles.acceptBtn }}
-                        onClick={(e) => { e.stopPropagation(); handleAccept(n.id) }}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleAccept(n.id)
+                        }}
                         disabled={actingId === n.id}
-                      >수락</button>
+                      >
+                        수락
+                      </button>
                       <button
                         style={styles.actionBtn}
-                        onClick={(e) => { e.stopPropagation(); handleRemove(n.id) }}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleRemove(n.id)
+                        }}
                         disabled={actingId === n.id}
-                      >거절</button>
+                      >
+                        거절
+                      </button>
                     </NeighborItem>
                   ))}
                 </div>
@@ -117,9 +148,14 @@ export default function MyNeighborsPage() {
                     <NeighborItem key={n.id} n={n} onClick={undefined}>
                       <button
                         style={styles.actionBtn}
-                        onClick={(e) => { e.stopPropagation(); handleRemove(n.id) }}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleRemove(n.id)
+                        }}
                         disabled={actingId === n.id}
-                      >취소</button>
+                      >
+                        취소
+                      </button>
                     </NeighborItem>
                   ))}
                 </div>
@@ -134,13 +170,18 @@ export default function MyNeighborsPage() {
                     <NeighborItem
                       key={n.id}
                       n={n}
-                      onClick={() => n.house && router.push(`/houses/${n.house.id}/yard`)}
+                      onClick={() => n.house && router.push(`/houses/${n.house.id}/living`)}
                     >
                       <button
                         style={styles.actionBtn}
-                        onClick={(e) => { e.stopPropagation(); handleRemove(n.id) }}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleRemove(n.id)
+                        }}
                         disabled={actingId === n.id}
-                      >해지</button>
+                      >
+                        해지
+                      </button>
                     </NeighborItem>
                   ))}
                 </div>
@@ -153,10 +194,20 @@ export default function MyNeighborsPage() {
   )
 }
 
-function NeighborItem({ n, onClick, children }: { n: NeighborRow; onClick?: () => void; children: React.ReactNode }) {
+function NeighborItem({
+  n,
+  onClick,
+  children,
+}: {
+  n: NeighborRow
+  onClick?: () => void
+  children: React.ReactNode
+}) {
   return (
     <div style={{ ...styles.item, cursor: onClick ? 'pointer' : 'default' }} onClick={onClick}>
-      <div style={styles.icon}>{n.house ? (LANG_FLAG[n.house.primary_language] || '🏡') : '🏡'}</div>
+      <div style={styles.icon}>
+        {n.house ? LANG_FLAG[n.house.primary_language] || '🏡' : '🏡'}
+      </div>
       <div style={styles.info}>
         <div style={styles.itemTitle}>{n.house?.title || '알 수 없는 집'}</div>
         <div style={styles.date}>{new Date(n.requested_at).toLocaleDateString('ko-KR')}</div>
@@ -167,26 +218,61 @@ function NeighborItem({ n, onClick, children }: { n: NeighborRow; onClick?: () =
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  loading: { display: 'flex', alignItems: 'center', justifyContent: 'center', height: '50vh', fontSize: 40 },
+  loading: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: '50vh',
+    fontSize: 40,
+  },
   body: { padding: '16px' },
   empty: { textAlign: 'center', padding: '64px 24px' },
   sectionTitle: {
-    fontSize: 12, color: '#5C4A35', fontWeight: 600,
-    padding: '8px 4px 6px', marginBottom: 6,
+    fontSize: 12,
+    color: '#5C4A35',
+    fontWeight: 600,
+    padding: '8px 4px 6px',
+    marginBottom: 6,
   },
   list: { display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 },
   item: {
-    background: '#FEFCF8', borderRadius: 12,
+    background: '#FEFCF8',
+    borderRadius: 12,
     border: '1px solid rgba(92,61,46,0.12)',
-    padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12,
+    padding: '12px 14px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 12,
   },
-  icon: { width: 40, height: 40, borderRadius: 10, background: 'rgba(74,82,64,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 },
+  icon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    background: 'rgba(74,82,64,0.1)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: 18,
+  },
   info: { flex: 1, minWidth: 0 },
-  itemTitle: { fontSize: 13, fontWeight: 500, color: '#1C1208', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  itemTitle: {
+    fontSize: 13,
+    fontWeight: 500,
+    color: '#1C1208',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
   date: { fontSize: 11, color: '#9A8470', marginTop: 2 },
   actionBtn: {
-    fontSize: 11, color: '#9A8470', background: 'none', border: '1px solid rgba(92,61,46,0.2)',
-    borderRadius: 10, padding: '3px 8px', cursor: 'pointer', flexShrink: 0,
+    fontSize: 11,
+    color: '#9A8470',
+    background: 'none',
+    border: '1px solid rgba(92,61,46,0.2)',
+    borderRadius: 10,
+    padding: '3px 8px',
+    cursor: 'pointer',
+    flexShrink: 0,
   },
   acceptBtn: { color: '#4A5240', border: '1px solid rgba(74,82,64,0.3)' },
 }
