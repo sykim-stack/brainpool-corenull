@@ -148,7 +148,7 @@ const styles: Record<string, React.CSSProperties> = {
   titleIcon: {
     fontSize: 20, lineHeight: 1, display: 'flex', alignItems: 'center',
   },
-  topNav: { alignItems: 'center', gap: '28px' },
+  topNav: { display: 'flex', alignItems: 'center', gap: '28px' },
   topNavItem: {
     display: 'flex', alignItems: 'center', gap: '6px',
     background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px', padding: '6px 4px',
