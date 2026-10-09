@@ -56,7 +56,7 @@ export default function PostBlock({
   onCommentClick,
   showViewMeta = true,
   showComments = true,
-  showInterest = false,
+  showInterest = true,
   interestState = 'none',
   interestLoading = false,
   onInterestClick,
