@@ -70,7 +70,7 @@ export default function MyContentBlock({
   onPostClick,
   onCommentClick,
   emptyLabel = '아직 이야기가 없어요',
-  showInterest = false,
+  showInterest = true,
   getInterestState,
   interestLoadingId = null,
   onInterestClick,
