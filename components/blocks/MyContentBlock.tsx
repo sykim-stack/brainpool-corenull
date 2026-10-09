@@ -41,12 +41,10 @@ function partitionBrick<T>(
   while (i < items.length) {
     const want = pattern[pi % pattern.length]
     let take = Math.min(want, items.length - i)
-    // 마지막 1개만 남으면 가로 풀 (빈칸 방지)
     if (items.length - i === 1) take = 1
     const cards = items.slice(i, i + take)
     const cols =
       cards.length === 1 ? 'large' : cards.length >= 3 ? (mobile ? '2' : '3') : '2'
-    // offset 제거: 2열도 전체 폭 → 카드 크기 통일
     rows.push({ cards, cols, offset: false })
     i += cards.length
     pi++
@@ -121,18 +119,22 @@ export default function MyContentBlock({
     />
   )
 
+  const showHeader = !!title || (isBrick && source.length > 0)
+
   return (
-    <section style={styles.section}>
-      <div style={styles.header}>
-        <span style={styles.title}>{title}</span>
-        {isBrick && source.length > 0 && (
-          <span style={styles.hint}>
-            {needsSwipe
-              ? `${safePage + 1}/${pageCount} · ${source.length}개`
-              : `${source.length}개`}
-          </span>
-        )}
-      </div>
+    <section style={{ ...styles.section, ...(title ? {} : { paddingTop: 0 }) }}>
+      {showHeader && (
+        <div style={styles.header}>
+          {title ? <span style={styles.title}>{title}</span> : <span />}
+          {isBrick && source.length > 0 && (
+            <span style={styles.hint}>
+              {needsSwipe
+                ? `${safePage + 1}/${pageCount} · ${source.length}개`
+                : `${source.length}개`}
+            </span>
+          )}
+        </div>
+      )}
 
       {posts.length === 0 ? (
         <div style={styles.empty}>{emptyLabel}</div>
@@ -198,7 +200,6 @@ export default function MyContentBlock({
           )}
         </div>
       ) : !wide ? (
-        /* 모바일 density도 brick 팩 — 마지막 1개 빈칸 방지 */
         <div className="cn-brick">
           {partitionBrick(visible, BRICK_PATTERN_MOBILE, true).map((row, ri) => (
             <div
