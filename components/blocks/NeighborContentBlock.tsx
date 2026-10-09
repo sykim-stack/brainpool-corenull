@@ -34,6 +34,15 @@ export interface NeighborContentBlockProps {
   applyLoadingHouseId?: string | null
   roomsPerPage?: 1 | 2
   emptyLabel?: string
+  showInterest?: boolean
+  getInterestState?: (postId: string, roomId?: string) => 'none' | 'active' | 'ended'
+  interestLoadingId?: string | null
+  onInterestClick?: (postId: string, roomId?: string) => void
+  onInterestGoLibrary?: () => void
+  enableInlineComment?: boolean
+  ownerKey?: string
+  showViewMeta?: boolean
+  showComments?: boolean
 }
 
 const TIER_LABEL: Record<string, string> = { public: '골목', invite: '복도' }
@@ -64,6 +73,15 @@ export default function NeighborContentBlock({
   applyLoadingHouseId = null,
   roomsPerPage = 2,
   emptyLabel,
+  showInterest = true,
+  getInterestState,
+  interestLoadingId = null,
+  onInterestClick,
+  onInterestGoLibrary,
+  enableInlineComment = true,
+  ownerKey,
+  showViewMeta = true,
+  showComments = true,
 }: NeighborContentBlockProps) {
   const [neighborIdx, setNeighborIdx] = useState(0)
   const [roomIdx, setRoomIdx] = useState(0)
@@ -236,8 +254,16 @@ export default function NeighborContentBlock({
                   <PostBlock
                     post={postA}
                     variant="gallery"
-                    showViewMeta={false}
-                    showComments={false}
+                    showViewMeta={showViewMeta}
+                    showComments={showComments}
+                    showInterest={showInterest}
+                    interestState={getInterestState?.(postA.id, roomA?.roomId) ?? 'none'}
+                    interestLoading={interestLoadingId === postA.id || (!!roomA?.roomId && interestLoadingId === roomA.roomId)}
+                    onInterestClick={() => onInterestClick?.(postA.id, roomA?.roomId)}
+                    onInterestGoLibrary={onInterestGoLibrary}
+                    enableInlineComment={enableInlineComment}
+                    ownerKey={ownerKey}
+                    showHouseName
                     onClick={() => onPostClick?.(postA.id, roomA?.roomId)}
                   />
                 </div>
@@ -251,8 +277,16 @@ export default function NeighborContentBlock({
                   <PostBlock
                     post={postB}
                     variant="gallery"
-                    showViewMeta={false}
-                    showComments={false}
+                    showViewMeta={showViewMeta}
+                    showComments={showComments}
+                    showInterest={showInterest}
+                    interestState={getInterestState?.(postB.id, roomB?.roomId) ?? 'none'}
+                    interestLoading={interestLoadingId === postB.id || (!!roomB?.roomId && interestLoadingId === roomB.roomId)}
+                    onInterestClick={() => onInterestClick?.(postB.id, roomB?.roomId)}
+                    onInterestGoLibrary={onInterestGoLibrary}
+                    enableInlineComment={enableInlineComment}
+                    ownerKey={ownerKey}
+                    showHouseName
                     onClick={() => onPostClick?.(postB.id, roomB?.roomId)}
                   />
                 </div>
