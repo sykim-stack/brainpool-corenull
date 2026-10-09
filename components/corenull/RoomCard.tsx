@@ -44,6 +44,11 @@ export interface RoomCardProps {
   onClick?: () => void
   /** 공개방 벽돌의 솔로 글: 더 넓게(full-width)·더 높게 */
   large?: boolean
+  /** 관심 (방 → 서재). 없으면 숨김 */
+  showInterest?: boolean
+  interestState?: 'none' | 'active' | 'ended'
+  interestLoading?: boolean
+  onInterestClick?: () => void
 }
 
 function formatRelative(iso: string) {
@@ -58,9 +63,25 @@ function formatRelative(iso: string) {
   return `${Math.floor(diff / (86400 * 7))}주 전`
 }
 
-export default function RoomCard({ room, houseName, onClick, large = false }: RoomCardProps) {
+const STAGE_KO: Record<string, string> = {
+  seed: '씨드',
+  growth: '성장',
+  flower: '꽃',
+  fruit: '열매',
+}
+
+export default function RoomCard({
+  room,
+  houseName,
+  onClick,
+  large = false,
+  showInterest = false,
+  interestState = 'none',
+  interestLoading = false,
+  onInterestClick,
+}: RoomCardProps) {
   const { stage } = room
-  const { emoji, daysLeft } = computeStage(stage)
+  const { emoji, daysLeft, stage: stageName } = computeStage(stage)
   const hasImage = !!room.latest_message?.image_url
   const visLabel = VIS_LABEL[room.visibility] || VIS_LABEL.public
   const participants = stage.participants_preview || []
@@ -96,7 +117,12 @@ export default function RoomCard({ room, houseName, onClick, large = false }: Ro
               {houseName}
             </div>
           )}
-          <div style={styles.rname}>{room.room_name}</div>
+          <div style={styles.rname}>
+            {room.room_name}
+            {stageName && stageName !== 'none' && (
+              <span style={styles.stageLabel}> · {STAGE_KO[stageName] || stageName}</span>
+            )}
+          </div>
           <div style={{ ...styles.rcaption, ...(hasImage ? {} : styles.rcaptionNoImg) }}>
             {room.latest_message?.text || '아직 남긴 이야기가 없어요'}
           </div>
@@ -119,6 +145,23 @@ export default function RoomCard({ room, houseName, onClick, large = false }: Ro
                 />
               ))}
             </div>
+          )}
+          {showInterest && (
+            <button
+              type="button"
+              style={{
+                ...styles.interestBtn,
+                color: interestState === 'active' ? '#F4C48A' : 'inherit',
+                opacity: interestLoading ? 0.5 : 1,
+              }}
+              disabled={interestLoading}
+              onClick={(e) => {
+                e.stopPropagation()
+                onInterestClick?.()
+              }}
+            >
+              {interestState === 'active' ? '● 관심' : interestState === 'ended' ? '○ 관심종료' : '○ 관심'}
+            </button>
           )}
         </div>
       </div>
@@ -200,5 +243,21 @@ const styles: Record<string, React.CSSProperties> = {
     fontFamily: "'IBM Plex Mono', monospace", fontSize: 9,
     background: 'rgba(20,22,16,0.5)', color: '#F1ECDD',
     padding: '3px 8px', borderRadius: 10,
+  },
+  stageLabel: {
+    fontFamily: "'Noto Sans KR', sans-serif",
+    fontWeight: 500,
+    fontSize: 11,
+    opacity: 0.9,
+  },
+  interestBtn: {
+    marginLeft: 'auto',
+    border: 'none',
+    background: 'rgba(255,255,255,0.12)',
+    borderRadius: 999,
+    padding: '2px 8px',
+    fontSize: 10,
+    cursor: 'pointer',
+    color: 'inherit',
   },
 }
