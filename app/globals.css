@@ -153,21 +153,27 @@ body {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  width: 100%;
 }
 .cn-brick-row {
   display: grid;
   gap: 12px;
   grid-template-columns: 1fr 1fr;
   align-items: stretch;
+  width: 100%;
 }
 .cn-brick-row .cn-post-card {
+  min-width: 0;
   height: var(--cn-post-card-h);
   max-height: var(--cn-post-card-h);
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 .cn-brick-row .cn-post-card > * {
-  height: 100%;
+  flex: 1 1 auto;
+  height: 100% !important;
+  max-height: 100% !important;
   min-height: 0;
   overflow: hidden;
 }
@@ -180,11 +186,6 @@ body {
   }
   .cn-brick-row[data-cols="2"] {
     grid-template-columns: 1fr 1fr;
-  }
-  /* 3열 다음 2열만 가운데 정렬 (벽돌 3-2). 단독 2개는 전체 폭 */
-  .cn-brick-row[data-cols="2"][data-offset="true"] {
-    margin-left: calc(100% / 6 + 2px);
-    margin-right: calc(100% / 6 + 2px);
   }
 }
 .cn-post-card[data-large="true"] {

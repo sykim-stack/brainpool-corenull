@@ -4,11 +4,11 @@ import { useEffect, useState } from 'react'
 import PostBlock, { PostBlockData, PostBlockGrid } from './PostBlock'
 
 const DENSITY_MAX = 3
-const BRICK_PAGE_DESKTOP = 10
+const BRICK_PAGE_DESKTOP = 8
 const BRICK_PAGE_MOBILE = 6
-/** PC: 3-2-3-2 / 모바일: 2칸 우선·남은 1칸 가로 풀 */
-const BRICK_PATTERN_DESKTOP = [3, 2, 3, 2]
-const BRICK_PATTERN_MOBILE = [2, 1]
+/** PC: 3-2-3 = 8 / 모바일: 2-2-2 = 6. 그 이상 스와이프 */
+const BRICK_PATTERN_DESKTOP = [3, 2, 3]
+const BRICK_PATTERN_MOBILE = [2, 2, 2]
 
 export type MyContentLayout = 'density' | 'brick'
 
@@ -29,8 +29,7 @@ export interface MyContentBlockProps {
   showHouseName?: boolean
 }
 
-/** PC: pattern 반복. 모바일: 2칸 우선, 남는 1칸은 가로 풀(빈 공간 없음)
- *  1→길게 / 2→나란히 / 3→2+1 */
+/** PC/모바일 pattern 반복. 마지막 1개는 가로 풀(빈칸 방지) */
 function partitionBrick<T>(
   items: T[],
   pattern: number[],
@@ -38,25 +37,15 @@ function partitionBrick<T>(
 ): { cards: T[]; cols: string; offset: boolean }[] {
   const rows: { cards: T[]; cols: string; offset: boolean }[] = []
   let i = 0
-  if (mobile) {
-    while (i < items.length) {
-      const left = items.length - i
-      const take = left === 1 ? 1 : 2
-      const cards = items.slice(i, i + take)
-      const cols = cards.length === 1 ? 'large' : '2'
-      rows.push({ cards, cols, offset: false })
-      i += cards.length
-    }
-    return rows
-  }
   let pi = 0
-  let prevCols = ''
   while (i < items.length) {
     const want = pattern[pi % pattern.length]
-    const cards = items.slice(i, i + want)
-    const cols = cards.length === 1 ? 'large' : cards.length === 3 ? '3' : '2'
-    rows.push({ cards, cols, offset: cols === '2' && prevCols === '3' })
-    prevCols = cols
+    let take = Math.min(want, items.length - i)
+    if (items.length - i === 1) take = 1
+    const cards = items.slice(i, i + take)
+    const cols =
+      cards.length === 1 ? 'large' : cards.length >= 3 ? (mobile ? '2' : '3') : '2'
+    rows.push({ cards, cols, offset: false })
     i += cards.length
     pi++
   }
@@ -70,7 +59,7 @@ export default function MyContentBlock({
   onPostClick,
   onCommentClick,
   emptyLabel = '아직 이야기가 없어요',
-  showInterest = false,
+  showInterest = true,
   getInterestState,
   interestLoadingId = null,
   onInterestClick,
@@ -89,6 +78,10 @@ export default function MyContentBlock({
     mq.addEventListener('change', apply)
     return () => mq.removeEventListener('change', apply)
   }, [])
+
+  useEffect(() => {
+    setPage(0)
+  }, [posts.length, layout])
 
   const isBrick = layout === 'brick'
   const pageSize = isBrick ? (wide ? BRICK_PAGE_DESKTOP : BRICK_PAGE_MOBILE) : DENSITY_MAX
@@ -126,18 +119,22 @@ export default function MyContentBlock({
     />
   )
 
+  const showHeader = !!title || (isBrick && source.length > 0)
+
   return (
-    <section style={styles.section}>
-      <div style={styles.header}>
-        <span style={styles.title}>{title}</span>
-        {isBrick && source.length > 0 && (
-          <span style={styles.hint}>
-            {needsSwipe
-              ? `${safePage + 1}/${pageCount} · ${source.length}개`
-              : `${source.length}개`}
-          </span>
-        )}
-      </div>
+    <section style={{ ...styles.section, ...(title ? {} : { paddingTop: 0 }) }}>
+      {showHeader && (
+        <div style={styles.header}>
+          {title ? <span style={styles.title}>{title}</span> : <span />}
+          {isBrick && source.length > 0 && (
+            <span style={styles.hint}>
+              {needsSwipe
+                ? `${safePage + 1}/${pageCount} · ${source.length}개`
+                : `${source.length}개`}
+            </span>
+          )}
+        </div>
+      )}
 
       {posts.length === 0 ? (
         <div style={styles.empty}>{emptyLabel}</div>
@@ -203,7 +200,6 @@ export default function MyContentBlock({
           )}
         </div>
       ) : !wide ? (
-        /* 모바일 density도 2+1 팩 — 마지막 1개 빈칸 방지 */
         <div className="cn-brick">
           {partitionBrick(visible, BRICK_PATTERN_MOBILE, true).map((row, ri) => (
             <div

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { getOwnerKey } from '@/lib/ownerKey'
+import { getOwnerKey, ensureActorSession } from '@/lib/ownerKey'
 import { getDeviceId } from '@/lib/deviceId'
 import { prepareUploadFile } from '@/lib/compressMedia'
 import TopBar from '@/components/blocks/TopBar'
@@ -92,8 +92,10 @@ export default function WritePage() {
     if (!newRoomName.trim() || !selectedHouse) return
     setCreatingRoom(true)
     setRoomError('')
+    await ensureActorSession()
     const res = await fetch('/api/corenull/rooms', {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         house_id: selectedHouse.id,
@@ -126,7 +128,8 @@ export default function WritePage() {
     setUploadLabel('업로드 중…')
     const form = new FormData()
     prepared.forEach((f) => form.append('files', f))
-    const res = await fetch('/api/corenull/upload', { method: 'POST', body: form })
+    await ensureActorSession()
+    const res = await fetch('/api/corenull/upload', { method: 'POST', credentials: 'include', body: form })
     const data = await res.json()
     const ok = (data.data || []).filter((x: any) => x.url && !x._error)
     const failed = (data.data || []).filter((x: any) => x._error)
@@ -180,8 +183,10 @@ export default function WritePage() {
     if (!content.trim() || !selectedRoom) return
     setSubmitting(true)
     setSubmitError('')
+    await ensureActorSession()
     const res = await fetch('/api/corenull/posts', {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         room_id: selectedRoom.id,

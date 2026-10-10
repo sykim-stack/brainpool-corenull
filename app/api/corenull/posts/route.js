@@ -99,11 +99,18 @@ const canWriteRoom = async (supabase, room_id, owner_key) => {
 }
 
 const handlePost = async (req, traceId) => {
-  const body = JSON.parse(await req.text())
-  const { room_id, owner_key, content, meta, type, relations } = body
+  const { requireActor, assertOwnerMatchesActor } = await import('@/lib/actor')
+  const gate = requireActor(req, traceId)
+  if (gate.error) return gate.error
 
-  if (!room_id || !owner_key || !content) {
-    return Response.json({ _error: 'room_id_owner_key_content_required', traceId }, { status: 500 })
+  const body = JSON.parse(await req.text())
+  const { room_id, content, meta, type, relations } = body
+  const mismatch = assertOwnerMatchesActor(body.owner_key, gate.actor, traceId)
+  if (mismatch) return mismatch
+  const owner_key = gate.actor.ownerKey
+
+  if (!room_id || !content) {
+    return Response.json({ _error: 'room_id_content_required', traceId }, { status: 500 })
   }
 
   const { getSupabase } = await import('@/lib/supabase')
@@ -152,11 +159,18 @@ const handlePost = async (req, traceId) => {
 }
 
 const handlePatch = async (req, traceId) => {
-  const body = JSON.parse(await req.text())
-  const { post_id, owner_key, action, content, meta, room_id } = body
+  const { requireActor, assertOwnerMatchesActor } = await import('@/lib/actor')
+  const gate = requireActor(req, traceId)
+  if (gate.error) return gate.error
 
-  if (!post_id || !owner_key || !action) {
-    return Response.json({ _error: 'post_id_owner_key_action_required', traceId }, { status: 500 })
+  const body = JSON.parse(await req.text())
+  const { post_id, action, content, meta, room_id } = body
+  const mismatch = assertOwnerMatchesActor(body.owner_key, gate.actor, traceId)
+  if (mismatch) return mismatch
+  const owner_key = gate.actor.ownerKey
+
+  if (!post_id || !action) {
+    return Response.json({ _error: 'post_id_action_required', traceId }, { status: 500 })
   }
 
   const { getSupabase } = await import('@/lib/supabase')
@@ -186,7 +200,6 @@ const handlePatch = async (req, traceId) => {
       meta: meta ? { ...(original.meta || {}), ...meta } : original.meta,
     }
 
-    // 잘못된 방에 올린 글 → 다른 방으로 이동
     if (room_id && room_id !== original.room_id) {
       const auth = await canWriteRoom(supabase, room_id, owner_key)
       if (!auth.ok) return Response.json({ _error: auth.error, traceId }, { status: 500 })
