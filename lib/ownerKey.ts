@@ -67,3 +67,24 @@ export function createOwnerKey(): string {
   setOwnerKey(id)
   return id
 }
+
+/**
+ * Actor 세션(HttpOnly cookie)을 서버에 발급/갱신한다.
+ * 쓰기 API 호출 전에 한 번 호출한다. credentials: include 필수.
+ */
+export async function ensureActorSession(): Promise<boolean> {
+  if (typeof window === 'undefined') return false
+  const ownerKey = getOwnerKey()
+  if (!ownerKey) return false
+  try {
+    const res = await fetch('/api/corenull/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ owner_key: ownerKey }),
+    })
+    return res.ok
+  } catch {
+    return false
+  }
+}
