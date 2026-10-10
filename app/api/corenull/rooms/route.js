@@ -105,10 +105,17 @@ const handleGet = async (req, traceId) => {
 }
 
 const handlePost = async (req, traceId) => {
+  const { requireActor, assertOwnerMatchesActor } = await import('@/lib/actor')
+  const gate = requireActor(req, traceId)
+  if (gate.error) return gate.error
+
   const body = JSON.parse(await req.text())
-  const { house_id, owner_key, room_name, room_type, visibility, seed_mode, bloom_date, slug } = body
-  if (!house_id || !owner_key || !room_name) {
-    return Response.json({ _error: 'house_id_owner_key_room_name_required', traceId }, { status: 500 })
+  const { house_id, room_name, room_type, visibility, seed_mode, bloom_date, slug } = body
+  const mismatch = assertOwnerMatchesActor(body.owner_key, gate.actor, traceId)
+  if (mismatch) return mismatch
+  const owner_key = gate.actor.ownerKey
+  if (!house_id || !room_name) {
+    return Response.json({ _error: 'house_id_room_name_required', traceId }, { status: 500 })
   }
   const { getSupabase } = await import('@/lib/supabase')
   const supabase = getSupabase()
@@ -131,9 +138,16 @@ const handlePost = async (req, traceId) => {
 }
 
 const handlePatch = async (req, traceId) => {
+  const { requireActor, assertOwnerMatchesActor } = await import('@/lib/actor')
+  const gate = requireActor(req, traceId)
+  if (gate.error) return gate.error
+
   const body = JSON.parse(await req.text())
-  const { room_id, owner_key, room_name, visibility, seed_mode, bloom_date } = body
-  if (!room_id || !owner_key) return Response.json({ _error: 'room_id_and_owner_key_required', traceId }, { status: 500 })
+  const { room_id, room_name, visibility, seed_mode, bloom_date } = body
+  const mismatch = assertOwnerMatchesActor(body.owner_key, gate.actor, traceId)
+  if (mismatch) return mismatch
+  const owner_key = gate.actor.ownerKey
+  if (!room_id) return Response.json({ _error: 'room_id_required', traceId }, { status: 500 })
   const { getSupabase } = await import('@/lib/supabase')
   const supabase = getSupabase()
   if (!supabase) return Response.json({ _error: 'supabase_init_failed', traceId }, { status: 500 })
