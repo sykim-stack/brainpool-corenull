@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import MediaRenderer from '@/components/corenull/MediaRenderer'
+import { actorFetch } from '@/lib/actorFetch'
 
 export interface PostBlockViewMeta {
   house_name?: string | null
@@ -140,7 +141,7 @@ export default function PostBlock({
     }
     setSubmitting(true)
     try {
-      const res = await fetch('/api/corenull/posts', {
+      const res = await actorFetch('/api/corenull/posts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
