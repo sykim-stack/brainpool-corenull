@@ -25,6 +25,10 @@ const handler = async (req) => {
 }
 
 const handlePost = async (req, traceId) => {
+  const { requireActor } = await import('@/lib/actor')
+  const gate = requireActor(req, traceId)
+  if (gate.error) return gate.error
+
   let formData
   try {
     formData = await req.formData()
