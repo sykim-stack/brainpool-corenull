@@ -8,6 +8,7 @@ import {
   getPostInterestState,
   findInterestBookmark,
   interestPostBody,
+  type BookmarkRow,
 } from '@/lib/interest'
 import { pickActiveHouse, setActiveHouseId } from '@/lib/activeHouse'
 import TopBar from '@/components/blocks/TopBar'
@@ -85,8 +86,6 @@ async function loadHouseRoomSlots(h: any): Promise<NeighborRoomSlot[]> {
     return []
   }
 }
-
-type BookmarkRow = { id: string; room_id?: string | null; message_id?: string | null; ended_at?: string | null }
 
 export default function YardPage() {
   const router = useRouter()
@@ -423,19 +422,22 @@ export default function YardPage() {
           description: house?.description,
           roomCount,
           neighborCount: acceptedCount,
-          onEdit: () => setShowDoorplate(true),
+          cta: {
+            label: '문패 수정',
+            onClick: () => setShowDoorplate(true),
+          },
         }}
         recommended={recommended}
         onApplyNeighbor={handleApplyNeighbor}
         applyLoadingHouseId={applyLoadingHouseId}
-        onNeighborClick={(houseId) => router.push(`/houses/${houseId}/yard`)}
+        onRecommendHouseClick={(houseId: string) => router.push(`/houses/${houseId}/yard`)}
         relations={relations}
         relationActingId={relationActingId}
         onAcceptRelation={handleAcceptRelation}
         onRemoveRelation={handleRemoveRelation}
         onOpenRelations={() => router.push('/me/neighbors')}
         neighborFeed={neighborFeed}
-        myFeed={myFeed}
+        myPosts={myFeed}
         onPostClick={(postId, roomId) =>
           roomId ? router.push(`/rooms/${roomId}`) : router.push(`/posts/${postId}`)
         }
@@ -450,7 +452,11 @@ export default function YardPage() {
       />
 
       {showShare && house && (
-        <ShareModal houseId={house.id} onClose={() => setShowShare(false)} />
+        <ShareModal
+          url={typeof window !== 'undefined' ? `${window.location.origin}/houses/${house.id}/yard` : `/houses/${house.id}/yard`}
+          title={house.title || '우리 집'}
+          onClose={() => setShowShare(false)}
+        />
       )}
       {showDoorplate && house && ownerKey && (
         <DoorplateEditModal
