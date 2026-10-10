@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { getOwnerKey } from '@/lib/ownerKey'
+import { actorFetch } from '@/lib/actorFetch'
 import {
   getPostInterestState,
   findInterestBookmark,
@@ -187,7 +188,7 @@ export default function LivingPage() {
     setInterestLoadingId(postId)
     const existing = findInterestBookmark(bookmarks, postId, roomId)
     if (!existing) {
-      const res = await fetch('/api/corenull/bookmarks', {
+      const res = await actorFetch('/api/corenull/bookmarks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(interestPostBody(ownerKey, postId, roomId)),
@@ -197,7 +198,7 @@ export default function LivingPage() {
       else if (data._error) console.error('[interest]', data._error)
     } else {
       const action = existing.ended_at ? 'resume' : 'end'
-      const res = await fetch('/api/corenull/bookmarks', {
+      const res = await actorFetch('/api/corenull/bookmarks', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: existing.id, owner_key: ownerKey, action }),
