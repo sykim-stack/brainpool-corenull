@@ -54,6 +54,17 @@ const handleGet = async (req, traceId) => {
     await supabase.from('corenull_footprints').insert({ owner_key, room_id })
   }
 
+  // 종료일 지난 씨드 구간 → 열매 마감 (읽기 시 lazy)
+  const { data: roomRow } = await supabase
+    .from('corenull_rooms')
+    .select('*')
+    .eq('id', room_id)
+    .maybeSingle()
+  if (roomRow?.seed_mode) {
+    const { finalizeSeedIfDue } = await import('@/lib/seedPeriod')
+    await finalizeSeedIfDue(supabase, roomRow)
+  }
+
   const { data, error } = await supabase
     .from('messages')
     .select('*')
@@ -104,7 +115,7 @@ const handlePost = async (req, traceId) => {
   if (gate.error) return gate.error
 
   const body = JSON.parse(await req.text())
-  const { room_id, content, meta, type, relations } = body
+  const { room_id, content, meta, type, relations, seed_start, seed_end_date } = body
   const mismatch = assertOwnerMatchesActor(body.owner_key, gate.actor, traceId)
   if (mismatch) return mismatch
   const owner_key = gate.actor.ownerKey
@@ -118,12 +129,69 @@ const handlePost = async (req, traceId) => {
   if (!supabase) return Response.json({ _error: 'supabase_init_failed', traceId }, { status: 500 })
 
   const messageType = type || 'post'
+  let postMeta = { ...(meta || {}) }
+
+  // 씨드 구간: 시작 글 / 진행 중 자동 씨드 글
+  if (messageType === 'post') {
+    const { data: roomState } = await supabase
+      .from('corenull_rooms')
+      .select('id, seed_mode, bloom_date, house_id')
+      .eq('id', room_id)
+      .maybeSingle()
+
+    if (roomState?.seed_mode) {
+      const { finalizeSeedIfDue } = await import('@/lib/seedPeriod')
+      const fin = await finalizeSeedIfDue(supabase, roomState)
+      if (fin.finalized) {
+        // 방금 열매 마감됨 — 이번 글은 일반 글
+      } else {
+        const { buildSeedMeta } = await import('@/lib/seedPeriod')
+        postMeta.seed = buildSeedMeta({
+          role: 'segment',
+          endDate: roomState.bloom_date,
+        })
+      }
+    }
+
+    // 명시적 씨드 시작 (진행 중이 아닐 때만)
+    if (seed_start) {
+      const { data: roomNow } = await supabase
+        .from('corenull_rooms')
+        .select('id, seed_mode, bloom_date')
+        .eq('id', room_id)
+        .maybeSingle()
+      if (roomNow?.seed_mode) {
+        return Response.json({ _error: 'seed_already_active', detail: '이미 씨드가 진행 중이에요. 방 설정에서 해제 후 다시 시작할 수 있어요.', traceId }, { status: 400 })
+      }
+      if (!seed_end_date) {
+        return Response.json({ _error: 'seed_end_date_required', traceId }, { status: 400 })
+      }
+      const endDay = String(seed_end_date).slice(0, 10)
+      const { error: seedErr } = await supabase
+        .from('corenull_rooms')
+        .update({ seed_mode: true, bloom_date: endDay })
+        .eq('id', room_id)
+      if (seedErr) {
+        return Response.json({ _error: seedErr.message, traceId }, { status: 500 })
+      }
+      const { buildSeedMeta } = await import('@/lib/seedPeriod')
+      postMeta.seed = buildSeedMeta({ role: 'start', endDate: endDay })
+      await pushFact({
+        source: 'CoreNull',
+        fact_type: 'space.seed.created',
+        owner_key,
+        house_id: roomState?.house_id || null,
+        payload: { room_id, bloom_date: endDay, via: 'post' },
+      })
+    }
+  }
+
   const insertPayload = {
     room_id,
     owner_key,
     type: messageType,
     content,
-    meta: meta || {},
+    meta: postMeta,
     relations: relations || {},
   }
 
@@ -198,13 +266,6 @@ const handlePatch = async (req, traceId) => {
     const updatePayload = {
       content,
       meta: meta ? { ...(original.meta || {}), ...meta } : original.meta,
-    }
-
-    if (room_id && room_id !== original.room_id) {
-      const auth = await canWriteRoom(supabase, room_id, owner_key)
-      if (!auth.ok) return Response.json({ _error: auth.error, traceId }, { status: 500 })
-      updatePayload.room_id = room_id
-      updatePayload.house_id = auth.house_id
     }
 
     const { data, error } = await supabase
