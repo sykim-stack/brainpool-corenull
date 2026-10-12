@@ -32,6 +32,7 @@ export default function WritePage() {
   const [newRoomName, setNewRoomName] = useState('')
   const [isSeed, setIsSeed] = useState(false)
   const [bloomDate, setBloomDate] = useState('')
+  const [seedMemo, setSeedMemo] = useState('')
   const [creatingRoom, setCreatingRoom] = useState(false)
   const [roomError, setRoomError] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -197,6 +198,7 @@ export default function WritePage() {
       }
       payload.seed_start = true
       payload.seed_end_date = bloomDate
+      if (seedMemo.trim()) payload.seed_memo = seedMemo.trim()
     }
     const res = await fetch('/api/corenull/posts', {
       method: 'POST',
@@ -206,10 +208,18 @@ export default function WritePage() {
     })
     const data = await res.json()
     if (data.data) {
+      if (data.seed_page?.share_path) {
+        try {
+          await navigator.clipboard.writeText(`${window.location.origin}${data.seed_page.share_path}`)
+        } catch {}
+        router.refresh()
+        router.replace(`/rooms/${selectedRoom.id}?seed_share=${encodeURIComponent(data.seed_page.slug || '')}`)
+        return
+      }
       router.refresh()
       router.replace(`/rooms/${selectedRoom.id}`)
     } else {
-      setSubmitError(data._error || '올리기에 실패했어요')
+      setSubmitError(data._error || data.detail || '올리기에 실패했어요')
     }
     setSubmitting(false)
   }
@@ -321,22 +331,33 @@ export default function WritePage() {
             >
               <div>
                 <div style={{ fontSize: 13, fontWeight: 500 }}>🌱 씨드로 시작</div>
-                <div style={{ fontSize: 11, color: '#9A8470', marginTop: 2 }}>이후 글은 종료일까지 씨드 글이 됩니다</div>
+                <div style={{ fontSize: 11, color: '#9A8470', marginTop: 2 }}>이후 글은 종료일까지 씨드 글 · 초대장 URL 즉시 생성</div>
               </div>
               <div style={{ width: 44, height: 24, borderRadius: 12, background: isSeed ? '#2C1810' : '#e0d8d0', position: 'relative', flexShrink: 0 }}>
                 <div style={{ position: 'absolute', top: 2, width: 20, height: 20, borderRadius: '50%', background: 'white', transform: isSeed ? 'translateX(20px)' : 'translateX(2px)' }} />
               </div>
             </div>
             {isSeed && (
-              <div style={{ marginTop: 10 }}>
-                <div style={{ fontSize: 12, color: '#9A8470', marginBottom: 6 }}>종료일</div>
-                <input
-                  type="date"
-                  style={{ width: '100%', height: 40, background: '#F5F0E8', border: '1px solid rgba(92,61,46,0.12)', borderRadius: 8, padding: '0 12px', boxSizing: 'border-box' }}
-                  value={bloomDate}
-                  min={today}
-                  onChange={(e) => setBloomDate(e.target.value)}
-                />
+              <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div>
+                  <div style={{ fontSize: 12, color: '#9A8470', marginBottom: 6 }}>종료일</div>
+                  <input
+                    type="date"
+                    style={{ width: '100%', height: 40, background: '#F5F0E8', border: '1px solid rgba(92,61,46,0.12)', borderRadius: 8, padding: '0 12px', boxSizing: 'border-box' }}
+                    value={bloomDate}
+                    min={today}
+                    onChange={(e) => setBloomDate(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, color: '#9A8470', marginBottom: 6 }}>초대장 메모 (선택)</div>
+                  <textarea
+                    style={{ width: '100%', minHeight: 72, background: '#F5F0E8', border: '1px solid rgba(92,61,46,0.12)', borderRadius: 8, padding: 10, fontSize: 13, lineHeight: 1.5, boxSizing: 'border-box', resize: 'vertical' }}
+                    placeholder={'인사 · 장소 · 일시 · 계좌 등\n초대장에 함께 보여요'}
+                    value={seedMemo}
+                    onChange={(e) => setSeedMemo(e.target.value)}
+                  />
+                </div>
               </div>
             )}
           </div>
