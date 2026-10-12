@@ -101,10 +101,10 @@ export default function WritePage() {
         house_id: selectedHouse.id,
         owner_key: ownerKey,
         room_name: newRoomName.trim(),
-        room_type: isSeed ? 'seed' : 'normal',
+        room_type: 'normal',
         visibility: 'public',
-        seed_mode: isSeed,
-        bloom_date: isSeed && bloomDate ? bloomDate : null,
+        seed_mode: false,
+        bloom_date: null,
       }),
     })
     const data = await res.json()
@@ -114,8 +114,6 @@ export default function WritePage() {
       setSelectedRoom(created)
       setShowNewRoom(false)
       setNewRoomName('')
-      setIsSeed(false)
-      setBloomDate('')
     } else {
       setRoomError(data._error || '방 만들기에 실패했어요')
     }
@@ -184,17 +182,27 @@ export default function WritePage() {
     setSubmitting(true)
     setSubmitError('')
     await ensureActorSession()
+    const payload: Record<string, unknown> = {
+      room_id: selectedRoom.id,
+      owner_key: ownerKey,
+      content: content.trim(),
+      meta: { media: mediaFiles },
+      type: 'post',
+    }
+    if (isSeed && !selectedRoom.seed_mode) {
+      if (!bloomDate) {
+        setSubmitError('씨드 종료일을 선택해 주세요')
+        setSubmitting(false)
+        return
+      }
+      payload.seed_start = true
+      payload.seed_end_date = bloomDate
+    }
     const res = await fetch('/api/corenull/posts', {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        room_id: selectedRoom.id,
-        owner_key: ownerKey,
-        content: content.trim(),
-        meta: { media: mediaFiles },
-        type: 'post',
-      }),
+      body: JSON.stringify(payload),
     })
     const data = await res.json()
     if (data.data) {
@@ -260,19 +268,10 @@ export default function WritePage() {
           <div style={{ background: '#FEFCF8', border: '1px solid rgba(92,61,46,0.12)', borderRadius: 12, padding: 14, marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span style={{ fontSize: 13, color: '#9A8470' }}>새 방 만들기</span>
-              <button type="button" style={{ fontSize: 13, color: '#9A8470', background: 'none', border: 'none', cursor: 'pointer' }} onClick={() => { setShowNewRoom(false); setNewRoomName(''); setIsSeed(false); setBloomDate(''); setRoomError('') }}>취소</button>
+              <button type="button" style={{ fontSize: 13, color: '#9A8470', background: 'none', border: 'none', cursor: 'pointer' }} onClick={() => { setShowNewRoom(false); setNewRoomName(''); setRoomError('') }}>취소</button>
             </div>
             {roomError && <div style={{ color: '#A33', fontSize: 13 }}>⚠️ {roomError}</div>}
             <input style={{ height: 44, background: '#F5F0E8', border: '1px solid rgba(92,61,46,0.12)', borderRadius: 10, padding: '0 12px', fontSize: 14 }} placeholder="방 이름" value={newRoomName} onChange={(e) => setNewRoomName(e.target.value)} maxLength={20} autoFocus />
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 12px', background: '#F5F0E8', borderRadius: 10, cursor: 'pointer' }} onClick={() => setIsSeed((v) => !v)}>
-              <div><div style={{ fontSize: 13, fontWeight: 500 }}>🌱 씨앗</div><div style={{ fontSize: 11, color: '#9A8470' }}>스스로에게 한 약속</div></div>
-              <div style={{ width: 44, height: 24, borderRadius: 12, background: isSeed ? '#2C1810' : '#e0d8d0', position: 'relative' }}>
-                <div style={{ position: 'absolute', top: 2, width: 20, height: 20, borderRadius: '50%', background: 'white', transform: isSeed ? 'translateX(20px)' : 'translateX(2px)' }} />
-              </div>
-            </div>
-            {isSeed && (
-              <input type="date" style={{ height: 40, background: '#FEFCF8', border: '1px solid rgba(92,61,46,0.12)', borderRadius: 8, padding: '0 12px' }} value={bloomDate} min={today} onChange={(e) => setBloomDate(e.target.value)} />
-            )}
             <button type="button" style={{ padding: 12, background: '#2C1810', color: 'white', border: 'none', borderRadius: 10, opacity: !newRoomName.trim() || creatingRoom ? 0.4 : 1 }} onClick={handleCreateRoom} disabled={!newRoomName.trim() || creatingRoom}>
               {creatingRoom ? '만드는 중...' : '방 만들기'}
             </button>
@@ -305,13 +304,51 @@ export default function WritePage() {
           <button type="button" style={{ flex: 1, height: 48, background: '#2C1810', border: 'none', borderRadius: 12, fontSize: 14, color: '#FEFCF8', cursor: 'pointer', fontWeight: 500 }} onClick={() => setShowCapture(true)} disabled={uploading}>🎥 촬영</button>
         </div>
 
+        {selectedRoom?.seed_mode ? (
+          <div style={{ background: 'rgba(74,124,63,0.08)', border: '1px solid rgba(74,124,63,0.22)', borderRadius: 12, padding: '12px 14px', marginBottom: 12 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#2C1810' }}>🌱 씨드 진행 중</div>
+            <div style={{ fontSize: 12, color: '#5C4A35', marginTop: 4, lineHeight: 1.5 }}>
+              이 글은 자동으로 씨드 글이 됩니다
+              {selectedRoom.bloom_date ? ` · 종료일 ${new Date(selectedRoom.bloom_date).toLocaleDateString('ko-KR')}` : ''}.
+              중도 종료는 방 설정에서 할 수 있어요.
+            </div>
+          </div>
+        ) : (
+          <div style={{ background: '#FEFCF8', border: '1px solid rgba(92,61,46,0.12)', borderRadius: 12, padding: 12, marginBottom: 12 }}>
+            <div
+              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+              onClick={() => setIsSeed((v) => !v)}
+            >
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 500 }}>🌱 씨드로 시작</div>
+                <div style={{ fontSize: 11, color: '#9A8470', marginTop: 2 }}>이후 글은 종료일까지 씨드 글이 됩니다</div>
+              </div>
+              <div style={{ width: 44, height: 24, borderRadius: 12, background: isSeed ? '#2C1810' : '#e0d8d0', position: 'relative', flexShrink: 0 }}>
+                <div style={{ position: 'absolute', top: 2, width: 20, height: 20, borderRadius: '50%', background: 'white', transform: isSeed ? 'translateX(20px)' : 'translateX(2px)' }} />
+              </div>
+            </div>
+            {isSeed && (
+              <div style={{ marginTop: 10 }}>
+                <div style={{ fontSize: 12, color: '#9A8470', marginBottom: 6 }}>종료일</div>
+                <input
+                  type="date"
+                  style={{ width: '100%', height: 40, background: '#F5F0E8', border: '1px solid rgba(92,61,46,0.12)', borderRadius: 8, padding: '0 12px', boxSizing: 'border-box' }}
+                  value={bloomDate}
+                  min={today}
+                  onChange={(e) => setBloomDate(e.target.value)}
+                />
+              </div>
+            )}
+          </div>
+        )}
+
         <button
           type="button"
           style={{ width: '100%', padding: '12px 16px', background: '#2C1810', color: 'white', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 500, cursor: 'pointer', opacity: !content.trim() || !selectedRoom || submitting ? 0.4 : 1 }}
           onClick={handleSubmit}
           disabled={!content.trim() || !selectedRoom || submitting}
         >
-          {submitting ? '올리는 중...' : '올리기'}
+          {submitting ? '올리는 중...' : isSeed && !selectedRoom?.seed_mode ? '씨드 시작하고 올리기' : '올리기'}
         </button>
 
         <input ref={fileInputRef} type="file" accept="image/*,video/mp4,video/webm" multiple style={{ display: 'none' }} onChange={handleFileSelect} />
