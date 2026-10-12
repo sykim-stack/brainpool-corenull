@@ -155,6 +155,13 @@ const handlePatch = async (req, traceId) => {
   if (roomError || !room) return Response.json({ _error: 'room_not_found', traceId }, { status: 500 })
   const { data: house, error: houseError } = await supabase.from('corenull_houses').select('id').eq('id', room.house_id).eq('owner_key', owner_key).single()
   if (houseError || !house) return Response.json({ _error: 'not_house_owner', traceId }, { status: 500 })
+  // 현재 seed 상태 (해제 시 구간 글 표시용)
+  const { data: before } = await supabase
+    .from('corenull_rooms')
+    .select('seed_mode')
+    .eq('id', room_id)
+    .maybeSingle()
+
   const updatePayload = {}
   if (room_name) updatePayload.room_name = room_name
   if (visibility) updatePayload.visibility = visibility
@@ -162,6 +169,30 @@ const handlePatch = async (req, traceId) => {
   if (bloom_date !== undefined) updatePayload.bloom_date = bloom_date
   const { data, error } = await supabase.from('corenull_rooms').update(updatePayload).eq('id', room_id).select().single()
   if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
+
+  // 씨드 해제: 열매 없이 구간만 닫기 — 글은 남기고 phase=released
+  if (before?.seed_mode && seed_mode === false) {
+    const { data: posts } = await supabase
+      .from('messages')
+      .select('id, meta')
+      .eq('room_id', room_id)
+      .in('type', ['post', 'fruit'])
+    const now = new Date().toISOString()
+    for (const post of posts || []) {
+      const seed = post.meta?.seed
+      if (!seed || seed.phase === 'fruit' || seed.phase === 'released') continue
+      await supabase
+        .from('messages')
+        .update({
+          meta: {
+            ...(post.meta || {}),
+            seed: { ...seed, phase: 'released', released_at: now },
+          },
+        })
+        .eq('id', post.id)
+    }
+  }
+
   return Response.json({ data, traceId })
 }
 
