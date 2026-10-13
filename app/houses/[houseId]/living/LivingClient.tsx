@@ -131,34 +131,44 @@ export default function LivingClient() {
               )
         setRoomCount(list.length)
 
-        const slots: NeighborRoomSlot[] = await Promise.all(
+        // 복도 = 방 단위 미리보기(방당 최신 1)
+        // 최신글 = 모든 방 글을 시간순 (방당 상한으로 과다 로드 방지)
+        const PER_ROOM_LATEST = 20
+
+        const roomPayloads = await Promise.all(
           list.map(async (rm: any) => {
             const pd = await fetch(`/api/corenull/posts?room_id=${rm.id}`).then((r) => r.json())
-            const latest =
-              (pd.data || []).find((p: any) => p.type !== 'comment') || (pd.data || [])[0]
+            const posts = (pd.data || []).filter(
+              (p: any) => p.type !== 'comment' && !p.meta?.archived && !p.meta?.deleted
+            )
+            const toView = (p: any): PostBlockData => ({
+              id: p.id,
+              content: p.content,
+              media: p.meta?.media,
+              created_at: p.created_at,
+              comment_count: p.comment_count ?? 0,
+              room_id: rm.id,
+              view_meta: {
+                house_name: h.title,
+                room_name: rm.room_name,
+                status: roomStatusLabel(rm),
+                stage_emoji: rm.seed_mode || rm.room_type === 'seed' ? '🌱' : undefined,
+                relation: rel.kind === 'self' ? '나' : '이웃',
+              },
+            })
+            const latest = posts[0] || null
             return {
-              roomId: rm.id,
-              roomName: rm.room_name,
-              latestPost: latest
-                ? {
-                    id: latest.id,
-                    content: latest.content,
-                    media: latest.meta?.media,
-                    created_at: latest.created_at,
-                    comment_count: latest.comment_count ?? 0,
-                    room_id: rm.id,
-                    view_meta: {
-                      house_name: h.title,
-                      room_name: rm.room_name,
-                      status: roomStatusLabel(rm),
-                      stage_emoji: rm.seed_mode || rm.room_type === 'seed' ? '🌱' : undefined,
-                      relation: rel.kind === 'self' ? '나' : '이웃',
-                    },
-                  }
-                : null,
+              slot: {
+                roomId: rm.id,
+                roomName: rm.room_name,
+                latestPost: latest ? toView(latest) : null,
+              } as NeighborRoomSlot,
+              views: posts.slice(0, PER_ROOM_LATEST).map(toView),
             }
           })
         )
+
+        const slots = roomPayloads.map((x) => x.slot)
 
         setCorridor([
           {
@@ -172,9 +182,8 @@ export default function LivingClient() {
           },
         ])
 
-        const views = slots
-          .map((s) => s.latestPost)
-          .filter((p): p is PostBlockData => !!p)
+        const views = roomPayloads
+          .flatMap((x) => x.views)
           .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
         setRoomViews(views)
       } finally {

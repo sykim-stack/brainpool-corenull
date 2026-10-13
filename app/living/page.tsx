@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { getOwnerKey } from '@/lib/ownerKey'
+import { actorFetch } from '@/lib/actorFetch'
 import {
   getPostInterestState,
   findInterestBookmark,
@@ -95,43 +96,51 @@ export default function LivingPage() {
         const memberRooms = (wr.member || []).filter((rm: any) => rm.house_id !== h.id)
         setRoomCount(rooms.length + memberRooms.length)
 
-        const buildSlot = async (rm: any, houseTitle: string, relation: string) => {
+        // 복도 = 방당 최신 1 / 최신글 = 모든 방 글 시간순
+        const PER_ROOM_LATEST = 20
+
+        const buildRoomPayload = async (rm: any, houseTitle: string, relation: string) => {
           const pd = await fetch(`/api/corenull/posts?room_id=${rm.id}`).then((r) => r.json())
-          const latest =
-            (pd.data || []).find((p: any) => p.type !== 'comment') || (pd.data || [])[0]
+          const posts = (pd.data || []).filter(
+            (p: any) => p.type !== 'comment' && !p.meta?.archived && !p.meta?.deleted
+          )
           const isMember = relation === '참여'
+          const toView = (p: any): PostBlockData => ({
+            id: p.id,
+            content: p.content,
+            media: p.meta?.media,
+            created_at: p.created_at,
+            comment_count: p.comment_count ?? 0,
+            room_id: rm.id,
+            view_meta: {
+              house_name: rm._house_title || houseTitle,
+              room_name: rm.room_name,
+              status: roomStatusLabel(rm),
+              stage_emoji: rm.seed_mode || rm.room_type === 'seed' ? '🌱' : undefined,
+              relation,
+            },
+          })
+          const latest = posts[0] || null
           return {
-            roomId: rm.id,
-            roomName: isMember
-              ? `참여 · ${rm._house_title || houseTitle || ''} · ${rm.room_name}`.replace(/ ·  · /g, ' · ')
-              : rm.room_name,
-            latestPost: latest
-              ? {
-                  id: latest.id,
-                  content: latest.content,
-                  media: latest.meta?.media,
-                  created_at: latest.created_at,
-                  comment_count: latest.comment_count ?? 0,
-                  room_id: rm.id,
-                  view_meta: {
-                    house_name: rm._house_title || houseTitle,
-                    room_name: rm.room_name,
-                    status: roomStatusLabel(rm),
-                    stage_emoji: rm.seed_mode || rm.room_type === 'seed' ? '🌱' : undefined,
-                    relation,
-                  },
-                }
-              : null,
+            slot: {
+              roomId: rm.id,
+              roomName: isMember
+                ? `참여 · ${rm._house_title || houseTitle || ''} · ${rm.room_name}`.replace(/ ·  · /g, ' · ')
+                : rm.room_name,
+              latestPost: latest ? toView(latest) : null,
+            } as NeighborRoomSlot,
+            views: posts.slice(0, PER_ROOM_LATEST).map(toView),
           }
         }
 
-        const ownSlots: NeighborRoomSlot[] = await Promise.all(
-          rooms.map((rm: any) => buildSlot(rm, h.title, '나'))
+        const ownPayloads = await Promise.all(
+          rooms.map((rm: any) => buildRoomPayload(rm, h.title, '나'))
         )
-        const memberSlots: NeighborRoomSlot[] = await Promise.all(
-          memberRooms.map((rm: any) => buildSlot(rm, rm._house_title || '', '참여'))
+        const memberPayloads = await Promise.all(
+          memberRooms.map((rm: any) => buildRoomPayload(rm, rm._house_title || '', '참여'))
         )
-        const slots = [...ownSlots, ...memberSlots]
+        const ownSlots = ownPayloads.map((x) => x.slot)
+        const memberSlots = memberPayloads.map((x) => x.slot)
 
         const chips: NeighborChip[] = [
           {
@@ -157,9 +166,8 @@ export default function LivingPage() {
         }
         setCorridor(chips)
 
-        const views = slots
-          .map((s) => s.latestPost)
-          .filter((p): p is PostBlockData => !!p)
+        const views = [...ownPayloads, ...memberPayloads]
+          .flatMap((x) => x.views)
           .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
         setRoomViews(views)
       } catch {
@@ -180,7 +188,7 @@ export default function LivingPage() {
     setInterestLoadingId(postId)
     const existing = findInterestBookmark(bookmarks, postId, roomId)
     if (!existing) {
-      const res = await fetch('/api/corenull/bookmarks', {
+      const res = await actorFetch('/api/corenull/bookmarks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(interestPostBody(ownerKey, postId, roomId)),
@@ -190,7 +198,7 @@ export default function LivingPage() {
       else if (data._error) console.error('[interest]', data._error)
     } else {
       const action = existing.ended_at ? 'resume' : 'end'
-      const res = await fetch('/api/corenull/bookmarks', {
+      const res = await actorFetch('/api/corenull/bookmarks', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: existing.id, owner_key: ownerKey, action }),

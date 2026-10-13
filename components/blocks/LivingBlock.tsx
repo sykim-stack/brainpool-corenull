@@ -29,9 +29,9 @@ export interface LivingBlockProps {
 
   loading?: boolean
   showInterest?: boolean
-  getInterestState?: (postId: string) => 'none' | 'active' | 'ended'
+  getInterestState?: (postId: string, roomId?: string) => 'none' | 'active' | 'ended'
   interestLoadingId?: string | null
-  onInterestClick?: (postId: string) => void
+  onInterestClick?: (postId: string, roomId?: string) => void
   onInterestGoLibrary?: () => void
 
   enableInlineComment?: boolean
@@ -81,6 +81,15 @@ export default function LivingBlock({
         emptyLabel="아직 방이 없어요"
         onNeighborClick={(id) => onCorridorHouseClick?.(id)}
         onPostClick={onPostClick}
+        showInterest={showInterest}
+        getInterestState={getInterestState}
+        interestLoadingId={interestLoadingId}
+        onInterestClick={onInterestClick}
+        onInterestGoLibrary={onInterestGoLibrary}
+        enableInlineComment={enableInlineComment}
+        ownerKey={ownerKey}
+        showViewMeta
+        showComments
       />
 
       {/* 최신글 = 광장/마당과 동일 벽돌 3-2-3 */}

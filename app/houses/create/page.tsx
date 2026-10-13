@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useOwnerKey } from '@/hooks/useOwnerKey'
 import { setActiveHouseId } from '@/lib/activeHouse'
+import { actorFetch } from '@/lib/actorFetch'
 import TopBar from '@/components/blocks/TopBar'
 import CoreNullLogo from '@/components/corenull/CoreNullLogo'
 
@@ -40,7 +41,7 @@ export default function CreateHousePage() {
     if (!title.trim() || !ownerKey) return
     setSubmitting(true)
 
-    const res = await fetch('/api/corenull/houses', {
+    const res = await actorFetch('/api/corenull/houses', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

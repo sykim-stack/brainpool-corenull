@@ -91,16 +91,59 @@ export default function PostDetailPage() {
     setEditMedia(prev => prev.filter((_: any, i: number) => i !== index))
   }
 
+  const isVideoFile = (f: File) => {
+    if (f.type.startsWith('video/')) return true
+    if (/\.(mp4|webm|mov|m4v|mkv|avi)$/i.test(f.name)) return true
+    if (!f.type.startsWith('image/') && f.size > 3.5 * 1024 * 1024) return true
+    return false
+  }
+
+  /** 영상: signed URL → Supabase 직접 (Vercel 413 방지). 글쓰기와 동일 */
+  const uploadVideoDirect = async (file: File) => {
+    const signRes = await fetch('/api/corenull/upload', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        filename: file.name || 'video.mp4',
+        contentType: file.type || 'video/mp4',
+        size: file.size,
+        post_id: postId || undefined,
+      }),
+    })
+    const signData = await signRes.json()
+    if (!signData.data?.signedUrl) {
+      throw new Error(signData._error || signData.detail || '영상 업로드 준비 실패')
+    }
+    const putRes = await fetch(signData.data.signedUrl, {
+      method: 'PUT',
+      headers: { 'Content-Type': file.type || 'video/mp4' },
+      body: file,
+    })
+    if (!putRes.ok) {
+      const text = await putRes.text().catch(() => '')
+      throw new Error(`영상 업로드 실패 (HTTP ${putRes.status}) ${text.slice(0, 60)}`)
+    }
+    return {
+      type: 'video' as const,
+      url: signData.data.publicUrl as string,
+      file: file.name,
+    }
+  }
+
   const handleAddMedia = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
     e.target.value = ''
     if (files.length === 0) return
     setUploading(true)
-    setUploadMessage('사진 압축 및 업로드 준비 중…')
+    setUploadMessage('업로드 준비 중…')
     const failures: string[] = []
     const savings: string[] = []
     let uploadedCount = 0
     try {
+      const { ensureActorSession } = await import('@/lib/ownerKey')
+      await ensureActorSession()
+
       for (const file of files) {
         const prepared = await prepareUploadFile(file)
         if (!prepared.ok) {
@@ -109,19 +152,44 @@ export default function PostDetailPage() {
         }
         if (prepared.note) savings.push(`${file.name}: ${prepared.note}`)
 
-        // 파일별 요청으로 분리해 이미지 여러 장의 합계가 Vercel 4.5MB 한도를 넘지 않게 한다.
+        if (isVideoFile(prepared.file)) {
+          setUploadMessage(`${file.name}: 영상 업로드 중…`)
+          try {
+            const item = await uploadVideoDirect(prepared.file)
+            setEditMedia((prev) => [...prev, item])
+            uploadedCount++
+          } catch (err: any) {
+            failures.push(`${file.name}: ${err?.message || '영상 업로드 실패'}`)
+          }
+          continue
+        }
+
+        if (prepared.file.size > 3.5 * 1024 * 1024) {
+          failures.push(`${file.name}: 사진이 너무 커요 (3.5MB 초과)`)
+          continue
+        }
         const form = new FormData()
         form.append('files', prepared.file)
         if (postId) form.append('post_id', String(postId))
         setUploadMessage(`${file.name}: 업로드 중…`)
-        const res = await fetch('/api/corenull/upload', { method: 'POST', body: form })
+        const res = await fetch('/api/corenull/upload', {
+          method: 'POST',
+          credentials: 'include',
+          body: form,
+        })
+        if (res.status === 413) {
+          failures.push(`${file.name}: 서버 한도 초과 (HTTP 413)`)
+          continue
+        }
         const data = await res.json().catch(() => null)
         const item = data?.data?.[0]
         if (!res.ok || data?._error || !item?.url || item._error) {
-          failures.push(`${file.name}: ${item?._error || data?._error || `업로드 실패 (HTTP ${res.status})`}`)
+          failures.push(
+            `${file.name}: ${item?._error || data?._error || `업로드 실패 (HTTP ${res.status})`}`,
+          )
           continue
         }
-        setEditMedia(prev => [...prev, item])
+        setEditMedia((prev) => [...prev, item])
         uploadedCount++
       }
 
@@ -471,56 +539,29 @@ const styles: Record<string, React.CSSProperties> = {
   editMediaItem: { position: 'relative' },
   editMediaThumb: { width: 72, height: 72, borderRadius: 10, objectFit: 'cover' },
   editVideoThumb: { width: 72, height: 72, borderRadius: 10, background: '#2d4a3e', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 },
-  editMediaRemove: {
-    position: 'absolute', top: -6, right: -6,
-    width: 20, height: 20, borderRadius: '50%',
-    background: '#2C1810', color: 'white',
-    border: 'none', fontSize: 10, cursor: 'pointer',
-  },
+  editMediaRemove: { position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: '50%', background: '#2C1810', color: 'white', border: 'none', fontSize: 10, cursor: 'pointer' },
   addMediaRow: { display: 'flex', gap: 8 },
-  addMediaBtn: {
-    flex: 1, padding: '10px',
-    background: '#F5F0E8', border: '1px dashed rgba(92,61,46,0.2)',
-    borderRadius: 10, fontSize: 12, color: '#9A8470', cursor: 'pointer',
-  },
-  editTextarea: {
-    width: '100%', minHeight: 120,
-    background: '#F5F0E8', border: '1px solid rgba(92,61,46,0.2)',
-    borderRadius: 12, padding: 12,
-    fontFamily: "'Noto Sans KR', sans-serif", fontSize: 15, lineHeight: 1.7,
-    color: '#1C1208', resize: 'none', outline: 'none', boxSizing: 'border-box',
-  },
-  editSaveBtn: { flex: 1, padding: '10px', background: '#2C1810', color: 'white', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer' },
-  editCancelBtn: { flex: 1, padding: '10px', background: '#F5F0E8', color: '#5C4A35', border: 'none', borderRadius: 10, fontSize: 14, cursor: 'pointer' },
-  translateToggle: { display: 'flex', alignItems: 'center', gap: 6, paddingTop: 12, borderTop: '1px solid rgba(92,61,46,0.12)', cursor: 'pointer', width: 'fit-content', marginBottom: 8 },
-  translateLabel: { fontSize: 12, color: '#C17F3C', fontWeight: 500 },
-  translateResult: { fontSize: 14, lineHeight: 1.7, color: '#5C4A35', marginBottom: 16 },
-  fruitSection: { marginTop: 16, paddingTop: 16, borderTop: '1px solid rgba(92,61,46,0.1)' },
-  fruitBtn: { width: '100%', padding: '12px', background: 'linear-gradient(135deg, #4A7C3F, #7AB648)', color: 'white', border: 'none', borderRadius: 12, fontSize: 14, fontWeight: 600, cursor: 'pointer' },
-  harvestBtn: { width: '100%', padding: '12px', background: 'linear-gradient(135deg, #C17F3C, #E8A857)', color: 'white', border: 'none', borderRadius: 12, fontSize: 14, fontWeight: 600, cursor: 'pointer' },
-  harvestedBadge: { textAlign: 'center', padding: '10px', fontSize: 13, color: '#4A5240', background: 'rgba(74,82,64,0.08)', borderRadius: 10 },
-  divider: { height: 1, background: 'rgba(92,61,46,0.1)', margin: '20px 0 12px' },
-  commentCount: { fontSize: 13, fontWeight: 600, color: '#5C4A35', marginBottom: 12 },
-  emptyComment: { fontSize: 13, color: '#9A8470', textAlign: 'center', padding: '20px 0' },
+  addMediaBtn: { flex: 1, height: 40, background: '#F5F0E8', border: '1px dashed rgba(92,61,46,0.2)', borderRadius: 10, fontSize: 13, color: '#5C4A35', cursor: 'pointer' },
+  editTextarea: { width: '100%', minHeight: 120, background: '#F5F0E8', border: '1px solid rgba(92,61,46,0.12)', borderRadius: 12, padding: 12, fontSize: 15, lineHeight: 1.7, resize: 'vertical', outline: 'none', boxSizing: 'border-box' },
+  editSaveBtn: { flex: 1, padding: 12, background: '#2C1810', color: 'white', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 500, cursor: 'pointer' },
+  editCancelBtn: { padding: '12px 16px', background: 'none', color: '#9A8470', border: 'none', fontSize: 14, cursor: 'pointer' },
+  translateToggle: { display: 'flex', alignItems: 'center', gap: 6, padding: '8px 0', cursor: 'pointer' },
+  translateLabel: { fontSize: 13, color: '#5C4A35' },
+  translateResult: { background: '#F5F0E8', borderRadius: 10, padding: 12, fontSize: 14, lineHeight: 1.6, color: '#5C4A35', marginBottom: 12 },
+  fruitSection: { marginBottom: 16 },
+  fruitBtn: { width: '100%', padding: 14, background: 'linear-gradient(135deg, #4A7C3F, #6B9B5E)', color: 'white', border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 600, cursor: 'pointer' },
+  harvestBtn: { width: '100%', padding: 14, background: '#2C1810', color: 'white', border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 600, cursor: 'pointer' },
+  harvestedBadge: { padding: 12, background: 'rgba(74,124,63,0.1)', borderRadius: 10, fontSize: 13, color: '#4A7C3F', textAlign: 'center' },
+  divider: { height: 1, background: 'rgba(92,61,46,0.1)', margin: '16px 0' },
+  commentCount: { fontSize: 14, fontWeight: 500, color: '#5C4A35', marginBottom: 12 },
+  emptyComment: { fontSize: 13, color: '#9A8470', textAlign: 'center', padding: 24 },
   commentList: { display: 'flex', flexDirection: 'column', gap: 12 },
   commentItem: { display: 'flex', gap: 10 },
-  commentAvatar: { width: 28, height: 28, borderRadius: '50%', background: 'rgba(74,82,64,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0 },
-  commentBody: { flex: 1, minWidth: 0 },
-  commentContent: { fontSize: 14, color: '#1C1208', lineHeight: 1.5 },
+  commentAvatar: { width: 28, height: 28, borderRadius: '50%', background: '#F5F0E8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0 },
+  commentBody: { flex: 1 },
+  commentContent: { fontSize: 14, lineHeight: 1.5, color: '#1C1208' },
   commentTime: { fontSize: 11, color: '#9A8470', marginTop: 4 },
-  commentInput: {
-    position: 'fixed', bottom: 0, left: 0, right: 0,
-    display: 'flex', gap: 8, padding: '10px 16px',
-    background: '#FEFCF8', borderTop: '1px solid rgba(92,61,46,0.1)',
-    maxWidth: 640, margin: '0 auto',
-  },
-  commentField: {
-    flex: 1, padding: '10px 14px', borderRadius: 20,
-    border: '1px solid rgba(92,61,46,0.15)', background: '#F5F0E8',
-    fontSize: 14, outline: 'none',
-  },
-  commentSubmit: {
-    width: 40, height: 40, borderRadius: '50%', border: 'none',
-    background: '#2C1810', color: '#FEFCF8', fontSize: 16, cursor: 'pointer',
-  },
+  commentInput: { position: 'fixed', bottom: 0, left: 0, right: 0, display: 'flex', gap: 8, padding: '12px 16px', background: '#FEFCF8', borderTop: '1px solid rgba(92,61,46,0.1)', maxWidth: 430, margin: '0 auto' },
+  commentField: { flex: 1, height: 40, background: '#F5F0E8', border: '1px solid rgba(92,61,46,0.12)', borderRadius: 20, padding: '0 16px', fontSize: 14, outline: 'none' },
+  commentSubmit: { width: 40, height: 40, borderRadius: '50%', background: '#2C1810', color: 'white', border: 'none', fontSize: 18, cursor: 'pointer' },
 }

@@ -4,9 +4,9 @@
 //
 // POST /api/identity/sync
 //   body: { provider: 'google'|'kakao', provider_sub: string, owner_key?: string }
-//   - 기존 매핑 있음      → 기족 owner_key 복원            (is_new_user=false)
+//   - 기존 매핑 있음      → 기존 owner_key 복원            (is_new_user=false)
 //   - 매핑 없고 owner_key 있음 → google_sub↔owner_key LINK   (is_new_user=false, linked=true)
-//   - 매핑 없고 owner_key 없음 → 새 UUID owner_key 생성       (is_new_user=true)
+//   - 매핑 없고 owner_key 없음 → needs_owner_choice=true     (신규 UUID 자동 생성 금지)
 //   - google이 다른 owner_key에 이미 연결 → 409 IDENTITY_CONFLICT
 
 import { getSupabaseAdmin } from '@/lib/supabase'
@@ -61,10 +61,25 @@ export async function POST(request) {
       )
     }
 
-    // 2) 신규 매핑
-    const owner_key = currentOwnerKey || (typeof crypto !== 'undefined' && crypto.randomUUID
-      ? crypto.randomUUID()
-      : `o_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`)
+    // 2) 매핑 없음
+    // owner_key 없이 신규 UUID를 만들면 빈 집이 생기고 기존 집과 끊긴다.
+    // → 클라이언트가 recover / 새로 시작으로 owner_key를 확정한 뒤 다시 호출해야 한다.
+    if (!currentOwnerKey) {
+      return Response.json(
+        {
+          data: {
+            needs_owner_choice: true,
+            is_new_user: true,
+            linked: false,
+          },
+          traceId,
+        },
+        { status: 200 },
+      )
+    }
+
+    // 3) 매핑 없음 + owner_key 있음 → LINK
+    const owner_key = currentOwnerKey
 
     const { error: insertError } = await supabase
       .from('corenull_owner_identities')
@@ -75,7 +90,7 @@ export async function POST(request) {
     }
 
     return Response.json(
-      { data: { owner_key, linked: true, is_new_user: !currentOwnerKey }, traceId },
+      { data: { owner_key, linked: true, is_new_user: false }, traceId },
       { status: 200 }
     )
   } catch (e) {

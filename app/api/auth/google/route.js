@@ -75,10 +75,32 @@ export async function POST(request) {
       )
     }
 
-    // owner_key는 기존 UUID(보존) 혹은 신규 생성 UUID. google sub은 절대 owner_key가 되지 않음.
+    // needs_owner_choice: Google 검증은 됐지만 owner_key 미확정 → 클라이언트에서 recover/신규 후 재호출
+    if (sync.data?.needs_owner_choice) {
+      return Response.json(
+        {
+          data: {
+            needs_owner_choice: true,
+            is_new_user: true,
+            linked: false,
+          },
+          traceId,
+        },
+        { status: 200 },
+      )
+    }
+
+    // owner_key는 기존 UUID(보존) 또는 LINK된 UUID. google sub은 절대 owner_key가 되지 않음.
     return Response.json(
-      { data: { owner_key: sync.data.owner_key, is_new_user: sync.data.is_new_user, linked: true }, traceId },
-      { status: 200 }
+      {
+        data: {
+          owner_key: sync.data.owner_key,
+          is_new_user: !!sync.data.is_new_user,
+          linked: !!sync.data.linked,
+        },
+        traceId,
+      },
+      { status: 200 },
     )
   } catch (e) {
     return Response.json({ _error: e.message, traceId }, { status: 500 })

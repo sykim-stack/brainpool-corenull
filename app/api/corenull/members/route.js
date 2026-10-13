@@ -4,6 +4,7 @@
 // NOTE(2026-08-30): room_id 스코핑 + 양방향 해지 추가.
 // NOTE(2026-10-06): device_id 컬럼 = Owner ID. 구 초대는 Device UUID일 수 있어
 //   GET 시 owner_key를 함께 받아 합집합 조회한다.
+// NOTE(2026-10-10): 쓰기 = resolveActor 필수.
 
 export const dynamic = 'force-dynamic'
 
@@ -32,7 +33,6 @@ const handleGet = async (req, traceId) => {
   if (!supabase) return Response.json({ _error: 'supabase_init_failed', traceId }, { status: 500 })
 
   if (device_id) {
-    // device_id 파라미터에 Owner ID가 온다. 구 데이터 호환을 위해 owner_key도 받음
     const owner_key = searchParams.get('owner_key')
     const keys = [...new Set([device_id, owner_key].filter(Boolean))]
     const { data } = await supabase
@@ -66,11 +66,18 @@ const handleGet = async (req, traceId) => {
 }
 
 const handlePost = async (req, traceId) => {
-  const body = JSON.parse(await req.text())
-  const { house_id, owner_key, device_id, room_id } = body
+  const { requireActor, assertOwnerMatchesActor } = await import('@/lib/actor')
+  const gate = requireActor(req, traceId)
+  if (gate.error) return gate.error
 
-  if (!house_id || !owner_key || !device_id) {
-    return Response.json({ _error: 'house_id_owner_key_device_id_required', traceId }, { status: 500 })
+  const body = JSON.parse(await req.text())
+  const { house_id, device_id, room_id } = body
+  const mismatch = assertOwnerMatchesActor(body.owner_key, gate.actor, traceId)
+  if (mismatch) return mismatch
+  const owner_key = gate.actor.ownerKey
+
+  if (!house_id || !device_id) {
+    return Response.json({ _error: 'house_id_device_id_required', traceId }, { status: 500 })
   }
 
   const { getSupabase } = await import('@/lib/supabase')
@@ -121,14 +128,18 @@ const handlePost = async (req, traceId) => {
 }
 
 const handleDelete = async (req, traceId) => {
+  const { requireActor } = await import('@/lib/actor')
+  const gate = requireActor(req, traceId)
+  if (gate.error) return gate.error
+  const requester_key = gate.actor.ownerKey
+
   const { searchParams } = new URL(req.url)
   const house_id = searchParams.get('house_id')
-  const requester_key = searchParams.get('owner_key')
   const device_id = searchParams.get('device_id')
   const room_id = searchParams.get('room_id')
 
-  if (!house_id || !requester_key || !device_id) {
-    return Response.json({ _error: 'house_id_owner_key_device_id_required', traceId }, { status: 500 })
+  if (!house_id || !device_id) {
+    return Response.json({ _error: 'house_id_device_id_required', traceId }, { status: 500 })
   }
 
   const { getSupabase } = await import('@/lib/supabase')

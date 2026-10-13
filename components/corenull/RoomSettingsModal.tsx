@@ -16,13 +16,22 @@ interface RoomSettingsModalProps {
   visibility: Visibility
   seedMode: boolean
   houseId: string
-  ownerKey: string   // 지금 접속한 사람의 device_id
-  isOwner: boolean   // house owner인지
+  ownerKey: string
+  isOwner: boolean
   onClose: () => void
-  onUpdate: (updated: { room_name: string; visibility: Visibility; seed_mode?: boolean }) => void
-  onLeft?: () => void // 본인이 나가기 완료했을 때
+  onUpdate: (updated: {
+    room_name: string
+    visibility: Visibility
+    seed_mode?: boolean
+  }) => void
+  onLeft?: () => void
 }
 
+/**
+ * 방 설정
+ * - 씨드 시작은 /write 본경로 (여기서 켜지 않음)
+ * - 씨드 진행 중: 초대장 링크 + 해제만
+ */
 export default function RoomSettingsModal({
   roomId,
   roomName,
@@ -39,11 +48,7 @@ export default function RoomSettingsModal({
   const [vis, setVis] = useState<Visibility>(visibility)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const [seedOff, setSeedOff] = useState(false) // 씨드 끄기 진행 중 표시용
-  const [seedOnMode, setSeedOnMode] = useState(false) // 씨드 켜기 폼 펼침 여부
-  const [bloomDate, setBloomDate] = useState('')
-  const [seedOn, setSeedOn] = useState(false) // 씨드 켜기 진행 중 표시용
-  const today = new Date().toISOString().split('T')[0]
+  const [seedOff, setSeedOff] = useState(false)
 
   const [participants, setParticipants] = useState<Participant[]>([])
   const [loadingParticipants, setLoadingParticipants] = useState(true)
@@ -51,26 +56,57 @@ export default function RoomSettingsModal({
   const [inviteLoading, setInviteLoading] = useState(false)
   const [leavingId, setLeavingId] = useState<string | null>(null)
 
-  // 참여자 목록 — 이 room에 한정된 참여(room_id === roomId)만 표시.
-  // house 전체 멤버(room_id null, 이웃초대로 생긴 것)는 "참여자"
-  // 개념과 다르므로 여기서는 걸러낸다.
+  const [seedSlug, setSeedSlug] = useState<string | null>(null)
+  const [seedEndDate, setSeedEndDate] = useState<string | null>(null)
+  const [seedMemo, setSeedMemo] = useState('')
+  const [memoSaving, setMemoSaving] = useState(false)
+  const [copied, setCopied] = useState(false)
+
   useEffect(() => {
     fetch(`/api/corenull/members?house_id=${houseId}&room_id=${roomId}`)
-      .then(r => r.json())
-      .then(d => {
+      .then((r) => r.json())
+      .then((d) => {
         const all: Participant[] = d.data || []
-        setParticipants(all.filter(p => p.room_id === roomId))
+        setParticipants(all.filter((p) => p.room_id === roomId))
         setLoadingParticipants(false)
       })
+      .catch(() => setLoadingParticipants(false))
   }, [houseId, roomId])
+
+  useEffect(() => {
+    if (!seedMode) {
+      setSeedSlug(null)
+      setSeedEndDate(null)
+      setSeedMemo('')
+      return
+    }
+    fetch(`/api/corenull/seed-pages?room_id=${encodeURIComponent(roomId)}`)
+      .then((r) => r.json())
+      .then((d) => {
+        const open = (d.data || []).find((p: any) => p.status === 'open')
+        if (open) {
+          setSeedSlug(open.slug || null)
+          setSeedEndDate(open.end_date || null)
+          setSeedMemo(open.memo || '')
+        }
+      })
+      .catch(() => {})
+  }, [roomId, seedMode])
+
+  const shareUrl =
+    typeof window !== 'undefined' && seedSlug
+      ? `${window.location.origin}/s/${seedSlug}`
+      : seedSlug
+        ? `/s/${seedSlug}`
+        : ''
 
   const handleSave = async () => {
     if (!name.trim()) return
     setSaving(true)
     setError('')
-
     const res = await fetch('/api/corenull/rooms', {
       method: 'PATCH',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         room_id: roomId,
@@ -79,10 +115,12 @@ export default function RoomSettingsModal({
         visibility: vis,
       }),
     })
-
     const data = await res.json()
     if (data.data) {
-      onUpdate({ room_name: data.data.room_name, visibility: data.data.visibility })
+      onUpdate({
+        room_name: data.data.room_name,
+        visibility: data.data.visibility,
+      })
       onClose()
     } else {
       setError(data._error || '저장에 실패했어요')
@@ -95,12 +133,19 @@ export default function RoomSettingsModal({
     setInviteLoading(true)
     const res = await fetch('/api/corenull/invite', {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ house_id: houseId, owner_key: ownerKey, room_id: roomId }),
+      body: JSON.stringify({
+        house_id: houseId,
+        owner_key: ownerKey,
+        room_id: roomId,
+      }),
     })
     const data = await res.json()
     if (data.data?.invite_token) {
-      setInviteUrl(`https://corenull.vercel.app/invite/${data.data.invite_token}`)
+      setInviteUrl(
+        `https://corenull.vercel.app/invite/${data.data.invite_token}`,
+      )
     }
     setInviteLoading(false)
   }
@@ -109,116 +154,167 @@ export default function RoomSettingsModal({
     try {
       await navigator.clipboard.writeText(inviteUrl)
     } catch {
-      // clipboard 미지원 환경은 조용히 무시 — 링크는 화면에 이미 보임
+      /* ignore */
     }
   }
 
-  // 내보내기(owner가 참여자를) / 나가기(본인이 자기 자신을) — 양방향 해지
+  const handleCopySeed = async () => {
+    if (!shareUrl) return
+    try {
+      await navigator.clipboard.writeText(shareUrl)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      alert(shareUrl)
+    }
+  }
+
+  const handleSaveMemo = async () => {
+    if (!seedSlug) return
+    setMemoSaving(true)
+    setError('')
+    const res = await fetch('/api/corenull/seed-pages', {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        slug: seedSlug,
+        owner_key: ownerKey,
+        memo: seedMemo,
+      }),
+    })
+    const data = await res.json()
+    if (!data.data) setError(data._error || '메모 저장 실패')
+    setMemoSaving(false)
+  }
+
   const handleRemove = async (deviceId: string) => {
     setLeavingId(deviceId)
     const res = await fetch(
       `/api/corenull/members?house_id=${houseId}&room_id=${roomId}&owner_key=${ownerKey}&device_id=${deviceId}`,
-      { method: 'DELETE' }
+      { method: 'DELETE' },
     )
     const data = await res.json()
     if (data.data?.deleted) {
-      setParticipants(prev => prev.filter(p => p.device_id !== deviceId))
+      setParticipants((prev) => prev.filter((p) => p.device_id !== deviceId))
       if (deviceId === ownerKey) onLeft?.()
     }
     setLeavingId(null)
   }
 
-  // 씨드 켜기 — rooms PATCH에 seed_mode:true (+bloom_date 선택) 넘기는 것.
-  // write 페이지의 신규 방 생성 시 씨드 토글과 동일한 필드 조합.
-  const handleSeedOn = async () => {
-    setSeedOn(true)
+  const handleSeedOff = async () => {
+    setSeedOff(true)
+    setError('')
     const res = await fetch('/api/corenull/rooms', {
       method: 'PATCH',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         room_id: roomId,
         owner_key: ownerKey,
-        seed_mode: true,
-        bloom_date: bloomDate || null,
+        seed_mode: false,
       }),
     })
     const data = await res.json()
     if (data.data) {
-      onUpdate({ room_name: data.data.room_name, visibility: data.data.visibility, seed_mode: true })
-      setSeedOnMode(false)
-      setBloomDate('')
+      setSeedSlug(null)
+      onUpdate({
+        room_name: data.data.room_name,
+        visibility: data.data.visibility,
+        seed_mode: false,
+      })
     } else {
-      setError(data._error || '씨드 켜기에 실패했어요')
-    }
-    setSeedOn(false)
-  }
-
-  // 씨드 끄기 — 새 액션이 아니라 이미 있는 rooms PATCH에 seed_mode:false만
-  // 넘기는 것. 방을 지우는 게 아니라 씨드 뷰만 끄고 일반 방으로 돌아간다.
-  const handleSeedOff = async () => {
-    setSeedOff(true)
-    const res = await fetch('/api/corenull/rooms', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ room_id: roomId, owner_key: ownerKey, seed_mode: false }),
-    })
-    const data = await res.json()
-    if (data.data) {
-      onUpdate({ room_name: data.data.room_name, visibility: data.data.visibility, seed_mode: false })
-    } else {
-      setError(data._error || '씨드 끄기에 실패했어요')
+      setError(data._error || '씨드 해제에 실패했어요')
     }
     setSeedOff(false)
   }
 
   return (
     <div style={styles.overlay} onClick={onClose}>
-      <div style={styles.modal} onClick={e => e.stopPropagation()}>
+      <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
         <div style={styles.handle} />
         <div style={styles.title}>방 설정</div>
 
         {error && <div style={styles.error}>⚠️ {error}</div>}
 
-        {/* room_name/visibility 편집 — owner 전용 */}
         {isOwner && (
           <>
             <div style={styles.sectionLabel}>방 이름</div>
             <input
               style={styles.input}
               value={name}
-              onChange={e => setName(e.target.value)}
+              onChange={(e) => setName(e.target.value)}
               maxLength={20}
             />
 
             <div style={styles.sectionLabel}>공개 범위</div>
-           {([
-              { value: 'public',  label: '🌍 공개',     desc: '마당에 노출됩니다',           bg: '#E8EFE3', fg: '#4A5240' },
-              { value: 'invite',  label: '👥 이웃공개', desc: '이웃에게 공개돼요',           bg: '#FBEEDD', fg: '#8A5423' },
-              { value: 'private', label: '🔒 비공개',   desc: '초대받은 참여자만 볼 수 있어요', bg: '#EFE6E1', fg: '#5C3D2E' },
-            ] as const).map(opt => (
+            {(
+              [
+                {
+                  value: 'public' as const,
+                  label: '🌍 공개',
+                  desc: '마당에 노출됩니다',
+                  bg: '#E8EFE3',
+                  fg: '#4A5240',
+                },
+                {
+                  value: 'invite' as const,
+                  label: '👥 이웃공개',
+                  desc: '이웃에게 공개돼요',
+                  bg: '#FBEEDD',
+                  fg: '#8A5423',
+                },
+                {
+                  value: 'private' as const,
+                  label: '🔒 비공개',
+                  desc: '초대받은 참여자만 볼 수 있어요',
+                  bg: '#EFE6E1',
+                  fg: '#5C3D2E',
+                },
+              ] as const
+            ).map((opt) => (
               <div
                 key={opt.value}
                 style={{
                   ...styles.visOption,
-                  ...(vis === opt.value ? { border: `1.5px solid ${opt.fg}`, background: opt.bg } : {}),
+                  ...(vis === opt.value
+                    ? { border: `1.5px solid ${opt.fg}`, background: opt.bg }
+                    : {}),
                 }}
                 onClick={() => setVis(opt.value)}
               >
                 <div>
-                  <div style={{ ...styles.visLabel, color: vis === opt.value ? opt.fg : styles.visLabel.color }}>{opt.label}</div>
+                  <div
+                    style={{
+                      ...styles.visLabel,
+                      color: vis === opt.value ? opt.fg : styles.visLabel.color,
+                    }}
+                  >
+                    {opt.label}
+                  </div>
                   <div style={styles.visDesc}>{opt.desc}</div>
                 </div>
-                <div style={{ ...styles.radio, ...(vis === opt.value ? { border: `6px solid ${opt.fg}` } : {}) }} />
+                <div
+                  style={{
+                    ...styles.radio,
+                    ...(vis === opt.value
+                      ? { border: `6px solid ${opt.fg}` }
+                      : {}),
+                  }}
+                />
               </div>
             ))}
 
-            <button style={{ ...styles.saveBtn, opacity: saving ? 0.5 : 1 }} onClick={handleSave} disabled={saving}>
+            <button
+              style={{ ...styles.saveBtn, opacity: saving ? 0.5 : 1 }}
+              onClick={handleSave}
+              disabled={saving}
+            >
               {saving ? '저장 중...' : '이름/공개범위 저장'}
             </button>
           </>
         )}
 
-        {/* 참여자 — owner/참여자 공통으로 보임 */}
         <div style={styles.sectionLabel}>참여자</div>
         {loadingParticipants ? (
           <div style={styles.hint}>불러오는 중...</div>
@@ -226,16 +322,13 @@ export default function RoomSettingsModal({
           <div style={styles.hint}>아직 참여자가 없어요</div>
         ) : (
           <div style={styles.participantList}>
-            {participants.map(p => (
+            {participants.map((p) => (
               <div key={p.device_id} style={styles.participantRow}>
                 <span style={styles.participantId}>
                   {p.device_id === ownerKey ? '나' : p.device_id.slice(0, 8)}
                 </span>
-                {/* owner는 남을 내보낼 수 있고, 본인은 스스로 나갈 수 있다.
-                    owner가 자기 자신을 내보내는 UI는 만들지 않는다 — owner가
-                    참여를 그만두고 싶으면 개념상 room 자체를 없애야 하는데
-                    그건 이 화면 밖(삭제) 이야기다. */}
-                {(isOwner && p.device_id !== ownerKey) || (!isOwner && p.device_id === ownerKey) ? (
+                {(isOwner && p.device_id !== ownerKey) ||
+                (!isOwner && p.device_id === ownerKey) ? (
                   <button
                     style={styles.removeBtn}
                     onClick={() => handleRemove(p.device_id)}
@@ -243,7 +336,9 @@ export default function RoomSettingsModal({
                   >
                     {leavingId === p.device_id
                       ? '...'
-                      : p.device_id === ownerKey ? '나가기' : '내보내기'}
+                      : p.device_id === ownerKey
+                        ? '나가기'
+                        : '내보내기'}
                   </button>
                 ) : null}
               </div>
@@ -251,76 +346,135 @@ export default function RoomSettingsModal({
           </div>
         )}
 
-        {/* 참여자 초대 — owner 전용 */}
         {isOwner && (
           <>
             {!inviteUrl ? (
-              <button style={styles.inviteBtn} onClick={handleInvite} disabled={inviteLoading}>
+              <button
+                style={styles.inviteBtn}
+                onClick={handleInvite}
+                disabled={inviteLoading}
+              >
                 {inviteLoading ? '생성 중...' : '참여자 초대'}
               </button>
             ) : (
               <div style={styles.inviteBox}>
                 <div style={styles.inviteUrl}>{inviteUrl}</div>
-                <button style={styles.copyBtn} onClick={handleCopyInvite}>링크 복사</button>
+                <button style={styles.copyBtn} onClick={handleCopyInvite}>
+                  링크 복사
+                </button>
               </div>
             )}
           </>
         )}
 
-        {/* 씨드 켜기 — owner 전용, seedMode가 꺼져있을 때만.
-            write 페이지 신규 방 생성 시 씨드 토글과 동일한 필드
-            조합(seed_mode + bloom_date)을 그대로 재사용한다. */}
-        {isOwner && !seedMode && (
-          <>
-            {!seedOnMode ? (
-              <button style={styles.seedOnBtn} onClick={() => setSeedOnMode(true)}>
-                🌱 씨드 켜기
-              </button>
-            ) : (
-              <div style={styles.seedOnBox}>
-                <div style={styles.seedOffDesc}>🌸 꽃 피는 날 (선택)</div>
-                <input
-                  type="date"
-                  style={styles.dateInput}
-                  value={bloomDate}
-                  min={today}
-                  onChange={e => setBloomDate(e.target.value)}
+        {isOwner && seedMode && (
+          <div style={styles.seedBox}>
+            <div style={styles.seedOffTitle}>🌱 씨드 진행 중</div>
+            {seedEndDate && (
+              <div style={styles.seedOffDesc}>
+                종료일{' '}
+                {new Date(seedEndDate).toLocaleDateString('ko-KR', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                })}
+              </div>
+            )}
+
+            {seedSlug ? (
+              <>
+                <div style={{ ...styles.sectionLabel, marginTop: 10 }}>
+                  초대장 링크
+                </div>
+                <div style={styles.inviteBox}>
+                  <div style={styles.inviteUrl}>{shareUrl}</div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <a
+                      href={`/s/${seedSlug}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{
+                        ...styles.copyBtn,
+                        flex: 1,
+                        textAlign: 'center',
+                        textDecoration: 'none',
+                        background: '#4A7C3F',
+                      }}
+                    >
+                      열기
+                    </a>
+                    <button
+                      style={{ ...styles.copyBtn, flex: 1 }}
+                      onClick={handleCopySeed}
+                    >
+                      {copied ? '복사됨' : '링크 복사'}
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ ...styles.sectionLabel, marginTop: 10 }}>
+                  초대장 메모
+                </div>
+                <textarea
+                  style={styles.memoInput}
+                  value={seedMemo}
+                  onChange={(e) => setSeedMemo(e.target.value)}
+                  placeholder={'인사 · 장소 · 일시 · 계좌 등'}
+                  rows={3}
                 />
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button
-                    style={{ ...styles.seedOffBtn, flex: 1, opacity: seedOn ? 0.5 : 1 }}
-                    onClick={handleSeedOn}
-                    disabled={seedOn}
-                  >
-                    {seedOn ? '켜는 중...' : '씨드 켜기'}
-                  </button>
-                  <button style={styles.cancelBtn} onClick={() => { setSeedOnMode(false); setBloomDate('') }}>취소</button>
+                <button
+                  style={{
+                    ...styles.copyBtn,
+                    width: '100%',
+                    marginTop: 6,
+                    opacity: memoSaving ? 0.5 : 1,
+                  }}
+                  onClick={handleSaveMemo}
+                  disabled={memoSaving}
+                >
+                  {memoSaving ? '저장 중...' : '메모 저장'}
+                </button>
+              </>
+            ) : (
+              <div style={styles.seedOffDesc}>
+                초대장을 불러오는 중이거나 아직 없어요. 글쓰기로 씨드를
+                시작하면 링크가 생깁니다.
+              </div>
+            )}
+
+            <div style={{ ...styles.seedOffRow, marginTop: 12 }}>
+              <div>
+                <div style={styles.seedOffTitle}>씨드 해제</div>
+                <div style={styles.seedOffDesc}>
+                  중도 종료. 글은 남고 열매 없이 닫아요.
                 </div>
               </div>
-            )}
-          </>
-        )}
-
-        {/* 씨드 끄기 — owner 전용, seedMode가 켜져있을 때만.
-            방을 지우는 게 아니라 씨드 뷰만 끄고 일반 방으로 돌아간다 —
-            그래서 삭제처럼 확인 단계를 두지 않는다(스위치니까). */}
-        {isOwner && seedMode && (
-          <div style={styles.seedOffRow}>
-            <div>
-              <div style={styles.seedOffTitle}>🌱 씨드 끄기</div>
-              <div style={styles.seedOffDesc}>일반 방으로 돌아가요. 글은 그대로 남아요.</div>
+              <button
+                style={{
+                  ...styles.seedOffBtn,
+                  opacity: seedOff ? 0.5 : 1,
+                }}
+                onClick={handleSeedOff}
+                disabled={seedOff}
+              >
+                {seedOff ? '...' : '해제'}
+              </button>
             </div>
-            <button
-              style={{ ...styles.seedOffBtn, opacity: seedOff ? 0.5 : 1 }}
-              onClick={handleSeedOff}
-              disabled={seedOff}
-            >
-              {seedOff ? '...' : '끄기'}
-            </button>
           </div>
         )}
 
-        <button style={styles.cancelBtn} onClick={onClose}>닫기</button>
+        {isOwner && !seedMode && (
+          <div style={styles.hintBox}>
+            <div style={styles.seedOffTitle}>🌱 씨드</div>
+            <div style={styles.seedOffDesc}>
+              씨드는 글쓰기에서 시작해요. 시작 직후 초대장 링크가 만들어집니다.
+            </div>
+          </div>
+        )}
+
+        <button style={styles.cancelBtn} onClick={onClose}>
+          닫기
+        </button>
       </div>
     </div>
   )
@@ -328,116 +482,211 @@ export default function RoomSettingsModal({
 
 const styles: Record<string, React.CSSProperties> = {
   overlay: {
-    position: 'fixed', inset: 0, zIndex: 200,
+    position: 'fixed',
+    inset: 0,
+    zIndex: 200,
     background: 'rgba(0,0,0,0.4)',
-    display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+    display: 'flex',
+    alignItems: 'flex-end',
+    justifyContent: 'center',
   },
   modal: {
-    width: '100%', maxWidth: '430px',
-    background: '#FEFCF8', borderRadius: '20px 20px 0 0',
+    width: '100%',
+    maxWidth: '430px',
+    background: '#FEFCF8',
+    borderRadius: '20px 20px 0 0',
     padding: '16px 20px 32px',
-    display: 'flex', flexDirection: 'column', gap: 10,
-    maxHeight: '85vh', overflowY: 'auto',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 10,
+    maxHeight: '85vh',
+    overflowY: 'auto',
   },
   handle: {
-    width: 36, height: 4, borderRadius: 2,
+    width: 36,
+    height: 4,
+    borderRadius: 2,
     background: 'rgba(92,61,46,0.2)',
-    alignSelf: 'center', marginBottom: 8,
+    alignSelf: 'center',
+    marginBottom: 8,
   },
   title: {
-    fontSize: 16, fontWeight: 600, color: '#2C1810',
-    fontFamily: "'Noto Serif KR', serif", textAlign: 'center', marginBottom: 4,
+    fontSize: 16,
+    fontWeight: 600,
+    color: '#2C1810',
+    fontFamily: "'Noto Serif KR', serif",
+    textAlign: 'center',
+    marginBottom: 4,
   },
   error: {
-    background: 'rgba(200,60,40,0.08)', border: '1px solid rgba(200,60,40,0.25)',
-    borderRadius: 10, padding: '10px 12px', fontSize: 13, color: '#A33',
+    background: 'rgba(200,60,40,0.08)',
+    border: '1px solid rgba(200,60,40,0.25)',
+    borderRadius: 10,
+    padding: '10px 12px',
+    fontSize: 13,
+    color: '#A33',
   },
-  sectionLabel: { fontSize: 12, fontWeight: 500, color: '#5C4A35', marginTop: 4 },
+  sectionLabel: {
+    fontSize: 12,
+    fontWeight: 500,
+    color: '#5C4A35',
+    marginTop: 4,
+  },
   input: {
-    width: '100%', height: 44,
-    background: '#F5F0E8', border: '1px solid rgba(92,61,46,0.12)',
-    borderRadius: 10, padding: '0 12px',
-    fontSize: 14, color: '#1C1208', outline: 'none', boxSizing: 'border-box',
+    width: '100%',
+    height: 44,
+    background: '#F5F0E8',
+    border: '1px solid rgba(92,61,46,0.12)',
+    borderRadius: 10,
+    padding: '0 12px',
+    fontSize: 14,
+    color: '#1C1208',
+    outline: 'none',
+    boxSizing: 'border-box',
     fontFamily: "'Noto Sans KR', sans-serif",
   },
   visOption: {
-    padding: '12px 14px', borderRadius: 12,
+    padding: '12px 14px',
+    borderRadius: 12,
     border: '1px solid rgba(92,61,46,0.12)',
-    background: '#F5F0E8', cursor: 'pointer',
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    background: '#F5F0E8',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  visOptionActive: { border: '1.5px solid #2C1810', background: 'rgba(44,24,16,0.04)' },
   visLabel: { fontSize: 14, fontWeight: 500, color: '#1C1208' },
   visDesc: { fontSize: 11, color: '#9A8470', marginTop: 2 },
   radio: {
-    width: 20, height: 20, borderRadius: '50%',
-    border: '2px solid rgba(92,61,46,0.2)', flexShrink: 0,
+    width: 20,
+    height: 20,
+    borderRadius: '50%',
+    border: '2px solid rgba(92,61,46,0.2)',
+    flexShrink: 0,
   },
-  radioActive: { border: '6px solid #2C1810' },
   saveBtn: {
-    width: '100%', padding: '14px',
-    background: '#2C1810', color: 'white',
-    border: 'none', borderRadius: 12,
-    fontSize: 14, fontWeight: 600, cursor: 'pointer', marginTop: 4,
+    width: '100%',
+    padding: '14px',
+    background: '#2C1810',
+    color: 'white',
+    border: 'none',
+    borderRadius: 12,
+    fontSize: 14,
+    fontWeight: 600,
+    cursor: 'pointer',
+    marginTop: 4,
   },
   hint: { fontSize: 13, color: '#9A8470' },
   participantList: {
-    display: 'flex', flexDirection: 'column', gap: 6,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 6,
   },
   participantRow: {
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '8px 12px', background: '#F5F0E8', borderRadius: 10,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '8px 12px',
+    background: '#F5F0E8',
+    borderRadius: 10,
   },
   participantId: { fontSize: 13, color: '#1C1208' },
   removeBtn: {
-    fontSize: 12, color: '#A33', background: 'none',
-    border: '1px solid rgba(163,51,51,0.25)', borderRadius: 8,
-    padding: '4px 10px', cursor: 'pointer',
+    fontSize: 12,
+    color: '#A33',
+    background: 'none',
+    border: '1px solid rgba(163,51,51,0.25)',
+    borderRadius: 8,
+    padding: '4px 10px',
+    cursor: 'pointer',
   },
   inviteBtn: {
-    width: '100%', padding: '12px',
-    background: 'rgba(58,82,120,0.08)', border: '1px solid rgba(58,82,120,0.25)',
-    borderRadius: 12, fontSize: 14, color: '#3A5278', fontWeight: 500, cursor: 'pointer',
+    width: '100%',
+    padding: '12px',
+    background: 'rgba(58,82,120,0.08)',
+    border: '1px solid rgba(58,82,120,0.25)',
+    borderRadius: 12,
+    fontSize: 14,
+    color: '#3A5278',
+    fontWeight: 500,
+    cursor: 'pointer',
   },
   inviteBox: {
-    background: '#F5F0E8', borderRadius: 10, padding: '10px 12px',
-    display: 'flex', flexDirection: 'column', gap: 8,
+    background: '#F5F0E8',
+    borderRadius: 10,
+    padding: '10px 12px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 8,
   },
-  inviteUrl: { fontSize: 11, color: '#5C4A35', wordBreak: 'break-all' },
+  inviteUrl: {
+    fontSize: 11,
+    color: '#5C4A35',
+    wordBreak: 'break-all',
+  },
   copyBtn: {
-    padding: '8px', background: '#2C1810', color: 'white',
-    border: 'none', borderRadius: 8, fontSize: 12, cursor: 'pointer',
+    padding: '8px',
+    background: '#2C1810',
+    color: 'white',
+    border: 'none',
+    borderRadius: 8,
+    fontSize: 12,
+    cursor: 'pointer',
   },
-  seedOnBtn: {
-    width: '100%', padding: '12px',
-    background: 'rgba(74,124,63,0.08)', border: '1px solid rgba(74,124,63,0.25)',
-    borderRadius: 12, fontSize: 14, color: '#4A7C3F', fontWeight: 500, cursor: 'pointer',
+  seedBox: {
+    background: 'rgba(74,124,63,0.06)',
+    border: '1px solid rgba(74,124,63,0.2)',
+    borderRadius: 12,
+    padding: 12,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 4,
   },
-  seedOnBox: {
-    background: 'rgba(74,124,63,0.06)', borderRadius: 12, padding: 12,
-    display: 'flex', flexDirection: 'column', gap: 8,
-  },
-  dateInput: {
-    width: '100%', height: 40,
-    background: '#FEFCF8', border: '1px solid rgba(92,61,46,0.12)',
-    borderRadius: 8, padding: '0 12px',
-    fontSize: 14, color: '#1C1208', outline: 'none', boxSizing: 'border-box',
+  hintBox: {
+    background: '#F5F0E8',
+    borderRadius: 12,
+    padding: '12px 14px',
   },
   seedOffRow: {
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '10px 12px', background: 'rgba(74,124,63,0.06)',
-    border: '1px solid rgba(74,124,63,0.2)', borderRadius: 12,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
   },
   seedOffTitle: { fontSize: 13, fontWeight: 500, color: '#1C1208' },
-  seedOffDesc: { fontSize: 11, color: '#9A8470', marginTop: 2 },
+  seedOffDesc: { fontSize: 11, color: '#9A8470', marginTop: 2, lineHeight: 1.4 },
   seedOffBtn: {
-    padding: '8px 14px', background: '#4A7C3F', color: 'white',
-    border: 'none', borderRadius: 10, fontSize: 12, fontWeight: 500, cursor: 'pointer',
+    padding: '8px 14px',
+    background: '#4A7C3F',
+    color: 'white',
+    border: 'none',
+    borderRadius: 10,
+    fontSize: 12,
+    fontWeight: 500,
+    cursor: 'pointer',
     flexShrink: 0,
   },
+  memoInput: {
+    width: '100%',
+    background: '#FEFCF8',
+    border: '1px solid rgba(92,61,46,0.12)',
+    borderRadius: 8,
+    padding: 10,
+    fontSize: 13,
+    lineHeight: 1.5,
+    color: '#1C1208',
+    outline: 'none',
+    boxSizing: 'border-box',
+    resize: 'vertical' as const,
+    fontFamily: "'Noto Sans KR', sans-serif",
+  },
   cancelBtn: {
-    width: '100%', padding: '12px',
-    background: 'none', color: '#9A8470',
-    border: 'none', fontSize: 14, cursor: 'pointer',
+    width: '100%',
+    padding: '12px',
+    background: 'none',
+    color: '#9A8470',
+    border: 'none',
+    fontSize: 14,
+    cursor: 'pointer',
   },
 }

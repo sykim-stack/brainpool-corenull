@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { getOwnerKey } from '@/lib/ownerKey'
+import { getOwnerKey, ensureActorSession } from '@/lib/ownerKey'
 import { getDeviceId } from '@/lib/deviceId'
 import { prepareUploadFile } from '@/lib/compressMedia'
 import TopBar from '@/components/blocks/TopBar'
@@ -32,6 +32,7 @@ export default function WritePage() {
   const [newRoomName, setNewRoomName] = useState('')
   const [isSeed, setIsSeed] = useState(false)
   const [bloomDate, setBloomDate] = useState('')
+  const [seedMemo, setSeedMemo] = useState('')
   const [creatingRoom, setCreatingRoom] = useState(false)
   const [roomError, setRoomError] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -92,17 +93,19 @@ export default function WritePage() {
     if (!newRoomName.trim() || !selectedHouse) return
     setCreatingRoom(true)
     setRoomError('')
+    await ensureActorSession()
     const res = await fetch('/api/corenull/rooms', {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         house_id: selectedHouse.id,
         owner_key: ownerKey,
         room_name: newRoomName.trim(),
-        room_type: isSeed ? 'seed' : 'normal',
+        room_type: 'normal',
         visibility: 'public',
-        seed_mode: isSeed,
-        bloom_date: isSeed && bloomDate ? bloomDate : null,
+        seed_mode: false,
+        bloom_date: null,
       }),
     })
     const data = await res.json()
@@ -112,25 +115,103 @@ export default function WritePage() {
       setSelectedRoom(created)
       setShowNewRoom(false)
       setNewRoomName('')
-      setIsSeed(false)
-      setBloomDate('')
     } else {
       setRoomError(data._error || '방 만들기에 실패했어요')
     }
     setCreatingRoom(false)
   }
 
+  /** 영상: signed URL로 Supabase 직접 업로드 (Vercel HTTP 413 회피) */
+  const uploadVideoDirect = async (file: File) => {
+    const signRes = await fetch('/api/corenull/upload', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        filename: file.name || 'video.mp4',
+        contentType: file.type || 'video/mp4',
+        size: file.size,
+      }),
+    })
+    const signData = await signRes.json()
+    if (!signData.data?.signedUrl) {
+      throw new Error(signData._error || signData.detail || '영상 업로드 준비 실패')
+    }
+    const putRes = await fetch(signData.data.signedUrl, {
+      method: 'PUT',
+      headers: { 'Content-Type': file.type || 'video/mp4' },
+      body: file,
+    })
+    if (!putRes.ok) {
+      const text = await putRes.text().catch(() => '')
+      throw new Error(`영상 업로드 실패 (HTTP ${putRes.status}) ${text.slice(0, 60)}`)
+    }
+    return {
+      type: 'video' as const,
+      url: signData.data.publicUrl as string,
+      file: file.name,
+    }
+  }
+
+  // 영상 판별 강화 — 타입 비어 있거나 이름만 있는 폰 파일 포함
+  // 이미지가 아닌 대용량은 영상 signed URL 경로로 (Vercel 413 방지)
+  const isVideoFile = (f: File) => {
+    if (f.type.startsWith('video/')) return true
+    if (/\.(mp4|webm|mov|m4v|mkv|avi)$/i.test(f.name)) return true
+    if (!f.type.startsWith('image/') && f.size > 3.5 * 1024 * 1024) return true
+    return false
+  }
+
   const uploadPrepared = async (prepared: File[]) => {
     if (prepared.length === 0) return
     setUploading(true)
-    setUploadLabel('업로드 중…')
-    const form = new FormData()
-    prepared.forEach((f) => form.append('files', f))
-    const res = await fetch('/api/corenull/upload', { method: 'POST', body: form })
-    const data = await res.json()
-    const ok = (data.data || []).filter((x: any) => x.url && !x._error)
-    const failed = (data.data || []).filter((x: any) => x._error)
-    if (failed.length) setSubmitError(failed[0]._error || '일부 업로드 실패')
+    await ensureActorSession()
+    const ok: any[] = []
+    const images = prepared.filter((f) => !isVideoFile(f))
+    const videos = prepared.filter((f) => isVideoFile(f))
+
+    const safeImages = images.filter((f) => f.size <= 3.5 * 1024 * 1024)
+    if (safeImages.length < images.length) {
+      setSubmitError('사진이 너무 커요. 압축 후에도 3.5MB를 넘는 파일은 올릴 수 없어요.')
+    }
+
+    if (safeImages.length > 0) {
+      setUploadLabel('사진 업로드 중…')
+      let total = 0
+      safeImages.forEach((f) => { total += f.size })
+      if (total > 4 * 1024 * 1024) {
+        setSubmitError('사진 용량 합이 너무 커요. 한 장씩 올려 주세요.')
+      } else {
+        const form = new FormData()
+        safeImages.forEach((f) => form.append('files', f))
+        const res = await fetch('/api/corenull/upload', {
+          method: 'POST',
+          credentials: 'include',
+          body: form,
+        })
+        if (res.status === 413) {
+          setSubmitError('파일이 서버 한도를 넘었어요. 페이지를 새로고침 후 다시 올려 주세요.')
+        } else {
+          const data = await res.json()
+          const good = (data.data || []).filter((x: any) => x.url && !x._error)
+          const failed = (data.data || []).filter((x: any) => x._error)
+          ok.push(...good)
+          if (failed.length) {
+            setSubmitError(failed[0]._error || failed[0].detail || '일부 사진 업로드 실패')
+          }
+        }
+      }
+    }
+
+    for (let i = 0; i < videos.length; i++) {
+      setUploadLabel(`영상 업로드 중… ${i + 1}/${videos.length}`)
+      try {
+        ok.push(await uploadVideoDirect(videos[i]))
+      } catch (e: any) {
+        setSubmitError(e?.message || '영상 업로드 실패')
+      }
+    }
+
     setMediaFiles((prev) => [...prev, ...ok])
     setUploading(false)
     setUploadLabel('')
@@ -180,23 +261,44 @@ export default function WritePage() {
     if (!content.trim() || !selectedRoom) return
     setSubmitting(true)
     setSubmitError('')
+    await ensureActorSession()
+    const payload: Record<string, unknown> = {
+      room_id: selectedRoom.id,
+      owner_key: ownerKey,
+      content: content.trim(),
+      meta: { media: mediaFiles },
+      type: 'post',
+    }
+    if (isSeed && !selectedRoom.seed_mode) {
+      if (!bloomDate) {
+        setSubmitError('씨드 종료일을 선택해 주세요')
+        setSubmitting(false)
+        return
+      }
+      payload.seed_start = true
+      payload.seed_end_date = bloomDate
+      if (seedMemo.trim()) payload.seed_memo = seedMemo.trim()
+    }
     const res = await fetch('/api/corenull/posts', {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        room_id: selectedRoom.id,
-        owner_key: ownerKey,
-        content: content.trim(),
-        meta: { media: mediaFiles },
-        type: 'post',
-      }),
+      body: JSON.stringify(payload),
     })
     const data = await res.json()
     if (data.data) {
+      if (data.seed_page?.share_path) {
+        try {
+          await navigator.clipboard.writeText(`${window.location.origin}${data.seed_page.share_path}`)
+        } catch {}
+        router.refresh()
+        router.replace(`/rooms/${selectedRoom.id}?seed_share=${encodeURIComponent(data.seed_page.slug || '')}`)
+        return
+      }
       router.refresh()
       router.replace(`/rooms/${selectedRoom.id}`)
     } else {
-      setSubmitError(data._error || '올리기에 실패했어요')
+      setSubmitError(data._error || data.detail || '올리기에 실패했어요')
     }
     setSubmitting(false)
   }
@@ -255,19 +357,10 @@ export default function WritePage() {
           <div style={{ background: '#FEFCF8', border: '1px solid rgba(92,61,46,0.12)', borderRadius: 12, padding: 14, marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span style={{ fontSize: 13, color: '#9A8470' }}>새 방 만들기</span>
-              <button type="button" style={{ fontSize: 13, color: '#9A8470', background: 'none', border: 'none', cursor: 'pointer' }} onClick={() => { setShowNewRoom(false); setNewRoomName(''); setIsSeed(false); setBloomDate(''); setRoomError('') }}>취소</button>
+              <button type="button" style={{ fontSize: 13, color: '#9A8470', background: 'none', border: 'none', cursor: 'pointer' }} onClick={() => { setShowNewRoom(false); setNewRoomName(''); setRoomError('') }}>취소</button>
             </div>
             {roomError && <div style={{ color: '#A33', fontSize: 13 }}>⚠️ {roomError}</div>}
             <input style={{ height: 44, background: '#F5F0E8', border: '1px solid rgba(92,61,46,0.12)', borderRadius: 10, padding: '0 12px', fontSize: 14 }} placeholder="방 이름" value={newRoomName} onChange={(e) => setNewRoomName(e.target.value)} maxLength={20} autoFocus />
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 12px', background: '#F5F0E8', borderRadius: 10, cursor: 'pointer' }} onClick={() => setIsSeed((v) => !v)}>
-              <div><div style={{ fontSize: 13, fontWeight: 500 }}>🌱 씨앗</div><div style={{ fontSize: 11, color: '#9A8470' }}>스스로에게 한 약속</div></div>
-              <div style={{ width: 44, height: 24, borderRadius: 12, background: isSeed ? '#2C1810' : '#e0d8d0', position: 'relative' }}>
-                <div style={{ position: 'absolute', top: 2, width: 20, height: 20, borderRadius: '50%', background: 'white', transform: isSeed ? 'translateX(20px)' : 'translateX(2px)' }} />
-              </div>
-            </div>
-            {isSeed && (
-              <input type="date" style={{ height: 40, background: '#FEFCF8', border: '1px solid rgba(92,61,46,0.12)', borderRadius: 8, padding: '0 12px' }} value={bloomDate} min={today} onChange={(e) => setBloomDate(e.target.value)} />
-            )}
             <button type="button" style={{ padding: 12, background: '#2C1810', color: 'white', border: 'none', borderRadius: 10, opacity: !newRoomName.trim() || creatingRoom ? 0.4 : 1 }} onClick={handleCreateRoom} disabled={!newRoomName.trim() || creatingRoom}>
               {creatingRoom ? '만드는 중...' : '방 만들기'}
             </button>
@@ -300,16 +393,65 @@ export default function WritePage() {
           <button type="button" style={{ flex: 1, height: 48, background: '#2C1810', border: 'none', borderRadius: 12, fontSize: 14, color: '#FEFCF8', cursor: 'pointer', fontWeight: 500 }} onClick={() => setShowCapture(true)} disabled={uploading}>🎥 촬영</button>
         </div>
 
+        {selectedRoom?.seed_mode ? (
+          <div style={{ background: 'rgba(74,124,63,0.08)', border: '1px solid rgba(74,124,63,0.22)', borderRadius: 12, padding: '12px 14px', marginBottom: 12 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#2C1810' }}>🌱 씨드 진행 중</div>
+            <div style={{ fontSize: 12, color: '#5C4A35', marginTop: 4, lineHeight: 1.5 }}>
+              이 글은 자동으로 씨드 글이 됩니다
+              {selectedRoom.bloom_date ? ` · 종료일 ${new Date(selectedRoom.bloom_date).toLocaleDateString('ko-KR')}` : ''}.
+              중도 종료는 방 설정에서 할 수 있어요.
+            </div>
+          </div>
+        ) : (
+          <div style={{ background: '#FEFCF8', border: '1px solid rgba(92,61,46,0.12)', borderRadius: 12, padding: 12, marginBottom: 12 }}>
+            <div
+              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+              onClick={() => setIsSeed((v) => !v)}
+            >
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 500 }}>🌱 씨드로 시작</div>
+                <div style={{ fontSize: 11, color: '#9A8470', marginTop: 2 }}>이후 글은 종료일까지 씨드 글 · 초대장 URL 즉시 생성</div>
+              </div>
+              <div style={{ width: 44, height: 24, borderRadius: 12, background: isSeed ? '#2C1810' : '#e0d8d0', position: 'relative', flexShrink: 0 }}>
+                <div style={{ position: 'absolute', top: 2, width: 20, height: 20, borderRadius: '50%', background: 'white', transform: isSeed ? 'translateX(20px)' : 'translateX(2px)' }} />
+              </div>
+            </div>
+            {isSeed && (
+              <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div>
+                  <div style={{ fontSize: 12, color: '#9A8470', marginBottom: 6 }}>종료일</div>
+                  <input
+                    type="date"
+                    style={{ width: '100%', height: 40, background: '#F5F0E8', border: '1px solid rgba(92,61,46,0.12)', borderRadius: 8, padding: '0 12px', boxSizing: 'border-box' }}
+                    value={bloomDate}
+                    min={today}
+                    onChange={(e) => setBloomDate(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, color: '#9A8470', marginBottom: 6 }}>초대장 메모 (선택)</div>
+                  <textarea
+                    style={{ width: '100%', minHeight: 72, background: '#F5F0E8', border: '1px solid rgba(92,61,46,0.12)', borderRadius: 8, padding: 10, fontSize: 13, lineHeight: 1.5, boxSizing: 'border-box', resize: 'vertical' }}
+                    placeholder={'인사 · 장소 · 일시 · 계좌 등\n초대장에 함께 보여요'}
+                    value={seedMemo}
+                    onChange={(e) => setSeedMemo(e.target.value)}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         <button
           type="button"
           style={{ width: '100%', padding: '12px 16px', background: '#2C1810', color: 'white', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 500, cursor: 'pointer', opacity: !content.trim() || !selectedRoom || submitting ? 0.4 : 1 }}
           onClick={handleSubmit}
           disabled={!content.trim() || !selectedRoom || submitting}
         >
-          {submitting ? '올리는 중...' : '올리기'}
+          {submitting ? '올리는 중...' : isSeed && !selectedRoom?.seed_mode ? '씨드 시작하고 올리기' : '올리기'}
         </button>
 
-        <input ref={fileInputRef} type="file" accept="image/*,video/mp4,video/webm" multiple style={{ display: 'none' }} onChange={handleFileSelect} />
+        <input ref={fileInputRef} type="file" accept="image/*,video/mp4,video/webm,video/*" multiple style={{ display: 'none' }} onChange={handleFileSelect} />
       </div>
 
       {showCapture && <VideoCaptureModal onClose={() => setShowCapture(false)} onCapture={handleCapture} />}

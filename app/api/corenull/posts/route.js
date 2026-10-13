@@ -54,6 +54,16 @@ const handleGet = async (req, traceId) => {
     await supabase.from('corenull_footprints').insert({ owner_key, room_id })
   }
 
+  const { data: roomRow } = await supabase
+    .from('corenull_rooms')
+    .select('*')
+    .eq('id', room_id)
+    .maybeSingle()
+  if (roomRow?.seed_mode) {
+    const { finalizeSeedIfDue } = await import('@/lib/seedPeriod')
+    await finalizeSeedIfDue(supabase, roomRow)
+  }
+
   const { data, error } = await supabase
     .from('messages')
     .select('*')
@@ -99,11 +109,29 @@ const canWriteRoom = async (supabase, room_id, owner_key) => {
 }
 
 const handlePost = async (req, traceId) => {
-  const body = JSON.parse(await req.text())
-  const { room_id, owner_key, content, meta, type, relations } = body
+  const { requireActor, assertOwnerMatchesActor } = await import('@/lib/actor')
+  const gate = requireActor(req, traceId)
+  if (gate.error) return gate.error
 
-  if (!room_id || !owner_key || !content) {
-    return Response.json({ _error: 'room_id_owner_key_content_required', traceId }, { status: 500 })
+  const body = JSON.parse(await req.text())
+  const {
+    room_id,
+    content,
+    meta,
+    type,
+    relations,
+    seed_start,
+    seed_end_date,
+    include_post_ids,
+    seed_memo,
+    seed_title,
+  } = body
+  const mismatch = assertOwnerMatchesActor(body.owner_key, gate.actor, traceId)
+  if (mismatch) return mismatch
+  const owner_key = gate.actor.ownerKey
+
+  if (!room_id || !content) {
+    return Response.json({ _error: 'room_id_content_required', traceId }, { status: 500 })
   }
 
   const { getSupabase } = await import('@/lib/supabase')
@@ -111,12 +139,118 @@ const handlePost = async (req, traceId) => {
   if (!supabase) return Response.json({ _error: 'supabase_init_failed', traceId }, { status: 500 })
 
   const messageType = type || 'post'
+  let postMeta = { ...(meta || {}) }
+  let createdSeedPage = null
+
+  if (messageType === 'post') {
+    const { data: roomState } = await supabase
+      .from('corenull_rooms')
+      .select('id, seed_mode, bloom_date, house_id, room_name')
+      .eq('id', room_id)
+      .maybeSingle()
+
+    if (roomState?.seed_mode) {
+      const { finalizeSeedIfDue, buildSeedMeta, getOpenSeedPage } = await import('@/lib/seedPeriod')
+      const fin = await finalizeSeedIfDue(supabase, roomState)
+      if (!fin.finalized) {
+        const openPage = await getOpenSeedPage(supabase, room_id)
+        postMeta.seed = buildSeedMeta({
+          role: 'segment',
+          endDate: roomState.bloom_date,
+          runId: openPage?.run_id,
+        })
+      }
+    }
+
+    if (seed_start) {
+      const { data: roomNow } = await supabase
+        .from('corenull_rooms')
+        .select('id, seed_mode, bloom_date, room_name')
+        .eq('id', room_id)
+        .maybeSingle()
+      if (roomNow?.seed_mode) {
+        return Response.json(
+          {
+            _error: 'seed_already_active',
+            detail: '이미 씨드가 진행 중이에요. 방 설정에서 해제 후 다시 시작할 수 있어요.',
+            traceId,
+          },
+          { status: 400 },
+        )
+      }
+      if (!seed_end_date) {
+        return Response.json({ _error: 'seed_end_date_required', traceId }, { status: 400 })
+      }
+      const endDay = String(seed_end_date).slice(0, 10)
+      const { newRunId, buildSeedMeta, createSeedPage } = await import('@/lib/seedPeriod')
+      const runId = newRunId()
+
+      const { error: seedErr } = await supabase
+        .from('corenull_rooms')
+        .update({ seed_mode: true, bloom_date: endDay })
+        .eq('id', room_id)
+      if (seedErr) {
+        return Response.json({ _error: seedErr.message, traceId }, { status: 500 })
+      }
+
+      postMeta.seed = buildSeedMeta({ role: 'start', endDate: endDay, runId })
+
+      const includeIds = Array.isArray(include_post_ids) ? include_post_ids.filter(Boolean) : []
+      for (const pid of includeIds) {
+        const { data: oldPost } = await supabase
+          .from('messages')
+          .select('id, meta, room_id')
+          .eq('id', pid)
+          .maybeSingle()
+        if (!oldPost || oldPost.room_id !== room_id) continue
+        await supabase
+          .from('messages')
+          .update({
+            meta: {
+              ...(oldPost.meta || {}),
+              seed: buildSeedMeta({ role: 'included', endDate: endDay, runId }),
+            },
+          })
+          .eq('id', pid)
+      }
+
+      const { page, error: pageErr } = await createSeedPage(supabase, {
+        roomId: room_id,
+        houseId: roomState?.house_id,
+        ownerKey: owner_key,
+        runId,
+        endDate: endDay,
+        title: seed_title || roomNow?.room_name || null,
+        memo: seed_memo || '',
+      })
+      if (pageErr) {
+        console.error('[seed_page_create]', pageErr.message)
+      } else {
+        createdSeedPage = page
+      }
+
+      await pushFact({
+        source: 'CoreNull',
+        fact_type: 'space.seed.created',
+        owner_key,
+        house_id: roomState?.house_id || null,
+        payload: {
+          room_id,
+          bloom_date: endDay,
+          via: 'post',
+          run_id: runId,
+          slug: page?.slug || null,
+        },
+      })
+    }
+  }
+
   const insertPayload = {
     room_id,
     owner_key,
     type: messageType,
     content,
-    meta: meta || {},
+    meta: postMeta,
     relations: relations || {},
   }
 
@@ -148,15 +282,32 @@ const handlePost = async (req, traceId) => {
     })
   }
 
-  return Response.json({ data, traceId })
+  return Response.json({
+    data,
+    seed_page: createdSeedPage
+      ? {
+          slug: createdSeedPage.slug,
+          share_path: `/s/${createdSeedPage.slug}`,
+          end_date: createdSeedPage.end_date,
+        }
+      : null,
+    traceId,
+  })
 }
 
 const handlePatch = async (req, traceId) => {
-  const body = JSON.parse(await req.text())
-  const { post_id, owner_key, action, content, meta, room_id } = body
+  const { requireActor, assertOwnerMatchesActor } = await import('@/lib/actor')
+  const gate = requireActor(req, traceId)
+  if (gate.error) return gate.error
 
-  if (!post_id || !owner_key || !action) {
-    return Response.json({ _error: 'post_id_owner_key_action_required', traceId }, { status: 500 })
+  const body = JSON.parse(await req.text())
+  const { post_id, action, content, meta, room_id } = body
+  const mismatch = assertOwnerMatchesActor(body.owner_key, gate.actor, traceId)
+  if (mismatch) return mismatch
+  const owner_key = gate.actor.ownerKey
+
+  if (!post_id || !action) {
+    return Response.json({ _error: 'post_id_action_required', traceId }, { status: 500 })
   }
 
   const { getSupabase } = await import('@/lib/supabase')
@@ -180,20 +331,10 @@ const handlePatch = async (req, traceId) => {
     if (!content) {
       return Response.json({ _error: 'content_required', traceId }, { status: 500 })
     }
-
     const updatePayload = {
       content,
       meta: meta ? { ...(original.meta || {}), ...meta } : original.meta,
     }
-
-    // 잘못된 방에 올린 글 → 다른 방으로 이동
-    if (room_id && room_id !== original.room_id) {
-      const auth = await canWriteRoom(supabase, room_id, owner_key)
-      if (!auth.ok) return Response.json({ _error: auth.error, traceId }, { status: 500 })
-      updatePayload.room_id = room_id
-      updatePayload.house_id = auth.house_id
-    }
-
     const { data, error } = await supabase
       .from('messages')
       .update(updatePayload)
@@ -267,7 +408,6 @@ const handlePatch = async (req, traceId) => {
       .select()
       .single()
     if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
-
     await pushFact({
       source: 'CoreNull',
       fact_type: 'space.fruit.harvested',
@@ -279,7 +419,6 @@ const handlePatch = async (req, traceId) => {
         harvested_at: data.harvested_at,
       },
     })
-
     return Response.json({ data, traceId })
   }
 

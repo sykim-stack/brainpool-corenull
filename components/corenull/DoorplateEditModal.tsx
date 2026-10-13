@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { actorFetch } from '@/lib/actorFetch'
 
 export interface DoorplateEditModalProps {
   houseId: string
@@ -30,7 +31,7 @@ export default function DoorplateEditModal({
     setSaving(true)
     setError('')
     try {
-      const res = await fetch('/api/corenull/houses', {
+      const res = await actorFetch('/api/corenull/houses', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

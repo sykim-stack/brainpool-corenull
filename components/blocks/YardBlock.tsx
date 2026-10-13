@@ -52,9 +52,9 @@ export interface YardBlockProps {
   onPostClick?: (postId: string, roomId?: string) => void
   onCommentClick?: (postId: string) => void
   showInterest?: boolean
-  getInterestState?: (postId: string) => 'none' | 'active' | 'ended'
+  getInterestState?: (postId: string, roomId?: string) => 'none' | 'active' | 'ended'
   interestLoadingId?: string | null
-  onInterestClick?: (postId: string) => void
+  onInterestClick?: (postId: string, roomId?: string) => void
   enableInlineComment?: boolean
   ownerKey?: string
   onInterestGoLibrary?: () => void
@@ -160,6 +160,15 @@ export default function YardBlock({
         onPostClick={onPostClick}
         onApplyNeighbor={visitorMode ? undefined : onApplyNeighbor}
         applyLoadingHouseId={visitorMode ? null : applyLoadingHouseId}
+        showInterest={showInterest}
+        getInterestState={getInterestState}
+        interestLoadingId={interestLoadingId}
+        onInterestClick={onInterestClick}
+        onInterestGoLibrary={onInterestGoLibrary}
+        enableInlineComment={enableInlineComment}
+        ownerKey={ownerKey}
+        showViewMeta
+        showComments
       />
 
       {/* 하단 = 이미 연결된 이웃 (방문). 관리 버튼 없음 */}

@@ -3,10 +3,11 @@
 // Owner 미확인 상태의 진입 게이트.
 // House를 만들기 전에 Owner를 복구하거나 신규임을 명시적으로 확정한다.
 //
-// [기존 집 연결]  → recover 코드 입력 → setOwnerKey → 재진입
-// [새로 시작]    → createOwnerKey → /houses/create
-// [Google 계정] → GIS → /api/auth/google → google sub ↔ owner_key 매핑
-//                  (기존 owner_key 보존 / 신규면 새 owner_key)
+// [기존 집 연결]  → recover 코드 입력 → setOwnerKey → (pending Google 있으면 LINK) → 재진입
+// [새로 시작]    → createOwnerKey → (pending Google 있으면 LINK) → /houses/create
+// [Google 계정] → GIS → /api/auth/google
+//   - 매핑 있음     → 그 owner_key로 진입
+//   - 매핑 없음     → needs_owner_choice → 기존 집 / 새로 시작 선택 후 LINK
 //
 // 인앱 브라우저(카카오톡 등)에서는 Google 버튼을 감추고 외부 브라우저 안내만 보여준다.
 
@@ -16,7 +17,7 @@ import { setOwnerKey, createOwnerKey } from '@/lib/ownerKey'
 import { useInAppBrowser, InAppBrowserNotice } from '@/components/corenull/InAppBrowserGate'
 import { useGoogleLogin } from '@/hooks/useGoogleLogin'
 
-type Mode = 'choice' | 'recover' | 'done'
+type Mode = 'choice' | 'recover' | 'google_choice' | 'done'
 
 export default function OwnerGate() {
   const router = useRouter()
@@ -26,11 +27,17 @@ export default function OwnerGate() {
   const [loading, setLoading] = useState(false)
 
   const { isInApp, name } = useInAppBrowser()
-  const { googleRef, available, error } = useGoogleLogin(handleGoogle)
+  const { googleRef, available, error, completeWithOwnerKey } = useGoogleLogin(
+    handleGoogle,
+    () => {
+      // Google 검증 OK, owner_key 미확정 → 선택 화면
+      setMsg('')
+      setMode('google_choice')
+    },
+  )
 
   function handleGoogle(ownerKey: string, info?: { isNewUser?: boolean }) {
     setOwnerKey(ownerKey)
-    // 복구한 owner_key가 있으면 기족 집 재연결, 없으면(신규) 집 만들기 유도
     router.push(info?.isNewUser ? '/houses/create' : '/')
   }
 
@@ -47,6 +54,8 @@ export default function OwnerGate() {
       const data = await res.json()
       if (data.data?.owner_key) {
         setOwnerKey(data.data.owner_key)
+        // pending Google id_token이 있으면 이 owner_key에 LINK
+        await completeWithOwnerKey(data.data.owner_key)
         setMsg('연결 완료. 내 집으로 이동합니다.')
         setMode('done')
         setTimeout(() => {
@@ -61,8 +70,9 @@ export default function OwnerGate() {
     setLoading(false)
   }
 
-  const handleNew = () => {
-    createOwnerKey()
+  const handleNew = async () => {
+    const key = createOwnerKey()
+    await completeWithOwnerKey(key)
     router.push('/houses/create')
   }
 
@@ -71,34 +81,76 @@ export default function OwnerGate() {
       <div style={styles.card}>
         <div style={styles.emoji}>🏡</div>
         <h1 style={styles.title}>CoreNull</h1>
-        <p style={styles.desc}>
-          이 기기에서 아직 집이 연결되어 있지 않아요.
-          <br />
-          기존 집을 연결하거나, 새로 시작하거나 Google 계정으로도 연결할 수 있어요.
-        </p>
 
         {mode === 'choice' && (
-          <div style={styles.actions}>
-            {isInApp && <InAppBrowserNotice name={name} />}
-            <button style={styles.primary} onClick={() => setMode('recover')}>
-              기존 집 연결
-            </button>
-            <button style={styles.secondary} onClick={handleNew}>
-              새로 시작
-            </button>
-            {available && !error && (
-              <div ref={googleRef} style={styles.googleBtnWrap} />
-            )}
-            {error && !isInApp && (
-              <div style={styles.googleHint}>
-                Google 버튼을 불러오지 못했어요. 브라우저가 google.com을 차단하거나,
-                <button style={{ ...styles.link, display: 'block', marginTop: 4 }} onClick={() => window.location.reload()}>새로고침</button>
-              </div>
-            )}
-            {!available && !isInApp && !error && (
-              <p style={styles.googleHint}>Google 계정 연결은 관리자 설정 중입니다.</p>
-            )}
-          </div>
+          <>
+            <p style={styles.desc}>
+              이 기기에서 아직 집이 연결되어 있지 않아요.
+              <br />
+              기존 집을 연결하거나, 새로 시작하거나 Google 계정으로도 연결할 수 있어요.
+            </p>
+            <div style={styles.actions}>
+              {isInApp && <InAppBrowserNotice name={name} />}
+              <button style={styles.primary} onClick={() => setMode('recover')}>
+                기존 집 연결
+              </button>
+              <button style={styles.secondary} onClick={handleNew}>
+                새로 시작
+              </button>
+              {available && !error && (
+                <div ref={googleRef} style={styles.googleBtnWrap} />
+              )}
+              {error && !isInApp && (
+                <div style={styles.googleHint}>
+                  Google 버튼을 불러오지 못했어요. 브라우저가 google.com을 차단하거나,
+                  <button
+                    style={{ ...styles.link, display: 'block', marginTop: 4 }}
+                    onClick={() => window.location.reload()}
+                  >
+                    새로고침
+                  </button>
+                </div>
+              )}
+              {!available && !isInApp && !error && (
+                <p style={styles.googleHint}>Google 계정 연결은 관리자 설정 중입니다.</p>
+              )}
+            </div>
+          </>
+        )}
+
+        {mode === 'google_choice' && (
+          <>
+            <p style={styles.desc}>
+              Google 계정은 확인됐어요.
+              <br />
+              아직 CoreNull 집과 연결되어 있지 않아요.
+              <br />
+              기존 집을 연결할지, 새로 시작할지 골라 주세요.
+            </p>
+            <div style={styles.actions}>
+              <button
+                style={styles.primary}
+                onClick={() => {
+                  setMsg('')
+                  setMode('recover')
+                }}
+              >
+                기존 집 연결
+              </button>
+              <button style={styles.secondary} onClick={handleNew}>
+                새로 시작
+              </button>
+              <button
+                style={styles.link}
+                onClick={() => {
+                  setMode('choice')
+                  setMsg('')
+                }}
+              >
+                ← 뒤로
+              </button>
+            </div>
+          </>
         )}
 
         {mode === 'recover' && (
@@ -125,7 +177,13 @@ export default function OwnerGate() {
             >
               {loading ? '연결 중…' : '연결하기'}
             </button>
-            <button style={styles.link} onClick={() => { setMode('choice'); setMsg('') }}>
+            <button
+              style={styles.link}
+              onClick={() => {
+                setMode('choice')
+                setMsg('')
+              }}
+            >
               ← 뒤로
             </button>
             {msg && <p style={styles.msg}>{msg}</p>}

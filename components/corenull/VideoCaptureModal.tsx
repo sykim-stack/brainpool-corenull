@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 /** 짧은 순간 — 틱톡/페북처럼 인앱에서 바로 찍기 */
 const MAX_SECONDS = 15
@@ -32,6 +33,7 @@ export default function VideoCaptureModal({ onClose, onCapture }: VideoCaptureMo
   const chunksRef = useRef<Blob[]>([])
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
+  const [mounted, setMounted] = useState(false)
   const [ready, setReady] = useState(false)
   const [recording, setRecording] = useState(false)
   const [seconds, setSeconds] = useState(0)
@@ -84,47 +86,75 @@ export default function VideoCaptureModal({ onClose, onCapture }: VideoCaptureMo
   }
 
   useEffect(() => {
-    const mime = pickMimeType()
-    setMimeType(mime)
-    if (typeof window === 'undefined') return
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setError('이 브라우저는 카메라 촬영을 지원하지 않아요.')
-      return
-    }
-    if (typeof MediaRecorder === 'undefined') {
-      setError('이 브라우저는 영상 녹화를 지원하지 않아요.')
-      return
-    }
+    setMounted(true)
+    setMimeType(pickMimeType())
     startCamera(facing)
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
     return () => {
       clearTimer()
-      try {
-        recorderRef.current?.stop()
-      } catch {
-        /* ignore */
+      if (recorderRef.current && recorderRef.current.state !== 'inactive') {
+        try {
+          recorderRef.current.stop()
+        } catch {
+          /* ignore */
+        }
       }
       stopStream()
+      document.body.style.overflow = prevOverflow
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const flipCamera = async () => {
+  const switchCamera = () => {
     if (recording) return
     const next = facing === 'environment' ? 'user' : 'environment'
     setFacing(next)
-    await startCamera(next)
+    startCamera(next)
   }
 
-  const finishRecording = () => {
+  const stopRecording = () => {
     clearTimer()
+    setRecording(false)
     const rec = recorderRef.current
-    if (!rec || rec.state === 'inactive') {
-      setRecording(false)
+    if (rec && rec.state !== 'inactive') {
+      rec.stop()
+    }
+  }
+
+  const startRecording = () => {
+    const stream = streamRef.current
+    if (!stream || !ready) return
+    if (typeof MediaRecorder === 'undefined') {
+      setError('이 브라우저는 영상 녹화를 지원하지 않아요.')
       return
     }
+    chunksRef.current = []
+    setSeconds(0)
+    setError('')
+
+    let rec: MediaRecorder
+    try {
+      rec = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream)
+    } catch {
+      try {
+        rec = new MediaRecorder(stream)
+      } catch {
+        setError('녹화를 시작할 수 없어요.')
+        return
+      }
+    }
+
+    recorderRef.current = rec
+    rec.ondataavailable = (ev) => {
+      if (ev.data && ev.data.size > 0) chunksRef.current.push(ev.data)
+    }
     rec.onstop = () => {
+      clearTimer()
       setRecording(false)
-      const type = mimeType?.split(';')[0] || 'video/webm'
+      const type = rec.mimeType || mimeType || 'video/webm'
       const blob = new Blob(chunksRef.current, { type })
       chunksRef.current = []
       if (blob.size < 1000) {
@@ -136,192 +166,130 @@ export default function VideoCaptureModal({ onClose, onCapture }: VideoCaptureMo
       stopStream()
       onCapture(file)
     }
-    try {
-      rec.stop()
-    } catch {
+    rec.onerror = () => {
+      setError('녹화 중 오류가 났어요.')
+      clearTimer()
       setRecording(false)
     }
-  }
 
-  const startRecording = () => {
-    if (!streamRef.current || recording) return
-    setError('')
-    chunksRef.current = []
-    setSeconds(0)
-
-    let rec: MediaRecorder
-    try {
-      rec = mimeType
-        ? new MediaRecorder(streamRef.current, { mimeType, videoBitsPerSecond: 1_500_000 })
-        : new MediaRecorder(streamRef.current, { videoBitsPerSecond: 1_500_000 })
-    } catch {
-      try {
-        rec = new MediaRecorder(streamRef.current)
-      } catch {
-        setError('이 기기에서 녹화를 시작할 수 없어요.')
-        return
-      }
-    }
-
-    recorderRef.current = rec
-    rec.ondataavailable = (ev) => {
-      if (ev.data && ev.data.size > 0) chunksRef.current.push(ev.data)
-    }
     rec.start(200)
     setRecording(true)
-
     timerRef.current = setInterval(() => {
       setSeconds((s) => {
-        const next = s + 1
-        if (next >= MAX_SECONDS) {
-          finishRecording()
+        if (s + 1 >= MAX_SECONDS) {
+          stopRecording()
+          return MAX_SECONDS
         }
-        return next
+        return s + 1
       })
     }, 1000)
   }
 
   const handleClose = () => {
     clearTimer()
-    try {
-      recorderRef.current?.stop()
-    } catch {
-      /* ignore */
+    if (recorderRef.current && recorderRef.current.state !== 'inactive') {
+      try {
+        recorderRef.current.stop()
+      } catch {
+        /* ignore */
+      }
     }
     stopStream()
     onClose()
   }
 
-  const remain = Math.max(0, MAX_SECONDS - seconds)
+  const mm = String(Math.floor(seconds / 60)).padStart(2, '0')
+  const ss = String(seconds % 60).padStart(2, '0')
 
-  return (
-    <div style={styles.backdrop} role="dialog" aria-label="영상 촬영">
-      <div style={styles.sheet}>
-        <div style={styles.head}>
-          <span style={styles.headTitle}>짧은 영상</span>
-          <button type="button" style={styles.close} onClick={handleClose} aria-label="닫기">
-            ✕
-          </button>
+  const ui = (
+    <div style={styles.root} role="dialog" aria-modal="true" aria-label="영상 촬영">
+      <video
+        ref={videoRef}
+        style={{
+          ...styles.video,
+          transform: facing === 'user' ? 'scaleX(-1)' : 'none',
+        }}
+        playsInline
+        muted
+        autoPlay
+      />
+
+      {!ready && !error && <div style={styles.overlay}>카메라 준비 중…</div>}
+
+      {recording && (
+        <div style={styles.recBadge}>
+          <span style={styles.recDot} />
+          {mm}:{ss} / 00:{String(MAX_SECONDS).padStart(2, '0')}
         </div>
+      )}
 
-        <p style={styles.hint}>최대 {MAX_SECONDS}초 · 바로 찍어서 올려요</p>
+      <div style={styles.topBar}>
+        <button type="button" style={styles.close} onClick={handleClose}>
+          닫기
+        </button>
+        <div style={styles.title}>짧은 영상 · 최대 {MAX_SECONDS}초</div>
+        <div style={{ width: 48 }} />
+      </div>
 
-        <div style={styles.stage}>
-          <video
-            ref={videoRef}
-            style={styles.video}
-            playsInline
-            muted
-            autoPlay
-          />
-          {recording && (
-            <div style={styles.recBadge}>
-              <span style={styles.recDot} />
-              {remain}s
-            </div>
-          )}
-          {!ready && !error && <div style={styles.overlay}>카메라 준비 중…</div>}
-        </div>
+      {error && <div style={styles.error}>{error}</div>}
 
-        {error && <div style={styles.error}>{error}</div>}
+      <div style={styles.controls}>
+        <button
+          type="button"
+          style={styles.sideBtn}
+          onClick={switchCamera}
+          disabled={recording || !ready}
+          aria-label="카메라 전환"
+        >
+          🔄
+        </button>
 
-        <div style={styles.controls}>
+        {!recording ? (
           <button
             type="button"
-            style={styles.sideBtn}
-            onClick={flipCamera}
-            disabled={recording || !ready}
-            aria-label="카메라 전환"
+            style={styles.shutter}
+            onClick={startRecording}
+            disabled={!ready}
+            aria-label="녹화 시작"
           >
-            🔄
+            <span style={styles.shutterInner} />
           </button>
+        ) : (
+          <button
+            type="button"
+            style={styles.shutterStop}
+            onClick={stopRecording}
+            aria-label="녹화 종료"
+          >
+            <span style={styles.shutterStopInner} />
+          </button>
+        )}
 
-          {!recording ? (
-            <button
-              type="button"
-              style={{
-                ...styles.shutter,
-                opacity: ready ? 1 : 0.4,
-              }}
-              disabled={!ready}
-              onClick={startRecording}
-              aria-label="녹화 시작"
-            >
-              <span style={styles.shutterInner} />
-            </button>
-          ) : (
-            <button
-              type="button"
-              style={styles.shutterStop}
-              onClick={finishRecording}
-              aria-label="녹화 종료"
-            >
-              <span style={styles.shutterStopInner} />
-            </button>
-          )}
-
-          <div style={styles.sideBtnPlaceholder} />
-        </div>
+        <div style={styles.sideBtnPlaceholder} />
       </div>
     </div>
   )
+
+  if (!mounted) return null
+  return createPortal(ui, document.body)
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  backdrop: {
+  root: {
     position: 'fixed',
     inset: 0,
-    background: 'rgba(28,18,8,0.55)',
-    zIndex: 90,
-    display: 'flex',
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-  },
-  sheet: {
-    width: '100%',
-    maxWidth: 480,
-    background: '#1C1208',
-    borderRadius: '16px 16px 0 0',
-    padding: '14px 14px 28px',
-    color: '#FEFCF8',
-  },
-  head: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 4,
-  },
-  headTitle: {
-    fontFamily: "'Noto Serif KR', serif",
-    fontSize: 16,
-    fontWeight: 600,
-  },
-  close: {
-    border: 'none',
-    background: 'none',
-    color: 'rgba(254,252,248,0.7)',
-    fontSize: 16,
-    cursor: 'pointer',
-    padding: 4,
-  },
-  hint: {
-    margin: '0 0 10px',
-    fontSize: 12,
-    color: 'rgba(254,252,248,0.55)',
-  },
-  stage: {
-    position: 'relative',
-    width: '100%',
-    aspectRatio: '3 / 4',
-    borderRadius: 14,
-    overflow: 'hidden',
+    zIndex: 9999,
     background: '#000',
+    display: 'flex',
+    flexDirection: 'column',
+    paddingTop: 'env(safe-area-inset-top, 0px)',
   },
   video: {
+    position: 'absolute',
+    inset: 0,
     width: '100%',
     height: '100%',
     objectFit: 'cover',
-    transform: 'scaleX(1)',
   },
   overlay: {
     position: 'absolute',
@@ -330,21 +298,49 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'center',
     background: 'rgba(0,0,0,0.45)',
-    fontSize: 13,
-    color: 'rgba(254,252,248,0.8)',
+    fontSize: 14,
+    color: 'rgba(254,252,248,0.85)',
+    zIndex: 1,
+  },
+  topBar: {
+    position: 'relative',
+    zIndex: 2,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '12px 16px',
+  },
+  title: {
+    fontSize: 14,
+    fontWeight: 600,
+    color: '#FEFCF8',
+    textShadow: '0 1px 4px rgba(0,0,0,0.5)',
+  },
+  close: {
+    border: 'none',
+    background: 'rgba(0,0,0,0.35)',
+    color: '#FEFCF8',
+    fontSize: 14,
+    fontWeight: 500,
+    cursor: 'pointer',
+    padding: '8px 12px',
+    borderRadius: 999,
   },
   recBadge: {
     position: 'absolute',
-    top: 12,
-    left: 12,
+    top: 'calc(env(safe-area-inset-top, 0px) + 56px)',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    zIndex: 2,
     display: 'flex',
     alignItems: 'center',
     gap: 6,
     background: 'rgba(0,0,0,0.55)',
     borderRadius: 999,
-    padding: '4px 10px',
+    padding: '6px 12px',
     fontSize: 13,
     fontWeight: 600,
+    color: '#FEFCF8',
   },
   recDot: {
     width: 8,
@@ -354,34 +350,41 @@ const styles: Record<string, React.CSSProperties> = {
     boxShadow: '0 0 0 2px rgba(238,34,68,0.35)',
   },
   error: {
-    marginTop: 10,
-    background: 'rgba(200,60,40,0.2)',
-    border: '1px solid rgba(200,60,40,0.35)',
+    position: 'relative',
+    zIndex: 2,
+    margin: '0 16px',
+    background: 'rgba(200,60,40,0.85)',
     borderRadius: 10,
-    padding: '8px 10px',
-    fontSize: 12,
-    color: '#fcc',
+    padding: '10px 12px',
+    fontSize: 13,
+    color: '#fff',
   },
   controls: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 2,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 18,
-    padding: '0 12px',
+    padding:
+      '16px 28px calc(24px + env(safe-area-inset-bottom, 0px) + 64px)',
+    background: 'linear-gradient(transparent, rgba(0,0,0,0.55))',
   },
   sideBtn: {
-    width: 44,
-    height: 44,
+    width: 48,
+    height: 48,
     borderRadius: '50%',
-    border: '1px solid rgba(254,252,248,0.2)',
-    background: 'rgba(254,252,248,0.08)',
-    fontSize: 18,
+    border: '1px solid rgba(254,252,248,0.25)',
+    background: 'rgba(0,0,0,0.35)',
+    fontSize: 20,
     cursor: 'pointer',
   },
-  sideBtnPlaceholder: { width: 44, height: 44 },
+  sideBtnPlaceholder: { width: 48, height: 48 },
   shutter: {
-    width: 72,
-    height: 72,
+    width: 76,
+    height: 76,
     borderRadius: '50%',
     border: '3px solid #FEFCF8',
     background: 'transparent',
@@ -392,14 +395,14 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'center',
   },
   shutterInner: {
-    width: 56,
-    height: 56,
+    width: 60,
+    height: 60,
     borderRadius: '50%',
     background: '#E24',
   },
   shutterStop: {
-    width: 72,
-    height: 72,
+    width: 76,
+    height: 76,
     borderRadius: '50%',
     border: '3px solid #FEFCF8',
     background: 'transparent',
@@ -410,8 +413,8 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'center',
   },
   shutterStopInner: {
-    width: 28,
-    height: 28,
+    width: 30,
+    height: 30,
     borderRadius: 6,
     background: '#E24',
   },

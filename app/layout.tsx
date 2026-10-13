@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 import TabBar from '@/components/blocks/TabBar'
 import FloatingActions from '@/components/blocks/FloatingActions'
+import ActorBootstrap from '@/components/corenull/ActorBootstrap'
 
 export const metadata: Metadata = {
   title: 'CoreNull',
@@ -19,6 +20,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body>
+        <ActorBootstrap />
         <TabBar />
         <main className="app-shell-content" style={{
           paddingTop: '56px',

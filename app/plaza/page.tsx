@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { getOwnerKey } from '@/lib/ownerKey'
+import { actorFetch } from '@/lib/actorFetch'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
 import TopBar from '@/components/blocks/TopBar'
 import NeighborContentBlock, { NeighborChip, NeighborRoomSlot } from '@/components/blocks/NeighborContentBlock'
@@ -202,7 +203,7 @@ export default function PlazaPage() {
   const handleApplyNeighbor = async (targetHouseId: string) => {
     if (!house || !ownerKey || applyLoadingHouseId) return
     setApplyLoadingHouseId(targetHouseId)
-    const res = await fetch('/api/corenull/houses?action=neighbor-request', {
+    const res = await actorFetch('/api/corenull/houses?action=neighbor-request', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ house_a_id: house.id, owner_key: ownerKey, house_b_id: targetHouseId }),

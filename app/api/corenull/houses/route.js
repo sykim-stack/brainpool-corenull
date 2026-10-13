@@ -2,6 +2,7 @@
 // action=neighbors|discover|neighbor-request|neighbor-accept|neighbor-remove
 // [feat/house-images] PATCH images
 // [마당] discover = 관계 없는 다른 집 (의미 추천 아님)
+// [foundation/auth-actor] 쓰기 = resolveActor 필수. body owner_key는 권한 근거 아님.
 
 export const dynamic = 'force-dynamic'
 
@@ -82,11 +83,18 @@ const handleGet = async (req, traceId) => {
 }
 
 const handlePost = async (req, traceId) => {
-  const body = JSON.parse(await req.text())
-  const { owner_key, title, description, slug, primary_language } = body
+  const { requireActor, assertOwnerMatchesActor } = await import('@/lib/actor')
+  const gate = requireActor(req, traceId)
+  if (gate.error) return gate.error
 
-  if (!owner_key || !title) {
-    return Response.json({ _error: 'owner_key_and_title_required', traceId }, { status: 500 })
+  const body = JSON.parse(await req.text())
+  const { title, description, slug, primary_language } = body
+  const mismatch = assertOwnerMatchesActor(body.owner_key, gate.actor, traceId)
+  if (mismatch) return mismatch
+  const owner_key = gate.actor.ownerKey
+
+  if (!title) {
+    return Response.json({ _error: 'title_required', traceId }, { status: 500 })
   }
 
   const { getSupabaseAdmin } = await import('@/lib/supabase')
@@ -113,11 +121,18 @@ const handlePost = async (req, traceId) => {
 }
 
 const handleHousePatch = async (req, traceId) => {
-  const body = JSON.parse(await req.text())
-  const { house_id, owner_key } = body
+  const { requireActor, assertOwnerMatchesActor } = await import('@/lib/actor')
+  const gate = requireActor(req, traceId)
+  if (gate.error) return gate.error
 
-  if (!house_id || !owner_key) {
-    return Response.json({ _error: 'house_id_owner_key_required', traceId }, { status: 500 })
+  const body = JSON.parse(await req.text())
+  const { house_id } = body
+  const mismatch = assertOwnerMatchesActor(body.owner_key, gate.actor, traceId)
+  if (mismatch) return mismatch
+  const owner_key = gate.actor.ownerKey
+
+  if (!house_id) {
+    return Response.json({ _error: 'house_id_required', traceId }, { status: 500 })
   }
 
   const { getSupabase } = await import('@/lib/supabase')
@@ -142,8 +157,6 @@ const handleHousePatch = async (req, traceId) => {
       patch[key] = v === '' || v === undefined ? null : v
     }
   }
-  // 원본 이미지는 재생성하지 않고, Hero별 표시 설정만 저장한다.
-  // 임의 필드는 받지 않으며 숫자 범위도 서버에서 한 번 더 제한한다.
   for (const key of HERO_POSITION_FIELDS) {
     if (Object.prototype.hasOwnProperty.call(body, key)) {
       patch[key] = normalizeHeroPosition(body[key])
@@ -174,7 +187,6 @@ const handleHousePatch = async (req, traceId) => {
   return Response.json({ data, traceId })
 }
 
-// 마당 골목 발견: 의미 추천 아님. 나와 관계 없는 집만 표면으로.
 const handleDiscover = async (req, traceId) => {
   const { searchParams } = new URL(req.url)
   const house_id = searchParams.get('house_id')
@@ -205,8 +217,6 @@ const handleDiscover = async (req, traceId) => {
 
   if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
 
-  // 광장은 한 번 보고 끝나는 목록이 아니라 골목을 계속 걷는 공간이다.
-  // 화면에는 현재 한 명만 크게 보이고 아래 선택기에서 나머지를 탐색한다.
   const candidates = (houses || []).filter((h) => !exclude.has(h.id)).slice(0, 24)
   return Response.json({ data: candidates, traceId })
 }
@@ -259,10 +269,17 @@ const handleNeighborsList = async (req, traceId) => {
 
 const handleNeighborRequest = async (req, traceId) => {
   const body = JSON.parse(await req.text())
-  const { house_a_id, owner_key, house_b_id } = body
+  const { requireActor, assertOwnerMatchesActor } = await import('@/lib/actor')
+  const gate = requireActor(req, traceId)
+  if (gate.error) return gate.error
 
-  if (!house_a_id || !owner_key || !house_b_id) {
-    return Response.json({ _error: 'house_a_id_owner_key_house_b_id_required', traceId }, { status: 500 })
+  const { house_a_id, house_b_id } = body
+  const mismatch = assertOwnerMatchesActor(body.owner_key, gate.actor, traceId)
+  if (mismatch) return mismatch
+  const owner_key = gate.actor.ownerKey
+
+  if (!house_a_id || !house_b_id) {
+    return Response.json({ _error: 'house_a_id_house_b_id_required', traceId }, { status: 500 })
   }
   if (house_a_id === house_b_id) {
     return Response.json({ _error: 'cannot_neighbor_self', traceId }, { status: 500 })
@@ -301,10 +318,16 @@ const handleNeighborRequest = async (req, traceId) => {
 
 const handleNeighborAccept = async (req, traceId) => {
   const body = JSON.parse(await req.text())
-  const { neighbor_id, owner_key } = body
+  const { requireActor, assertOwnerMatchesActor } = await import('@/lib/actor')
+  const gate = requireActor(req, traceId)
+  if (gate.error) return gate.error
+  const mismatch = assertOwnerMatchesActor(body.owner_key, gate.actor, traceId)
+  if (mismatch) return mismatch
+  const owner_key = gate.actor.ownerKey
+  const { neighbor_id } = body
 
-  if (!neighbor_id || !owner_key) {
-    return Response.json({ _error: 'neighbor_id_owner_key_required', traceId }, { status: 500 })
+  if (!neighbor_id) {
+    return Response.json({ _error: 'neighbor_id_required', traceId }, { status: 500 })
   }
 
   const { getSupabase } = await import('@/lib/supabase')
@@ -343,12 +366,16 @@ const handleNeighborAccept = async (req, traceId) => {
 }
 
 const handleNeighborRemove = async (req, traceId) => {
+  const { requireActor } = await import('@/lib/actor')
+  const gate = requireActor(req, traceId)
+  if (gate.error) return gate.error
+  const owner_key = gate.actor.ownerKey
+
   const { searchParams } = new URL(req.url)
   const neighbor_id = searchParams.get('neighbor_id')
-  const owner_key = searchParams.get('owner_key')
 
-  if (!neighbor_id || !owner_key) {
-    return Response.json({ _error: 'neighbor_id_owner_key_required', traceId }, { status: 500 })
+  if (!neighbor_id) {
+    return Response.json({ _error: 'neighbor_id_required', traceId }, { status: 500 })
   }
 
   const { getSupabase } = await import('@/lib/supabase')
