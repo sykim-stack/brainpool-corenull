@@ -2,17 +2,22 @@
 
 // 씨드 배포 페이지 (초대장)
 // /s/[slug] — 로그인 없이 열림
-// 메모(인사·장소·계좌) + 구간 글 묶음
-// status: open=초대중 / fruit=수확 완성본 / released=중도해제
+// PC: 넓은 레이아웃 + 블록(3-2-3) / 리스트 토글 (거실과 동일 감각)
+// 모바일: 기존처럼 컴팩트
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { useParams } from 'next/navigation'
+import MyContentBlock from '@/components/blocks/MyContentBlock'
+import PostBlock from '@/components/blocks/PostBlock'
 
 type SeedPost = {
   id: string
   content: string
   created_at: string
-  meta?: { media?: { type?: string; url?: string }[]; seed?: { role?: string; phase?: string } }
+  meta?: {
+    media?: { type?: string; url?: string }[]
+    seed?: { role?: string; phase?: string }
+  }
 }
 
 type PageData = {
@@ -42,6 +47,7 @@ export default function SeedSharePage() {
   const [data, setData] = useState<PageData | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
+  const [viewMode, setViewMode] = useState<'list' | 'block'>('block')
 
   useEffect(() => {
     if (!slug) return
@@ -49,7 +55,11 @@ export default function SeedSharePage() {
       .then((r) => r.json())
       .then((d) => {
         if (d._error || !d.data) {
-          setError(d._error === 'not_found' ? '초대장을 찾을 수 없어요.' : d._error || '불러오지 못했어요.')
+          setError(
+            d._error === 'not_found'
+              ? '초대장을 찾을 수 없어요.'
+              : d._error || '불러오지 못했어요.',
+          )
         } else {
           setData(d.data)
         }
@@ -57,6 +67,22 @@ export default function SeedSharePage() {
       .catch(() => setError('불러오지 못했어요.'))
       .finally(() => setLoading(false))
   }, [slug])
+
+  const blockPosts = useMemo(() => {
+    if (!data) return []
+    return data.posts.map((p) => ({
+      id: p.id,
+      content: p.content || '',
+      media: (p.meta?.media as any) || undefined,
+      created_at: p.created_at,
+      comment_count: 0,
+      room_id: undefined,
+      view_meta: {
+        house_name: data.house_title || undefined,
+        room_name: data.room_name || data.page.title || undefined,
+      },
+    }))
+  }, [data])
 
   if (loading) {
     return (
@@ -74,54 +100,92 @@ export default function SeedSharePage() {
     )
   }
 
-  const { page, posts, room_name, house_title } = data
+  const { page, house_title, room_name } = data
   const title = page.title || room_name || '초대장'
 
   return (
     <div style={styles.wrap}>
-      <div style={styles.card}>
-        <div style={styles.badge}>
-          {page.status === 'fruit' ? '🍎' : page.status === 'open' ? '🌱' : '·'}{' '}
-          {STATUS_LABEL[page.status] || page.status}
-        </div>
-        {house_title && <div style={styles.house}>{house_title}</div>}
-        <h1 style={styles.title}>{title}</h1>
-        {page.end_date && (
-          <div style={styles.meta}>
-            ~ {new Date(page.end_date).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}
+      <div style={styles.shell}>
+        <header style={styles.header}>
+          <div style={styles.badge}>
+            {page.status === 'fruit' ? '🍎' : page.status === 'open' ? '🌱' : '·'}{' '}
+            {STATUS_LABEL[page.status] || page.status}
           </div>
-        )}
+          {house_title && <div style={styles.house}>{house_title}</div>}
+          <h1 style={styles.title}>{title}</h1>
+          {page.end_date && (
+            <div style={styles.meta}>
+              ~{' '}
+              {new Date(page.end_date).toLocaleDateString('ko-KR', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+              })}
+            </div>
+          )}
 
-        {page.memo?.trim() && (
-          <div style={styles.memoBox}>
-            <div style={styles.memoLabel}>안내</div>
-            <pre style={styles.memo}>{page.memo}</pre>
-          </div>
-        )}
+          {page.memo?.trim() && (
+            <div style={styles.memoBox}>
+              <div style={styles.memoLabel}>안내</div>
+              <pre style={styles.memo}>{page.memo}</pre>
+            </div>
+          )}
+        </header>
 
-        <div style={styles.sectionLabel}>기록</div>
-        {posts.length === 0 ? (
-          <p style={styles.muted}>아직 남긴 글이 없어요.</p>
-        ) : (
-          <div style={styles.list}>
-            {posts.map((p) => {
-              const media = p.meta?.media || []
-              const img = media.find((m) => m.type === 'image' && m.url)
-              return (
-                <article key={p.id} style={styles.post}>
-                  {img?.url && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={img.url} alt="" style={styles.img} />
-                  )}
-                  <p style={styles.content}>{p.content}</p>
-                  <time style={styles.time}>
-                    {new Date(p.created_at).toLocaleDateString('ko-KR')}
-                  </time>
-                </article>
-              )
-            })}
+        <section style={styles.records}>
+          <div style={styles.recordsBar}>
+            <div style={styles.sectionLabel}>기록</div>
+            {blockPosts.length > 0 && (
+              <div style={styles.viewToggle}>
+                <button
+                  type="button"
+                  style={{
+                    ...styles.viewBtn,
+                    ...(viewMode === 'list' ? styles.viewBtnOn : {}),
+                  }}
+                  onClick={() => setViewMode('list')}
+                >
+                  리스트
+                </button>
+                <button
+                  type="button"
+                  style={{
+                    ...styles.viewBtn,
+                    ...(viewMode === 'block' ? styles.viewBtnOn : {}),
+                  }}
+                  onClick={() => setViewMode('block')}
+                >
+                  블록
+                </button>
+              </div>
+            )}
           </div>
-        )}
+
+          {blockPosts.length === 0 ? (
+            <p style={styles.muted}>아직 남긴 글이 없어요.</p>
+          ) : viewMode === 'block' ? (
+            <MyContentBlock
+              title=""
+              layout="brick"
+              posts={blockPosts}
+              emptyLabel="아직 남긴 글이 없어요"
+              showInterest={false}
+              enableInlineComment={false}
+              showHouseName={false}
+            />
+          ) : (
+            <div style={styles.list}>
+              {blockPosts.map((post) => (
+                <PostBlock
+                  key={post.id}
+                  post={post}
+                  showInterest={false}
+                  enableInlineComment={false}
+                />
+              ))}
+            </div>
+          )}
+        </section>
 
         <p style={styles.footer}>CoreNull</p>
       </div>
@@ -129,22 +193,25 @@ export default function SeedSharePage() {
   )
 }
 
-const styles: Record<string, React.CSSProperties> = {
+const styles: Record<string, CSSProperties> = {
   wrap: {
     minHeight: '100vh',
     background: '#F5F0E8',
-    padding: '24px 16px 48px',
+    padding: '20px 12px 48px',
     display: 'flex',
     justifyContent: 'center',
   },
-  card: {
+  shell: {
     width: '100%',
-    maxWidth: 440,
+    maxWidth: 960,
+  },
+  header: {
     background: '#FEFCF8',
     borderRadius: 20,
     border: '1px solid rgba(92,61,46,0.12)',
-    padding: '28px 22px',
-    boxShadow: '0 2px 20px rgba(44,24,16,0.06)',
+    padding: '28px 24px 22px',
+    marginBottom: 16,
+    boxShadow: '0 2px 16px rgba(44,24,16,0.05)',
   },
   badge: {
     fontSize: 12,
@@ -159,7 +226,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   title: {
     fontFamily: "'Noto Serif KR', serif",
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: 600,
     color: '#2C1810',
     margin: '0 0 8px',
@@ -168,14 +235,13 @@ const styles: Record<string, React.CSSProperties> = {
   meta: {
     fontSize: 13,
     color: '#5C4A35',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   memoBox: {
     background: 'rgba(74,124,63,0.06)',
     border: '1px solid rgba(74,124,63,0.18)',
     borderRadius: 14,
     padding: '14px 16px',
-    marginBottom: 24,
   },
   memoLabel: {
     fontSize: 11,
@@ -192,44 +258,57 @@ const styles: Record<string, React.CSSProperties> = {
     whiteSpace: 'pre-wrap',
     wordBreak: 'break-word',
   },
+  records: {
+    background: '#FEFCF8',
+    borderRadius: 20,
+    border: '1px solid rgba(92,61,46,0.12)',
+    padding: '16px 12px 20px',
+    boxShadow: '0 2px 16px rgba(44,24,16,0.05)',
+  },
+  recordsBar: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '0 8px 12px',
+  },
   sectionLabel: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: 600,
     color: '#9A8470',
-    marginBottom: 12,
+  },
+  viewToggle: {
+    display: 'flex',
+    gap: 4,
+    background: '#F5F0E8',
+    borderRadius: 10,
+    padding: 3,
+  },
+  viewBtn: {
+    border: 'none',
+    background: 'transparent',
+    padding: '6px 12px',
+    borderRadius: 8,
+    fontSize: 12,
+    color: '#9A8470',
+    cursor: 'pointer',
+    fontWeight: 500,
+  },
+  viewBtnOn: {
+    background: '#FEFCF8',
+    color: '#2C1810',
+    boxShadow: '0 1px 3px rgba(44,24,16,0.08)',
   },
   list: {
     display: 'flex',
     flexDirection: 'column',
-    gap: 16,
-  },
-  post: {
-    borderTop: '1px solid rgba(92,61,46,0.08)',
-    paddingTop: 14,
-  },
-  img: {
-    width: '100%',
-    borderRadius: 12,
-    marginBottom: 10,
-    display: 'block',
-    objectFit: 'cover',
-    maxHeight: 280,
-  },
-  content: {
-    margin: '0 0 6px',
-    fontSize: 15,
-    lineHeight: 1.65,
-    color: '#2C1810',
-    whiteSpace: 'pre-wrap',
-  },
-  time: {
-    fontSize: 11,
-    color: '#9A8470',
+    gap: 12,
+    padding: '0 4px',
   },
   muted: {
     fontSize: 14,
     color: '#9A8470',
     textAlign: 'center',
+    padding: 24,
   },
   error: {
     fontSize: 14,
@@ -237,7 +316,7 @@ const styles: Record<string, React.CSSProperties> = {
     textAlign: 'center',
   },
   footer: {
-    marginTop: 32,
+    marginTop: 24,
     textAlign: 'center',
     fontSize: 11,
     color: '#C4B5A5',
