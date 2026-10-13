@@ -121,18 +121,76 @@ export default function WritePage() {
     setCreatingRoom(false)
   }
 
+  /** 영상: signed URL로 Supabase 직접 업로드 (Vercel HTTP 413 회피) */
+  const uploadVideoDirect = async (file: File) => {
+    const signRes = await fetch('/api/corenull/upload', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        filename: file.name,
+        contentType: file.type || 'video/mp4',
+        size: file.size,
+      }),
+    })
+    const signData = await signRes.json()
+    if (!signData.data?.signedUrl) {
+      throw new Error(signData._error || signData.detail || '영상 업로드 준비 실패')
+    }
+    const putRes = await fetch(signData.data.signedUrl, {
+      method: 'PUT',
+      headers: { 'Content-Type': file.type || 'video/mp4' },
+      body: file,
+    })
+    if (!putRes.ok) {
+      const text = await putRes.text().catch(() => '')
+      throw new Error(`영상 업로드 실패 (HTTP ${putRes.status}) ${text.slice(0, 60)}`)
+    }
+    return {
+      type: 'video' as const,
+      url: signData.data.publicUrl as string,
+      file: file.name,
+    }
+  }
+
+  const isVideoFile = (f: File) =>
+    f.type.startsWith('video/') || /\.(mp4|webm|mov)$/i.test(f.name)
+
   const uploadPrepared = async (prepared: File[]) => {
     if (prepared.length === 0) return
     setUploading(true)
-    setUploadLabel('업로드 중…')
-    const form = new FormData()
-    prepared.forEach((f) => form.append('files', f))
     await ensureActorSession()
-    const res = await fetch('/api/corenull/upload', { method: 'POST', credentials: 'include', body: form })
-    const data = await res.json()
-    const ok = (data.data || []).filter((x: any) => x.url && !x._error)
-    const failed = (data.data || []).filter((x: any) => x._error)
-    if (failed.length) setSubmitError(failed[0]._error || '일부 업로드 실패')
+    const ok: any[] = []
+    const images = prepared.filter((f) => !isVideoFile(f))
+    const videos = prepared.filter((f) => isVideoFile(f))
+
+    if (images.length > 0) {
+      setUploadLabel('사진 업로드 중…')
+      const form = new FormData()
+      images.forEach((f) => form.append('files', f))
+      const res = await fetch('/api/corenull/upload', {
+        method: 'POST',
+        credentials: 'include',
+        body: form,
+      })
+      const data = await res.json()
+      const good = (data.data || []).filter((x: any) => x.url && !x._error)
+      const failed = (data.data || []).filter((x: any) => x._error)
+      ok.push(...good)
+      if (failed.length) {
+        setSubmitError(failed[0]._error || failed[0].detail || '일부 사진 업로드 실패')
+      }
+    }
+
+    for (let i = 0; i < videos.length; i++) {
+      setUploadLabel(`영상 업로드 중… ${i + 1}/${videos.length}`)
+      try {
+        ok.push(await uploadVideoDirect(videos[i]))
+      } catch (e: any) {
+        setSubmitError(e?.message || '영상 업로드 실패')
+      }
+    }
+
     setMediaFiles((prev) => [...prev, ...ok])
     setUploading(false)
     setUploadLabel('')
