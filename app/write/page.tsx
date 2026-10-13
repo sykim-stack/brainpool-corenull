@@ -128,7 +128,7 @@ export default function WritePage() {
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        filename: file.name,
+        filename: file.name || 'video.mp4',
         contentType: file.type || 'video/mp4',
         size: file.size,
       }),
@@ -153,8 +153,14 @@ export default function WritePage() {
     }
   }
 
-  const isVideoFile = (f: File) =>
-    f.type.startsWith('video/') || /\.(mp4|webm|mov)$/i.test(f.name)
+  // 영상 판별 강화 — 타입 비어 있거나 이름만 있는 폰 파일 포함
+  // 이미지가 아닌 대용량은 영상 signed URL 경로로 (Vercel 413 방지)
+  const isVideoFile = (f: File) => {
+    if (f.type.startsWith('video/')) return true
+    if (/\.(mp4|webm|mov|m4v|mkv|avi)$/i.test(f.name)) return true
+    if (!f.type.startsWith('image/') && f.size > 3.5 * 1024 * 1024) return true
+    return false
+  }
 
   const uploadPrepared = async (prepared: File[]) => {
     if (prepared.length === 0) return
@@ -164,21 +170,36 @@ export default function WritePage() {
     const images = prepared.filter((f) => !isVideoFile(f))
     const videos = prepared.filter((f) => isVideoFile(f))
 
-    if (images.length > 0) {
+    const safeImages = images.filter((f) => f.size <= 3.5 * 1024 * 1024)
+    if (safeImages.length < images.length) {
+      setSubmitError('사진이 너무 커요. 압축 후에도 3.5MB를 넘는 파일은 올릴 수 없어요.')
+    }
+
+    if (safeImages.length > 0) {
       setUploadLabel('사진 업로드 중…')
-      const form = new FormData()
-      images.forEach((f) => form.append('files', f))
-      const res = await fetch('/api/corenull/upload', {
-        method: 'POST',
-        credentials: 'include',
-        body: form,
-      })
-      const data = await res.json()
-      const good = (data.data || []).filter((x: any) => x.url && !x._error)
-      const failed = (data.data || []).filter((x: any) => x._error)
-      ok.push(...good)
-      if (failed.length) {
-        setSubmitError(failed[0]._error || failed[0].detail || '일부 사진 업로드 실패')
+      let total = 0
+      safeImages.forEach((f) => { total += f.size })
+      if (total > 4 * 1024 * 1024) {
+        setSubmitError('사진 용량 합이 너무 커요. 한 장씩 올려 주세요.')
+      } else {
+        const form = new FormData()
+        safeImages.forEach((f) => form.append('files', f))
+        const res = await fetch('/api/corenull/upload', {
+          method: 'POST',
+          credentials: 'include',
+          body: form,
+        })
+        if (res.status === 413) {
+          setSubmitError('파일이 서버 한도를 넘었어요. 페이지를 새로고침 후 다시 올려 주세요.')
+        } else {
+          const data = await res.json()
+          const good = (data.data || []).filter((x: any) => x.url && !x._error)
+          const failed = (data.data || []).filter((x: any) => x._error)
+          ok.push(...good)
+          if (failed.length) {
+            setSubmitError(failed[0]._error || failed[0].detail || '일부 사진 업로드 실패')
+          }
+        }
       }
     }
 
@@ -430,7 +451,7 @@ export default function WritePage() {
           {submitting ? '올리는 중...' : isSeed && !selectedRoom?.seed_mode ? '씨드 시작하고 올리기' : '올리기'}
         </button>
 
-        <input ref={fileInputRef} type="file" accept="image/*,video/mp4,video/webm" multiple style={{ display: 'none' }} onChange={handleFileSelect} />
+        <input ref={fileInputRef} type="file" accept="image/*,video/mp4,video/webm,video/*" multiple style={{ display: 'none' }} onChange={handleFileSelect} />
       </div>
 
       {showCapture && <VideoCaptureModal onClose={() => setShowCapture(false)} onCapture={handleCapture} />}
