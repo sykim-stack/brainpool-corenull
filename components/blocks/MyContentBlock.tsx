@@ -27,6 +27,7 @@ export interface MyContentBlockProps {
   enableInlineComment?: boolean
   ownerKey?: string
   showHouseName?: boolean
+  brickPattern?: { desktop: number[]; mobile: number[] }
 }
 
 /** PC: pattern 반복. 모바일: 2칸 우선, 남는 1칸은 가로 풀(빈 공간 없음)
@@ -34,18 +35,21 @@ export interface MyContentBlockProps {
 function partitionBrick<T>(
   items: T[],
   pattern: number[],
-  mobile = false
+  mobile = false,
+  useExactMobilePattern = false
 ): { cards: T[]; cols: string; offset: boolean }[] {
   const rows: { cards: T[]; cols: string; offset: boolean }[] = []
   let i = 0
   if (mobile) {
+    let pi = 0
     while (i < items.length) {
       const left = items.length - i
-      const take = left === 1 ? 1 : 2
+      const take = useExactMobilePattern ? pattern[pi % pattern.length] : left === 1 ? 1 : 2
       const cards = items.slice(i, i + take)
-      const cols = cards.length === 1 ? 'large' : '2'
+      const cols = cards.length === 1 ? 'large' : cards.length === 3 ? '3' : '2'
       rows.push({ cards, cols, offset: false })
       i += cards.length
+      pi++
     }
     return rows
   }
@@ -78,6 +82,7 @@ export default function MyContentBlock({
   enableInlineComment = false,
   ownerKey,
   showHouseName = true,
+  brickPattern,
 }: MyContentBlockProps) {
   const [page, setPage] = useState(0)
   const [wide, setWide] = useState(false)
@@ -91,7 +96,14 @@ export default function MyContentBlock({
   }, [])
 
   const isBrick = layout === 'brick'
-  const pageSize = isBrick ? (wide ? BRICK_PAGE_DESKTOP : BRICK_PAGE_MOBILE) : DENSITY_MAX
+  const activePattern = wide ? brickPattern?.desktop : brickPattern?.mobile
+  const pageSize = isBrick
+    ? activePattern
+      ? activePattern.reduce((total, rowSize) => total + rowSize, 0)
+      : wide
+        ? BRICK_PAGE_DESKTOP
+        : BRICK_PAGE_MOBILE
+    : DENSITY_MAX
   const source = isBrick ? posts : posts.slice(0, DENSITY_MAX)
   const pageCount = isBrick ? Math.max(1, Math.ceil(source.length / pageSize)) : 1
   const needsSwipe = isBrick && source.length > pageSize
@@ -106,7 +118,14 @@ export default function MyContentBlock({
     : source
 
   const brickRows = isBrick
-    ? partitionBrick(visible, wide ? BRICK_PATTERN_DESKTOP : BRICK_PATTERN_MOBILE, !wide)
+    ? partitionBrick(
+        visible,
+        wide
+          ? brickPattern?.desktop || BRICK_PATTERN_DESKTOP
+          : brickPattern?.mobile || BRICK_PATTERN_MOBILE,
+        !wide,
+        !wide && !!brickPattern
+      )
     : []
 
   const renderPost = (post: PostBlockData) => (
