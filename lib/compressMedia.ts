@@ -131,7 +131,7 @@ export async function compressImage(file: File): Promise<CompressResult> {
   }
 }
 
-const MAX_VIDEO_CLIENT = 20 * 1024 * 1024 // 20MB — 클라이언트 경고/거절
+const MAX_VIDEO_CLIENT = 25 * 1024 * 1024 // 25MB — Signed URL 직접 업로드 정책과 맞춤
 
 /**
  * 업로드 전 파일 준비. 이미지는 압축 및 크기 검사, 영상은 용량만 검사.
@@ -144,7 +144,7 @@ export async function prepareUploadFile(file: File): Promise<
     if (file.size > MAX_VIDEO_CLIENT) {
       return {
         ok: false,
-        error: `영상이 너무 커요 (${Math.round(file.size / 1024 / 1024)}MB). 20MB 이하로 줄여 주세요.`,
+        error: `영상이 너무 커요 (${Math.round(file.size / 1024 / 1024)}MB). 25MB 이하로 줄여 주세요.`,
       }
     }
     return { ok: true, file }

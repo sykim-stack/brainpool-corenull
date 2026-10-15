@@ -3,6 +3,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { getOwnerKey } from '@/lib/ownerKey'
 import { prepareUploadFile } from '@/lib/compressMedia'
+import { uploadOneFile } from '@/lib/uploadClient'
 import ShareModal from '@/components/corenull/ShareModal'
 import MediaRenderer from '@/components/corenull/MediaRenderer'
 import TopBar from '@/components/blocks/TopBar'
@@ -109,19 +110,16 @@ export default function PostDetailPage() {
         }
         if (prepared.note) savings.push(`${file.name}: ${prepared.note}`)
 
-        // 파일별 요청으로 분리해 이미지 여러 장의 합계가 Vercel 4.5MB 한도를 넘지 않게 한다.
-        const form = new FormData()
-        form.append('files', prepared.file)
-        if (postId) form.append('post_id', String(postId))
+        // 이미지=프록시, 영상=Signed URL 직접 업로드
         setUploadMessage(`${file.name}: 업로드 중…`)
-        const res = await fetch('/api/corenull/upload', { method: 'POST', body: form })
-        const data = await res.json().catch(() => null)
-        const item = data?.data?.[0]
-        if (!res.ok || data?._error || !item?.url || item._error) {
-          failures.push(`${file.name}: ${item?._error || data?._error || `업로드 실패 (HTTP ${res.status})`}`)
+        const result = await uploadOneFile(prepared.file, {
+          postId: postId ? String(postId) : undefined,
+        })
+        if (!result.ok) {
+          failures.push(`${file.name}: ${result.error}`)
           continue
         }
-        setEditMedia(prev => [...prev, item])
+        setEditMedia(prev => [...prev, result.item])
         uploadedCount++
       }
 
@@ -470,54 +468,37 @@ const styles: Record<string, React.CSSProperties> = {
   editMediaRow: { display: 'flex', gap: 8, flexWrap: 'wrap' },
   editMediaItem: { position: 'relative' },
   editMediaThumb: { width: 72, height: 72, borderRadius: 10, objectFit: 'cover' },
-  editVideoThumb: { width: 72, height: 72, borderRadius: 10, background: '#2d4a3e', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 },
-  editMediaRemove: {
-    position: 'absolute', top: -6, right: -6,
-    width: 20, height: 20, borderRadius: '50%',
-    background: '#2C1810', color: 'white',
-    border: 'none', fontSize: 10, cursor: 'pointer',
-  },
+  editVideoThumb: { width: 72, height: 72, borderRadius: 10, background: '#2d4a3e', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28 },
+  editMediaRemove: { position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: '50%', background: '#2C1810', color: 'white', border: 'none', fontSize: 10, cursor: 'pointer' },
   addMediaRow: { display: 'flex', gap: 8 },
-  addMediaBtn: {
-    flex: 1, padding: '10px',
-    background: '#F5F0E8', border: '1px dashed rgba(92,61,46,0.2)',
-    borderRadius: 10, fontSize: 12, color: '#9A8470', cursor: 'pointer',
-  },
-  editTextarea: {
-    width: '100%', minHeight: 120,
-    background: '#F5F0E8', border: '1px solid rgba(92,61,46,0.2)',
-    borderRadius: 12, padding: 12,
-    fontFamily: "'Noto Sans KR', sans-serif", fontSize: 15, lineHeight: 1.7,
-    color: '#1C1208', resize: 'none', outline: 'none', boxSizing: 'border-box',
-  },
-  editSaveBtn: { flex: 1, padding: '10px', background: '#2C1810', color: 'white', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer' },
-  editCancelBtn: { flex: 1, padding: '10px', background: '#F5F0E8', color: '#5C4A35', border: 'none', borderRadius: 10, fontSize: 14, cursor: 'pointer' },
-  translateToggle: { display: 'flex', alignItems: 'center', gap: 6, paddingTop: 12, borderTop: '1px solid rgba(92,61,46,0.12)', cursor: 'pointer', width: 'fit-content', marginBottom: 8 },
-  translateLabel: { fontSize: 12, color: '#C17F3C', fontWeight: 500 },
-  translateResult: { fontSize: 14, lineHeight: 1.7, color: '#5C4A35', marginBottom: 16 },
-  fruitSection: { marginTop: 16, paddingTop: 16, borderTop: '1px solid rgba(92,61,46,0.1)' },
-  fruitBtn: { width: '100%', padding: '12px', background: 'linear-gradient(135deg, #4A7C3F, #7AB648)', color: 'white', border: 'none', borderRadius: 12, fontSize: 14, fontWeight: 600, cursor: 'pointer' },
-  harvestBtn: { width: '100%', padding: '12px', background: 'linear-gradient(135deg, #C17F3C, #E8A857)', color: 'white', border: 'none', borderRadius: 12, fontSize: 14, fontWeight: 600, cursor: 'pointer' },
-  harvestedBadge: { textAlign: 'center', padding: '10px', fontSize: 13, color: '#4A5240', background: 'rgba(74,82,64,0.08)', borderRadius: 10 },
-  divider: { height: 1, background: 'rgba(92,61,46,0.1)', margin: '20px 0 12px' },
-  commentCount: { fontSize: 13, fontWeight: 600, color: '#5C4A35', marginBottom: 12 },
-  emptyComment: { fontSize: 13, color: '#9A8470', textAlign: 'center', padding: '20px 0' },
+  addMediaBtn: { flex: 1, height: 40, borderRadius: 10, border: '1px dashed rgba(92,61,46,0.25)', background: '#FEFCF8', fontSize: 13, color: '#5C4A35', cursor: 'pointer' },
+  editTextarea: { width: '100%', minHeight: 120, borderRadius: 10, border: '1px solid rgba(92,61,46,0.2)', padding: 12, fontSize: 15, lineHeight: 1.7, resize: 'vertical', outline: 'none', boxSizing: 'border-box' },
+  editSaveBtn: { flex: 1, padding: '10px 12px', borderRadius: 10, border: 'none', background: '#2C1810', color: '#FEFCF8', fontSize: 14, cursor: 'pointer' },
+  editCancelBtn: { padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(92,61,46,0.2)', background: '#F5F0E8', fontSize: 14, cursor: 'pointer' },
+  translateToggle: { display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', marginBottom: 8 },
+  translateLabel: { fontSize: 12, color: '#5C4A35' },
+  translateResult: { background: 'rgba(92,61,46,0.06)', borderRadius: 10, padding: 12, fontSize: 14, lineHeight: 1.7, color: '#1C1208', marginBottom: 12 },
+  fruitSection: { margin: '12px 0' },
+  fruitBtn: { width: '100%', padding: 12, borderRadius: 10, border: 'none', background: '#C17F3C', color: 'white', fontSize: 14, cursor: 'pointer' },
+  harvestBtn: { width: '100%', padding: 12, borderRadius: 10, border: 'none', background: '#2C1810', color: 'white', fontSize: 14, cursor: 'pointer' },
+  harvestedBadge: { fontSize: 13, color: '#4A5240', background: 'rgba(74,82,64,0.1)', padding: '10px 12px', borderRadius: 10 },
+  divider: { height: 1, background: 'rgba(92,61,46,0.1)', margin: '16px 0' },
+  commentCount: { fontSize: 14, fontWeight: 500, color: '#1C1208', marginBottom: 12 },
+  emptyComment: { fontSize: 13, color: '#9A8470', padding: '12px 0' },
   commentList: { display: 'flex', flexDirection: 'column', gap: 12 },
   commentItem: { display: 'flex', gap: 10 },
-  commentAvatar: { width: 28, height: 28, borderRadius: '50%', background: 'rgba(74,82,64,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0 },
-  commentBody: { flex: 1, minWidth: 0 },
-  commentContent: { fontSize: 14, color: '#1C1208', lineHeight: 1.5 },
-  commentTime: { fontSize: 11, color: '#9A8470', marginTop: 4 },
+  commentAvatar: { width: 28, height: 28, borderRadius: '50%', background: '#F5F0E8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 },
+  commentBody: { flex: 1 },
+  commentContent: { fontSize: 14, lineHeight: 1.5, color: '#1C1208' },
+  commentTime: { fontSize: 11, color: '#9A8470', marginTop: 2 },
   commentInput: {
-    position: 'fixed', bottom: 0, left: 0, right: 0,
-    display: 'flex', gap: 8, padding: '10px 16px',
-    background: '#FEFCF8', borderTop: '1px solid rgba(92,61,46,0.1)',
-    maxWidth: 640, margin: '0 auto',
+    position: 'fixed', bottom: 0, left: 0, right: 0, maxWidth: 480, margin: '0 auto',
+    display: 'flex', gap: 8, padding: '10px 16px calc(10px + env(safe-area-inset-bottom))',
+    background: '#FEFCF8', borderTop: '1px solid rgba(92,61,46,0.1)', zIndex: 20,
   },
   commentField: {
-    flex: 1, padding: '10px 14px', borderRadius: 20,
-    border: '1px solid rgba(92,61,46,0.15)', background: '#F5F0E8',
-    fontSize: 14, outline: 'none',
+    flex: 1, height: 40, borderRadius: 20, border: '1px solid rgba(92,61,46,0.15)',
+    padding: '0 14px', fontSize: 14, outline: 'none',
   },
   commentSubmit: {
     width: 40, height: 40, borderRadius: '50%', border: 'none',

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { getOwnerKey } from '@/lib/ownerKey'
 import { getDeviceId } from '@/lib/deviceId'
 import { prepareUploadFile } from '@/lib/compressMedia'
+import { uploadOneFile } from '@/lib/uploadClient'
 import TopBar from '@/components/blocks/TopBar'
 import CoreNullLogo from '@/components/corenull/CoreNullLogo'
 import OwnerGate from '@/components/corenull/OwnerGate'
@@ -120,18 +121,10 @@ export default function WritePage() {
     setCreatingRoom(false)
   }
 
-  // 파일별 요청으로 분리 — 여러 장 합계가 Vercel 4.5MB 한도를 넘지 않게 한다.
+  // 이미지=프록시(압축 후), 영상=Signed URL 직접 업로드 (Vercel 4.5MB 한도 우회)
   const uploadOne = async (file: File, label?: string): Promise<{ ok: boolean; item?: any; error?: string }> => {
     if (label) setUploadLabel(label)
-    const form = new FormData()
-    form.append('files', file)
-    const res = await fetch('/api/corenull/upload', { method: 'POST', body: form })
-    const data = await res.json().catch(() => null)
-    const item = data?.data?.[0]
-    if (!res.ok || data?._error || !item?.url || item._error) {
-      return { ok: false, error: item?._error || data?._error || `업로드 실패 (HTTP ${res.status})` }
-    }
-    return { ok: true, item }
+    return uploadOneFile(file)
   }
 
   const handleFileSelect = async (e: any) => {
@@ -334,7 +327,7 @@ export default function WritePage() {
           {submitting ? '올리는 중...' : '올리기'}
         </button>
 
-        <input ref={fileInputRef} type="file" accept="image/*,video/mp4,video/webm" multiple style={{ display: 'none' }} onChange={handleFileSelect} />
+        <input ref={fileInputRef} type="file" accept="image/*,video/mp4,video/webm,video/quicktime,.mov" multiple style={{ display: 'none' }} onChange={handleFileSelect} />
       </div>
 
       {showCapture && <VideoCaptureModal onClose={() => setShowCapture(false)} onCapture={handleCapture} />}
