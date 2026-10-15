@@ -97,13 +97,35 @@ export default function MyContentBlock({
     <section style={styles.section}>
       <div style={styles.header}>
         <span style={styles.title}>{title}</span>
-        {isBrick && source.length > 0 && (
-          <span style={styles.hint}>
-            {needsSwipe
-              ? `${safePage + 1}/${pageCount} · ${source.length}개`
-              : `${source.length}개`}
-          </span>
-        )}
+        <div style={styles.headerActions}>
+          {isBrick && source.length > 0 && (
+            <span style={styles.hint}>
+              {needsSwipe
+                ? `${safePage + 1}/${pageCount} · ${source.length}개`
+                : `${source.length}개`}
+            </span>
+          )}
+          {needsSwipe && (
+            <div style={styles.headerArrows}>
+              <button
+                type="button"
+                style={styles.headerArrow}
+                onClick={() => setPage((p) => (p - 1 + pageCount) % pageCount)}
+                aria-label="이전 게시물 묶음"
+              >
+                ‹
+              </button>
+              <button
+                type="button"
+                style={styles.headerArrow}
+                onClick={() => setPage((p) => (p + 1) % pageCount)}
+                aria-label="다음 게시물 묶음"
+              >
+                ›
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {posts.length === 0 ? (
@@ -127,27 +149,6 @@ export default function MyContentBlock({
             setTouchStartX(null)
           }}
         >
-          {needsSwipe && (
-            <>
-              <button
-                type="button"
-                style={{ ...styles.setArrow, left: 0 }}
-                onClick={() => setPage((p) => (p - 1 + pageCount) % pageCount)}
-                aria-label="이전"
-              >
-                ‹
-              </button>
-              <button
-                type="button"
-                style={{ ...styles.setArrow, right: 0 }}
-                onClick={() => setPage((p) => (p + 1) % pageCount)}
-                aria-label="다음"
-              >
-                ›
-              </button>
-            </>
-          )}
-
           <div className="cn-brick">
             {brickRows.map((row, ri) => (
               <div
@@ -213,6 +214,20 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 600,
     color: '#2C1810',
   },
+  headerActions: { display: 'flex', alignItems: 'center', gap: 8 },
+  headerArrows: { display: 'flex', alignItems: 'center', gap: 4 },
+  headerArrow: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    border: '1px solid rgba(92,61,46,0.16)',
+    background: '#FEFCF8',
+    color: '#2C1810',
+    fontSize: 20,
+    lineHeight: '24px',
+    padding: 0,
+    cursor: 'pointer',
+  },
   hint: { fontSize: 11, color: '#9A8470' },
   empty: {
     textAlign: 'center',
@@ -224,21 +239,4 @@ const styles: Record<string, React.CSSProperties> = {
     border: '1px dashed rgba(92,61,46,0.15)',
   },
   brickStage: { position: 'relative', touchAction: 'pan-y' },
-  setArrow: {
-    position: 'absolute',
-    top: '40%',
-    transform: 'translateY(-50%)',
-    zIndex: 2,
-    width: 28,
-    height: 36,
-    borderRadius: 10,
-    border: '1px solid rgba(92,61,46,0.12)',
-    background: 'rgba(254,252,248,0.95)',
-    color: '#2C1810',
-    fontSize: 20,
-    lineHeight: '36px',
-    padding: 0,
-    cursor: 'pointer',
-    boxShadow: '0 2px 8px rgba(44,24,16,0.08)',
-  },
 }
