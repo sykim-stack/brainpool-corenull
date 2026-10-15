@@ -50,9 +50,16 @@ const handleGet = async (req, traceId) => {
     if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
     if (!rooms || rooms.length === 0) return Response.json({ data: [], traceId })
     const { attachRoomStages, attachLatestMessages } = await import('@/lib/roomStage')
-    const withStage = await attachRoomStages(supabase, rooms)
-    const withLatest = await attachLatestMessages(supabase, withStage)
-    return Response.json({ data: withLatest, traceId })
+    const [withStage, withLatest] = await Promise.all([
+      attachRoomStages(supabase, rooms),
+      attachLatestMessages(supabase, rooms),
+    ])
+    const latestByRoom = new Map(withLatest.map((room) => [room.id, room.latest_message]))
+    const data = withStage.map((room) => ({
+      ...room,
+      latest_message: latestByRoom.get(room.id) ?? null,
+    }))
+    return Response.json({ data, traceId })
   }
 
   if (scope === 'writable') {

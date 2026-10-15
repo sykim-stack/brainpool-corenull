@@ -12,6 +12,7 @@ import PlazaHeroBlock from '@/components/blocks/PlazaHeroBlock'
 import RoomCard from '@/components/corenull/RoomCard'
 import CoreNullLogo from '@/components/corenull/CoreNullLogo'
 import { PostBlockData } from '@/components/blocks/PostBlock'
+import { ContentLoadingSkeleton, PageLoadingSkeleton } from '@/components/blocks/LoadingSkeleton'
 
 const LANG_FLAG: Record<string, string> = {
   ko: '🇰🇷', vi: '🇻🇳', en: '🇺🇸', ja: '🇯🇵', zh: '🇨🇳',
@@ -74,7 +75,7 @@ async function loadHouseRoomSlots(h: any): Promise<NeighborRoomSlot[]> {
     const list = (rd.data || []).filter(isYardVisibleRoom).slice(0, 6)
     return Promise.all(
       list.map(async (rm: any) => {
-        const pd = await fetch(`/api/corenull/posts?room_id=${rm.id}`).then((r) => r.json())
+        const pd = await fetch(`/api/corenull/posts?room_id=${rm.id}&limit=1`).then((r) => r.json())
         const latest = (pd.data || [])[0]
         return {
           roomId: rm.id,
@@ -109,6 +110,8 @@ export default function PlazaPage() {
   const [ownerKey, setOwnerKey] = useState('')
   const [house, setHouse] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [recommendationsLoading, setRecommendationsLoading] = useState(true)
+  const [publicRoomsLoading, setPublicRoomsLoading] = useState(true)
 
   const [recommended, setRecommended] = useState<NeighborChip[]>([])
   const [applyLoadingHouseId, setApplyLoadingHouseId] = useState<string | null>(null)
@@ -118,74 +121,93 @@ export default function PlazaPage() {
   const isMobile = useMediaQuery('(max-width: 768px)')
 
   const loadAll = useCallback(async (key: string) => {
-    setLoading(true)
+    setRecommendationsLoading(true)
+    setPublicRoomsLoading(true)
     try {
-      const d = await fetch(`/api/corenull/houses?owner_key=${key}`).then((r) => r.json())
+      const d = await fetch(`/api/corenull/houses?owner_key=${encodeURIComponent(key)}&summary=1`).then((r) => r.json())
       const myHouse = d.data?.[0]
       if (!myHouse) {
         setLoading(false)
+        setRecommended([])
+        setPublicRooms([])
+        setRecommendationsLoading(false)
+        setPublicRoomsLoading(false)
         return
       }
       setHouse(myHouse)
-
-      const [nb, disc, plaza] = await Promise.all([
-        fetch(`/api/corenull/houses?action=neighbors&house_id=${myHouse.id}`).then((res) => res.json()),
-        fetch(`/api/corenull/houses?action=discover&house_id=${myHouse.id}`).then((res) => res.json()),
-        fetch('/api/corenull/rooms?scope=plaza&limit=60').then((res) => res.json()),
-      ])
-
-      const nbRows = nb.data || []
-      const pendingTargetIds = new Set(
-        nbRows.filter((n: any) => n.status === 'pending' && n.house).map((n: any) => n.house.id)
-      )
-      const acceptedHouseIds = new Set(
-        nbRows.filter((n: any) => n.status === 'accepted' && n.house).map((n: any) => n.house.id)
-      )
-
-      // 공개방 그리드 먼저 표시
-      const list = plaza.data || []
-      const sorted = [...list]
-        .filter((rm: any) => {
-          const hid = rm.house_id
-          if (!hid) return false
-          if (hid === myHouse.id) return false
-          if (acceptedHouseIds.has(hid)) return false
-          return true
-        })
-        .sort((a: any, b: any) => {
-          const at = a.latest_message?.created_at
-            ? new Date(a.latest_message.created_at).getTime()
-            : 0
-          const bt = b.latest_message?.created_at
-            ? new Date(b.latest_message.created_at).getTime()
-            : 0
-          return bt - at
-        })
-
-      setPublicRooms(sorted)
-      setPublicPage(0)
+      // 집 요약만 도착하면 히어로를 우선 표시하고 하위 영역은 각자 스켈레톤으로 로드한다.
       setLoading(false)
 
-      // 골목 칩은 백그라운드
-      const discHouses = (disc.data || []).slice(0, 8)
-      const rec: NeighborChip[] = await Promise.all(
-        discHouses.map(async (h: any, index: number) => {
-          const roomSlots = await loadHouseRoomSlots(h)
-          return {
-            neighborId: `plaza-${h.id}`,
-            houseId: h.id,
-            title: h.title,
-            langFlag: LANG_FLAG[h.primary_language] || '🌐',
-            avatarUrl: h.avatar_url || null,
-            coverUrl: `/alley/alley-${String((index % 5) + 1).padStart(2, '0')}.jpg`,
-            rooms: roomSlots,
-            requestPending: pendingTargetIds.has(h.id),
-          }
+      const neighborsRequest = fetch(
+        `/api/corenull/houses?action=neighbors&house_id=${myHouse.id}`
+      ).then((res) => res.json())
+      const discoveryRequest = fetch(
+        `/api/corenull/houses?action=discover&house_id=${myHouse.id}`
+      ).then((res) => res.json())
+      const publicRoomsRequest = fetch('/api/corenull/rooms?scope=plaza&limit=60').then((res) => res.json())
+
+      // 이웃 + 공개방 목록으로 그리드를 준비한다. 추천 API가 느려도 공개방은 먼저 보인다.
+      const publicRoomsTask = Promise.all([neighborsRequest, publicRoomsRequest])
+        .then(([nb, plaza]) => {
+          const acceptedHouseIds = new Set(
+            (nb.data || [])
+              .filter((n: any) => n.status === 'accepted' && n.house)
+              .map((n: any) => n.house.id)
+          )
+          const sorted = [...(plaza.data || [])]
+            .filter((rm: any) => {
+              const hid = rm.house_id
+              return !!hid && hid !== myHouse.id && !acceptedHouseIds.has(hid)
+            })
+            .sort((a: any, b: any) => {
+              const at = a.latest_message?.created_at
+                ? new Date(a.latest_message.created_at).getTime()
+                : 0
+              const bt = b.latest_message?.created_at
+                ? new Date(b.latest_message.created_at).getTime()
+                : 0
+              return bt - at
+            })
+          setPublicRooms(sorted)
+          setPublicPage(0)
         })
-      )
-      setRecommended(rec)
+        .catch(() => setPublicRooms([]))
+        .finally(() => setPublicRoomsLoading(false))
+
+      // 추천은 discovery + pending 관계 확인 후 채우며, 공개방 목록과 독립적으로 렌더링한다.
+      const recommendationsTask = Promise.all([neighborsRequest, discoveryRequest])
+        .then(async ([nb, disc]) => {
+          const pendingTargetIds = new Set(
+            (nb.data || [])
+              .filter((n: any) => n.status === 'pending' && n.house)
+              .map((n: any) => n.house.id)
+          )
+          const discHouses = (disc.data || []).slice(0, 8)
+          const rec: NeighborChip[] = await Promise.all(
+            discHouses.map(async (h: any, index: number) => {
+              const roomSlots = await loadHouseRoomSlots(h)
+              return {
+                neighborId: `plaza-${h.id}`,
+                houseId: h.id,
+                title: h.title,
+                langFlag: LANG_FLAG[h.primary_language] || '🌐',
+                avatarUrl: h.avatar_url || null,
+                coverUrl: `/alley/alley-${String((index % 5) + 1).padStart(2, '0')}.jpg`,
+                rooms: roomSlots,
+                requestPending: pendingTargetIds.has(h.id),
+              }
+            })
+          )
+          setRecommended(rec)
+        })
+        .catch(() => setRecommended([]))
+        .finally(() => setRecommendationsLoading(false))
+
+      await Promise.all([publicRoomsTask, recommendationsTask])
     } catch {
       setLoading(false)
+      setRecommendationsLoading(false)
+      setPublicRoomsLoading(false)
     }
   }, [])
 
@@ -194,6 +216,8 @@ export default function PlazaPage() {
     setOwnerKey(key)
     if (!key) {
       setLoading(false)
+      setRecommendationsLoading(false)
+      setPublicRoomsLoading(false)
       return
     }
     loadAll(key)
@@ -240,7 +264,7 @@ export default function PlazaPage() {
       <TopBar logo={<CoreNullLogo size="sm" />} title="광장" />
 
       {loading ? (
-        <div style={styles.loading}>🏛️</div>
+        <PageLoadingSkeleton />
       ) : (
         <>
           <PlazaHeroBlock
@@ -250,16 +274,20 @@ export default function PlazaPage() {
               router.push(`/houses/${target.houseId}/yard`)
             }}
           />
-          <NeighborContentBlock
-            tier="public"
-            mode="recommend"
-            neighbors={recommended}
-            showNeighborSelector
-            onNeighborClick={(houseId) => router.push(`/houses/${houseId}/yard`)}
-            onPostClick={handlePostClick}
-            onApplyNeighbor={handleApplyNeighbor}
-            applyLoadingHouseId={applyLoadingHouseId}
-          />
+          {recommendationsLoading ? (
+            <ContentLoadingSkeleton sections={1} />
+          ) : (
+            <NeighborContentBlock
+              tier="public"
+              mode="recommend"
+              neighbors={recommended}
+              showNeighborSelector
+              onNeighborClick={(houseId) => router.push(`/houses/${houseId}/yard`)}
+              onPostClick={handlePostClick}
+              onApplyNeighbor={handleApplyNeighbor}
+              applyLoadingHouseId={applyLoadingHouseId}
+            />
+          )}
 
           <section style={styles.publicSection}>
             <div style={styles.publicHeader}>
@@ -272,7 +300,9 @@ export default function PlazaPage() {
                 </span>
               )}
             </div>
-            {publicRooms.length === 0 ? (
+            {publicRoomsLoading ? (
+              <ContentLoadingSkeleton sections={1} />
+            ) : publicRooms.length === 0 ? (
               <div style={{ ...styles.relationEmpty, margin: '0 16px' }}>아직 둘러볼 공개 방이 없어요</div>
             ) : (
               <div style={styles.setStage}>
@@ -350,9 +380,6 @@ export default function PlazaPage() {
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  loading: {
-    display: 'flex', alignItems: 'center', justifyContent: 'center', height: '50vh', fontSize: 40,
-  },
   relationEmpty: {
     fontSize: 13, color: '#9A8470', padding: '16px', textAlign: 'center',
     background: '#FEFCF8', borderRadius: 12, border: '1px dashed rgba(92,61,46,0.12)',
