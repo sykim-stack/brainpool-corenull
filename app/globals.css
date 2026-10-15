@@ -201,3 +201,45 @@ body {
     grid-template-columns: 1fr 1fr;
   }
 }
+
+
+/* API 응답 전에도 레이아웃 공간을 유지하는 콘텐츠 스켈레톤 */
+.cn-skeleton {
+  background: linear-gradient(90deg, #eee7dc 25%, #f8f4ed 42%, #eee7dc 63%);
+  background-size: 240% 100%;
+  animation: cn-skeleton-shimmer 1.35s ease-in-out infinite;
+  border-radius: 12px;
+}
+
+@keyframes cn-skeleton-shimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+.cn-loading-page { padding-bottom: 28px; }
+.cn-loading-hero { height: 376px; position: relative; }
+.cn-loading-hero__cover {
+  position: absolute; inset: 0 0 auto; height: 220px; width: 100vw;
+  left: 50%; transform: translateX(-50%); border-radius: 0;
+}
+.cn-loading-hero__avatar {
+  position: absolute; top: 164px; left: 50%; transform: translateX(-50%);
+  width: 116px; height: 116px; border: 6px solid #fbf8f2; border-radius: 50%;
+}
+.cn-loading-hero__title {
+  position: absolute; top: 296px; left: 50%; transform: translateX(-50%);
+  width: 132px; height: 20px;
+}
+.cn-loading-hero__meta {
+  position: absolute; top: 326px; left: 50%; transform: translateX(-50%);
+  width: 188px; height: 12px;
+}
+.cn-loading-sections { display: grid; gap: 24px; padding: 0 16px; }
+.cn-loading-section { display: grid; gap: 12px; }
+.cn-loading-section__heading { width: 108px; height: 18px; }
+.cn-loading-section__cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.cn-loading-section__card { min-height: 168px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .cn-skeleton { animation: none; }
+}

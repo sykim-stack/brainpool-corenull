@@ -24,6 +24,7 @@ const handleGet = async (req, traceId) => {
   const post_id = searchParams.get('post_id')
   const parent_id = searchParams.get('parent_id')
   const owner_key = searchParams.get('owner_key')
+  const requestedLimit = Number(searchParams.get('limit'))
 
   const { getSupabase } = await import('@/lib/supabase')
   const supabase = getSupabase()
@@ -54,13 +55,17 @@ const handleGet = async (req, traceId) => {
     await supabase.from('corenull_footprints').insert({ owner_key, room_id })
   }
 
-  const { data, error } = await supabase
+  let query = supabase
     .from('messages')
     .select('*')
     .eq('room_id', room_id)
     .in('type', ['post', 'fruit'])
     .not('meta', 'cs', '{"deleted":true}')
     .order('created_at', { ascending: false })
+  if (Number.isInteger(requestedLimit) && requestedLimit > 0) {
+    query = query.limit(Math.min(requestedLimit, 100))
+  }
+  const { data, error } = await query
   if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
   return Response.json({ data, traceId })
 }

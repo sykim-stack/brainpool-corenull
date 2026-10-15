@@ -59,46 +59,58 @@ export default function LivingPage() {
   const [roomViews, setRoomViews] = useState<PostBlockData[]>([])
   const [roomCount, setRoomCount] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [contentLoading, setContentLoading] = useState(true)
 
   const [bookmarks, setBookmarks] = useState<BookmarkRow[]>([])
   const [interestLoadingId, setInterestLoadingId] = useState<string | null>(null)
 
   useEffect(() => {
+    let cancelled = false
     const key = getOwnerKey()
     setOwnerKey(key)
     if (!key) {
       setLoading(false)
+      setContentLoading(false)
       return
     }
 
-    Promise.all([
-      fetch(`/api/corenull/houses?owner_key=${key}`).then((r) => r.json()),
-      fetch(`/api/corenull/bookmarks?owner_key=${key}`).then((r) => r.json()),
-    ]).then(async ([hData, bData]) => {
-      if (bData.data) setBookmarks(bData.data)
-      const list = hData.data || []
-      const h = pickActiveHouse(list) || list[0]
-      if (!h) {
-        setLoading(false)
-        return
-      }
-      setHouse(h)
+    const load = async () => {
+      const bookmarksRequest = fetch(`/api/corenull/bookmarks?owner_key=${key}`)
+        .then((r) => r.json())
+        .then((bData) => {
+          if (!cancelled && bData?.data) setBookmarks(bData.data)
+          return bData
+        })
+        .catch(() => null)
+      void bookmarksRequest
 
       try {
+        const hData = await fetch(`/api/corenull/houses?owner_key=${encodeURIComponent(key)}&summary=1`).then((r) => r.json())
+        if (cancelled) return
+        const list = hData.data || []
+        const h = pickActiveHouse(list) || list[0]
+        if (!h) {
+          return
+        }
+
+        setHouse(h)
+        // 집 정보만 준비되면 상단 거실을 표시한다. 아래 콘텐츠는 별도 스켈레톤으로 대기한다.
+        setLoading(false)
+
         const [rd, wr] = await Promise.all([
           fetch(`/api/corenull/rooms?house_id=${h.id}`).then((r) => r.json()),
           fetch(`/api/corenull/rooms?scope=writable&owner_key=${encodeURIComponent(key)}`).then((r) =>
             r.json()
           ),
         ])
+        if (cancelled) return
         const rooms = rd.data || []
         const memberRooms = (wr.member || []).filter((rm: any) => rm.house_id !== h.id)
         setRoomCount(rooms.length + memberRooms.length)
 
         const buildSlot = async (rm: any, houseTitle: string, relation: string) => {
-          const pd = await fetch(`/api/corenull/posts?room_id=${rm.id}`).then((r) => r.json())
-          const latest =
-            (pd.data || []).find((p: any) => p.type !== 'comment') || (pd.data || [])[0]
+          const pd = await fetch(`/api/corenull/posts?room_id=${rm.id}&limit=1`).then((r) => r.json())
+          const latest = (pd.data || [])[0]
           const isMember = relation === '참여'
           return {
             roomId: rm.id,
@@ -125,12 +137,11 @@ export default function LivingPage() {
           }
         }
 
-        const ownSlots: NeighborRoomSlot[] = await Promise.all(
-          rooms.map((rm: any) => buildSlot(rm, h.title, '나'))
-        )
-        const memberSlots: NeighborRoomSlot[] = await Promise.all(
-          memberRooms.map((rm: any) => buildSlot(rm, rm._house_title || '', '참여'))
-        )
+        const [ownSlots, memberSlots]: [NeighborRoomSlot[], NeighborRoomSlot[]] = await Promise.all([
+          Promise.all(rooms.map((rm: any) => buildSlot(rm, h.title, '나'))),
+          Promise.all(memberRooms.map((rm: any) => buildSlot(rm, rm._house_title || '', '참여'))),
+        ])
+        if (cancelled) return
         const slots = [...ownSlots, ...memberSlots]
 
         const chips: NeighborChip[] = [
@@ -163,12 +174,22 @@ export default function LivingPage() {
           .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
         setRoomViews(views)
       } catch {
-        setCorridor([])
-        setRoomViews([])
+        if (!cancelled) {
+          setCorridor([])
+          setRoomViews([])
+        }
       } finally {
-        setLoading(false)
+        if (!cancelled) {
+          setLoading(false)
+          setContentLoading(false)
+        }
       }
-    })
+    }
+
+    void load()
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   const getInterestState = (postId: string, roomId?: string): 'none' | 'active' | 'ended' => {
@@ -226,6 +247,7 @@ export default function LivingPage() {
 
       <LivingBlock
         loading={loading}
+        contentLoading={contentLoading}
         background={houseHeroBackground(house, 'living')}
         heroControls={
           house && ownerKey ? (
