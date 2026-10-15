@@ -4,11 +4,11 @@ import { useEffect, useState } from 'react'
 import PostBlock, { PostBlockData, PostBlockGrid } from './PostBlock'
 
 const DENSITY_MAX = 3
-const BRICK_PAGE_DESKTOP = 10
+const BRICK_PAGE_DESKTOP = 13
 const BRICK_PAGE_MOBILE = 6
-/** PC: 3-2-3-2 / 모바일: 2칸 우선·남은 1칸 가로 풀 */
-const BRICK_PATTERN_DESKTOP = [3, 2, 3, 2]
-const BRICK_PATTERN_MOBILE = [2, 1]
+/** PC: 3-2-3-2-3 / 모바일: 2칸 우선·남은 1칸 가로 풀 */
+const BRICK_PATTERN_DESKTOP = [3, 2, 3, 2, 3]
+const BRICK_PATTERN_MOBILE = [2, 2, 2]
 
 export type MyContentLayout = 'density' | 'brick'
 
