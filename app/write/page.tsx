@@ -120,20 +120,18 @@ export default function WritePage() {
     setCreatingRoom(false)
   }
 
-  const uploadPrepared = async (prepared: File[]) => {
-    if (prepared.length === 0) return
-    setUploading(true)
-    setUploadLabel('업로드 중…')
+  // 파일별 요청으로 분리 — 여러 장 합계가 Vercel 4.5MB 한도를 넘지 않게 한다.
+  const uploadOne = async (file: File, label?: string): Promise<{ ok: boolean; item?: any; error?: string }> => {
+    if (label) setUploadLabel(label)
     const form = new FormData()
-    prepared.forEach((f) => form.append('files', f))
+    form.append('files', file)
     const res = await fetch('/api/corenull/upload', { method: 'POST', body: form })
-    const data = await res.json()
-    const ok = (data.data || []).filter((x: any) => x.url && !x._error)
-    const failed = (data.data || []).filter((x: any) => x._error)
-    if (failed.length) setSubmitError(failed[0]._error || '일부 업로드 실패')
-    setMediaFiles((prev) => [...prev, ...ok])
-    setUploading(false)
-    setUploadLabel('')
+    const data = await res.json().catch(() => null)
+    const item = data?.data?.[0]
+    if (!res.ok || data?._error || !item?.url || item._error) {
+      return { ok: false, error: item?._error || data?._error || `업로드 실패 (HTTP ${res.status})` }
+    }
+    return { ok: true, item }
   }
 
   const handleFileSelect = async (e: any) => {
@@ -142,23 +140,39 @@ export default function WritePage() {
     if (files.length === 0) return
     setUploading(true)
     setSubmitError('')
-    setUploadLabel('준비 중…')
-    const prepared: File[] = []
-    for (let i = 0; i < files.length; i++) {
-      setUploadLabel(`압축 중 ${i + 1}/${files.length}`)
-      const result = await prepareUploadFile(files[i])
-      if (!result.ok) {
-        setSubmitError(result.error)
-        continue
+    const failures: string[] = []
+    let uploadedCount = 0
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i]
+        setUploadLabel(`압축 중 ${i + 1}/${files.length}`)
+        const prepared = await prepareUploadFile(file)
+        if (!prepared.ok) {
+          failures.push(`${file.name}: ${prepared.error}`)
+          continue
+        }
+        setUploadLabel(`업로드 중 ${i + 1}/${files.length}`)
+        const result = await uploadOne(prepared.file)
+        if (!result.ok) {
+          failures.push(`${file.name}: ${result.error}`)
+          continue
+        }
+        setMediaFiles((prev) => [...prev, result.item])
+        uploadedCount++
       }
-      prepared.push(result.file)
-    }
-    if (prepared.length === 0) {
+      if (failures.length) {
+        setSubmitError(
+          failures.length === files.length
+            ? failures[0]
+            : `${uploadedCount}장 성공 · ${failures.length}장 실패: ${failures[0]}`
+        )
+      }
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : '업로드 중 오류가 발생했어요.')
+    } finally {
       setUploading(false)
       setUploadLabel('')
-      return
     }
-    await uploadPrepared(prepared)
   }
 
   const handleCapture = async (file: File) => {
@@ -166,14 +180,25 @@ export default function WritePage() {
     setSubmitError('')
     setUploading(true)
     setUploadLabel('영상 준비 중…')
-    const result = await prepareUploadFile(file)
-    if (!result.ok) {
-      setSubmitError(result.error)
+    try {
+      const prepared = await prepareUploadFile(file)
+      if (!prepared.ok) {
+        setSubmitError(prepared.error)
+        return
+      }
+      setUploadLabel('업로드 중…')
+      const result = await uploadOne(prepared.file)
+      if (!result.ok) {
+        setSubmitError(result.error || '업로드 실패')
+        return
+      }
+      setMediaFiles((prev) => [...prev, result.item])
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : '업로드 중 오류가 발생했어요.')
+    } finally {
       setUploading(false)
       setUploadLabel('')
-      return
     }
-    await uploadPrepared([result.file])
   }
 
   const handleSubmit = async () => {
