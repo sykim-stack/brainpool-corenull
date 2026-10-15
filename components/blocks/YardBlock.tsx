@@ -5,6 +5,7 @@ import MyContentBlock from './MyContentBlock'
 import NeighborContentBlock, { NeighborChip } from './NeighborContentBlock'
 import { RingData } from './RingBlock'
 import { PostBlockData } from './PostBlock'
+import { ContentLoadingSkeleton, PageLoadingSkeleton } from './LoadingSkeleton'
 
 export interface DiscoveryItem {
   id: string
@@ -29,6 +30,7 @@ export interface YardBlockProps {
   heroControls?: React.ReactNode
   doorplateHandles?: React.ReactNode
   loading?: boolean
+  contentLoading?: boolean
   visitorMode?: boolean
   discoveries?: DiscoveryItem[]
   onDiscoveryDismiss?: (id: string) => void
@@ -96,6 +98,7 @@ export default function YardBlock({
   heroControls,
   doorplateHandles,
   loading = false,
+  contentLoading = false,
   visitorMode = false,
   discoveries = [],
   onDiscoveryDismiss,
@@ -119,7 +122,7 @@ export default function YardBlock({
   ownerKey,
   onInterestGoLibrary,
 }: YardBlockProps) {
-  if (loading) return <div style={styles.loading}>🌳</div>
+  if (loading) return <PageLoadingSkeleton />
 
   // 화면: 연결된 이웃만. pending 수락/거절은 관리(/me) — 마당에 두지 않음.
   const connected = relations.filter((r) => r.status === 'accepted')
@@ -136,6 +139,10 @@ export default function YardBlock({
         doorplateHandles={!visitorMode ? doorplateHandles : undefined}
       />
 
+      {contentLoading ? (
+        <ContentLoadingSkeleton sections={3} />
+      ) : (
+      <>
       {discoveries.length > 0 && (
         <section style={styles.discoverySection}>
           <div style={styles.discoveryTitle}>✨ 오늘의 발견</div>
@@ -240,6 +247,8 @@ export default function YardBlock({
             onInterestGoLibrary={onInterestGoLibrary}
           />
         </>
+      )}
+      </>
       )}
     </div>
   )

@@ -5,6 +5,7 @@ import MyContentBlock from './MyContentBlock'
 import NeighborContentBlock, { NeighborChip } from './NeighborContentBlock'
 import { PostBlockData } from './PostBlock'
 import { RingData } from './RingBlock'
+import { ContentLoadingSkeleton, PageLoadingSkeleton } from './LoadingSkeleton'
 
 /**
  * LivingBlock — 거실 (구조 닫음)
@@ -28,6 +29,7 @@ export interface LivingBlockProps {
   onCommentClick?: (postId: string) => void
 
   loading?: boolean
+  contentLoading?: boolean
   showInterest?: boolean
   getInterestState?: (postId: string) => 'none' | 'active' | 'ended'
   interestLoadingId?: string | null
@@ -50,6 +52,7 @@ export default function LivingBlock({
   onPostClick,
   onCommentClick,
   loading = false,
+  contentLoading = false,
   showInterest = false,
   getInterestState,
   interestLoadingId = null,
@@ -59,7 +62,7 @@ export default function LivingBlock({
   ownerKey,
 }: LivingBlockProps) {
   if (loading) {
-    return <div style={styles.loading}>🛋️</div>
+    return <PageLoadingSkeleton />
   }
 
   return (
@@ -72,43 +75,39 @@ export default function LivingBlock({
         heroControls={heroControls}
       />
 
-      {/* 복도 = 골목 블록 · 방 1개씩 */}
-      <NeighborContentBlock
-        tier="invite"
-        mode="neighbor"
-        neighbors={corridor}
-        roomsPerPage={1}
-        emptyLabel="아직 방이 없어요"
-        onNeighborClick={(id) => onCorridorHouseClick?.(id)}
-        onPostClick={onPostClick}
-      />
+      {contentLoading ? (
+        <ContentLoadingSkeleton sections={2} />
+      ) : (
+        <>
+          {/* 복도 = 골목 블록 · 방 1개씩 */}
+          <NeighborContentBlock
+            tier="invite"
+            mode="neighbor"
+            neighbors={corridor}
+            roomsPerPage={1}
+            emptyLabel="아직 방이 없어요"
+            onNeighborClick={(id) => onCorridorHouseClick?.(id)}
+            onPostClick={onPostClick}
+          />
 
-      {/* 최신글 = 광장/마당과 동일 벽돌 3-2-3 */}
-      <MyContentBlock
-        title="최신글"
-        layout="brick"
-        posts={roomViews}
-        onPostClick={onPostClick}
-        onCommentClick={onCommentClick}
-        showInterest={showInterest}
-        getInterestState={getInterestState}
-        interestLoadingId={interestLoadingId}
-        onInterestClick={onInterestClick}
-        onInterestGoLibrary={onInterestGoLibrary}
-        enableInlineComment={enableInlineComment}
-        ownerKey={ownerKey}
-        emptyLabel="아직 이야기가 없어요"
-      />
+          {/* 최신글 = 광장/마당과 동일 벽돌 3-2-3 */}
+          <MyContentBlock
+            title="최신글"
+            layout="brick"
+            posts={roomViews}
+            onPostClick={onPostClick}
+            onCommentClick={onCommentClick}
+            showInterest={showInterest}
+            getInterestState={getInterestState}
+            interestLoadingId={interestLoadingId}
+            onInterestClick={onInterestClick}
+            onInterestGoLibrary={onInterestGoLibrary}
+            enableInlineComment={enableInlineComment}
+            ownerKey={ownerKey}
+            emptyLabel="아직 이야기가 없어요"
+          />
+        </>
+      )}
     </div>
   )
-}
-
-const styles: Record<string, React.CSSProperties> = {
-  loading: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: '50vh',
-    fontSize: 40,
-  },
 }

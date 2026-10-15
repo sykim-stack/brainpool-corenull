@@ -65,6 +65,7 @@ export default function LivingClient() {
   const [roomViews, setRoomViews] = useState<PostBlockData[]>([])
   const [roomCount, setRoomCount] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [contentLoading, setContentLoading] = useState(true)
   const [bookmarks, setBookmarks] = useState<BookmarkRow[]>([])
   const [interestLoadingId, setInterestLoadingId] = useState<string | null>(null)
 
@@ -79,20 +80,27 @@ export default function LivingClient() {
     ;(async () => {
       setLoading(true)
       try {
-        const [hRes, rRes, bRes, myHousesRes] = await Promise.all([
+        const bookmarksRequest = key
+          ? fetch(`/api/corenull/bookmarks?owner_key=${key}`)
+              .then((r) => r.json())
+              .then((bRes) => {
+                if (bRes?.data) setBookmarks(bRes.data)
+                return bRes
+              })
+              .catch(() => null)
+          : Promise.resolve(null)
+        void bookmarksRequest
+
+        const [hRes, rRes, myHousesRes] = await Promise.all([
           fetch(`/api/corenull/houses?house_id=${houseId}`).then((r) => r.json()),
           fetch(`/api/corenull/rooms?house_id=${houseId}`).then((r) => r.json()),
           key
-            ? fetch(`/api/corenull/bookmarks?owner_key=${key}`).then((r) => r.json())
-            : Promise.resolve({ data: [] }),
-          key
-            ? fetch(`/api/corenull/houses?owner_key=${key}`).then((r) => r.json())
+            ? fetch(`/api/corenull/houses?owner_key=${encodeURIComponent(key)}&summary=1`).then((r) => r.json())
             : Promise.resolve({ data: [] }),
         ])
 
         const h = hRes.house || null
         setHouse(h)
-        setBookmarks(bRes.data || [])
 
         const myHouse = myHousesRes.house || myHousesRes.data?.[0]
         let rel: RelationState = { kind: 'none' }
@@ -119,9 +127,12 @@ export default function LivingClient() {
           setCorridor([])
           setRoomViews([])
           setLoading(false)
+          setContentLoading(false)
           return
         }
 
+        // 방문 권한을 확인한 뒤에만 집 화면을 표시한다. 게시글은 아래 스켈레톤에서 이어서 로드한다.
+        setLoading(false)
         const roomList = rRes.data || []
         const list =
           rel.kind === 'self'
@@ -133,9 +144,8 @@ export default function LivingClient() {
 
         const slots: NeighborRoomSlot[] = await Promise.all(
           list.map(async (rm: any) => {
-            const pd = await fetch(`/api/corenull/posts?room_id=${rm.id}`).then((r) => r.json())
-            const latest =
-              (pd.data || []).find((p: any) => p.type !== 'comment') || (pd.data || [])[0]
+            const pd = await fetch(`/api/corenull/posts?room_id=${rm.id}&limit=1`).then((r) => r.json())
+            const latest = (pd.data || [])[0]
             return {
               roomId: rm.id,
               roomName: rm.room_name,
@@ -179,6 +189,7 @@ export default function LivingClient() {
         setRoomViews(views)
       } finally {
         setLoading(false)
+        setContentLoading(false)
       }
     })()
   }, [houseId])
@@ -272,6 +283,7 @@ export default function LivingClient() {
 
       <LivingBlock
         loading={loading}
+        contentLoading={contentLoading}
         background={houseHeroBackground(house, 'living')}
         ring={buildRingData(roomCount)}
         avatar={

@@ -51,6 +51,7 @@ const handleGet = async (req, traceId) => {
   const { searchParams } = new URL(req.url)
   const owner_key = searchParams.get('owner_key')
   const house_id = searchParams.get('house_id')
+  const summary = searchParams.get('summary') === '1'
 
   const { getSupabase } = await import('@/lib/supabase')
   const supabase = getSupabase()
@@ -73,7 +74,11 @@ const handleGet = async (req, traceId) => {
 
   const { data, error } = await supabase
     .from('corenull_houses')
-    .select('*, corenull_rooms(*)')
+    .select(
+      summary
+        ? 'id, title, description, primary_language, created_at, avatar_url, yard_image_url, living_image_url, yard_image_position, living_image_position'
+        : '*, corenull_rooms(*)'
+    )
     .eq('owner_key', owner_key)
     .order('created_at', { ascending: false })
 

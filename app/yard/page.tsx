@@ -60,7 +60,7 @@ async function loadHouseRoomSlots(h: any): Promise<NeighborRoomSlot[]> {
     const list = (rd.data || []).filter(isYardVisibleRoom).slice(0, 6)
     return Promise.all(
       list.map(async (rm: any) => {
-        const pd = await fetch(`/api/corenull/posts?room_id=${rm.id}`).then((r) => r.json())
+        const pd = await fetch(`/api/corenull/posts?room_id=${rm.id}&limit=1`).then((r) => r.json())
         const latest = (pd.data || [])[0]
         return {
           roomId: rm.id,
@@ -100,6 +100,7 @@ export default function YardPage() {
   const [house, setHouse] = useState<any>(null)
   const [rooms, setRooms] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [contentLoading, setContentLoading] = useState(true)
   const [showShare, setShowShare] = useState(false)
   const [inviteUrl, setInviteUrl] = useState('')
   const [showDoorplateEdit, setShowDoorplateEdit] = useState(false)
@@ -115,12 +116,17 @@ export default function YardPage() {
 
   const loadAll = useCallback(async (key: string, preferredHouseId?: string) => {
     setLoading(true)
+    setContentLoading(true)
     try {
-      const [hRes, bRes] = await Promise.all([
-        fetch(`/api/corenull/houses?owner_key=${key}`).then((r) => r.json()),
-        fetch(`/api/corenull/bookmarks?owner_key=${key}`).then((r) => r.json()),
-      ])
-      if (bRes.data) setBookmarks(bRes.data)
+      const bookmarksRequest = fetch(`/api/corenull/bookmarks?owner_key=${key}`)
+        .then((r) => r.json())
+        .then((bRes) => {
+          if (bRes?.data) setBookmarks(bRes.data)
+          return bRes
+        })
+        .catch(() => null)
+      void bookmarksRequest
+      const hRes = await fetch(`/api/corenull/houses?owner_key=${encodeURIComponent(key)}&summary=1`).then((r) => r.json())
 
       const list = hRes.data || []
       setHouses(list)
@@ -140,18 +146,15 @@ export default function YardPage() {
       const h = active || list[0]
       setHouse(h)
       if (h?.id) setActiveHouseId(h.id)
-
-      const rd = await fetch(`/api/corenull/rooms?house_id=${h.id}`).then((r) => r.json())
-      const myRooms = rd.data || []
-      setRooms(myRooms)
-
-      // 히어로·문패 먼저 표시 (골목/피드는 백그라운드)
       setLoading(false)
 
-      const [nbRes, discRes] = await Promise.all([
+      const [rd, nbRes, discRes] = await Promise.all([
+        fetch(`/api/corenull/rooms?house_id=${h.id}`).then((r) => r.json()),
         fetch(`/api/corenull/houses?action=neighbors&house_id=${h.id}`).then((r) => r.json()),
         fetch(`/api/corenull/houses?action=discover&house_id=${h.id}&owner_key=${key}`).then((r) => r.json()),
       ])
+      const myRooms = rd.data || []
+      setRooms(myRooms)
 
       const accepted = (nbRes.data || []).filter((n: any) => n.status === 'accepted')
       const pending = (nbRes.data || []).filter((n: any) => n.status === 'pending')
@@ -198,7 +201,7 @@ export default function YardPage() {
               const rooms = (rlist.data || []).filter(isYardVisibleRoom).slice(0, 3)
               const posts = await Promise.all(
                 rooms.map(async (rm: any) => {
-                  const pd = await fetch(`/api/corenull/posts?room_id=${rm.id}`).then((r) => r.json())
+                  const pd = await fetch(`/api/corenull/posts?room_id=${rm.id}&limit=1`).then((r) => r.json())
                   const latest =
                     (pd.data || []).find((x: any) => x.type !== 'comment') || (pd.data || [])[0]
                   if (!latest) return null
@@ -227,7 +230,7 @@ export default function YardPage() {
         Promise.all(
           myRooms.slice(0, 6).map(async (rm: any) => {
             try {
-              const pd = await fetch(`/api/corenull/posts?room_id=${rm.id}`).then((r) => r.json())
+              const pd = await fetch(`/api/corenull/posts?room_id=${rm.id}&limit=1`).then((r) => r.json())
               const latest =
                 (pd.data || []).find((x: any) => x.type !== 'comment') || (pd.data || [])[0]
               if (!latest) return null
@@ -265,6 +268,7 @@ export default function YardPage() {
       console.error('[yard] loadAll', e)
     } finally {
       setLoading(false)
+      setContentLoading(false)
     }
   }, [])
 
@@ -274,6 +278,7 @@ export default function YardPage() {
     setOwnerReady(true)
     if (!key) {
       setLoading(false)
+      setContentLoading(false)
       return
     }
     loadAll(key)
@@ -383,6 +388,7 @@ export default function YardPage() {
 
       <YardBlock
         loading={loading}
+        contentLoading={contentLoading}
         background={houseHeroBackground(house, 'yard')}
         heroControls={
           house && ownerKey ? (
