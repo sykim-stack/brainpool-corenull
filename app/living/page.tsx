@@ -95,43 +95,46 @@ export default function LivingPage() {
         const memberRooms = (wr.member || []).filter((rm: any) => rm.house_id !== h.id)
         setRoomCount(rooms.length + memberRooms.length)
 
-        const buildSlot = async (rm: any, houseTitle: string, relation: string) => {
+        // 복도=방당 최신 1 · 최신글=모든 방 글 시간순(방당 상한 20) → brick 3-2-3-2-3
+        const PER_ROOM_FEED = 20
+        const toPost = (p: any, rm: any, houseTitle: string, relation: string): PostBlockData => ({
+          id: p.id,
+          content: p.content,
+          media: p.meta?.media,
+          created_at: p.created_at,
+          comment_count: p.comment_count ?? 0,
+          room_id: rm.id,
+          view_meta: {
+            house_name: rm._house_title || houseTitle,
+            room_name: rm.room_name,
+            status: roomStatusLabel(rm),
+            stage_emoji: rm.seed_mode || rm.room_type === 'seed' ? '🌱' : undefined,
+            relation,
+          },
+        })
+
+        const buildRoomBundle = async (rm: any, houseTitle: string, relation: string) => {
           const pd = await fetch(`/api/corenull/posts?room_id=${rm.id}`).then((r) => r.json())
-          const latest =
-            (pd.data || []).find((p: any) => p.type !== 'comment') || (pd.data || [])[0]
+          const list = (pd.data || []).filter((p: any) => p.type === 'post' || p.type === 'fruit')
           const isMember = relation === '참여'
-          return {
+          const feed = list.slice(0, PER_ROOM_FEED).map((p: any) => toPost(p, rm, houseTitle, relation))
+          const latest = feed[0] || null
+          const slot: NeighborRoomSlot = {
             roomId: rm.id,
             roomName: isMember
               ? `참여 · ${rm._house_title || houseTitle || ''} · ${rm.room_name}`.replace(/ ·  · /g, ' · ')
               : rm.room_name,
-            latestPost: latest
-              ? {
-                  id: latest.id,
-                  content: latest.content,
-                  media: latest.meta?.media,
-                  created_at: latest.created_at,
-                  comment_count: latest.comment_count ?? 0,
-                  room_id: rm.id,
-                  view_meta: {
-                    house_name: rm._house_title || houseTitle,
-                    room_name: rm.room_name,
-                    status: roomStatusLabel(rm),
-                    stage_emoji: rm.seed_mode || rm.room_type === 'seed' ? '🌱' : undefined,
-                    relation,
-                  },
-                }
-              : null,
+            latestPost: latest,
           }
+          return { slot, feed }
         }
 
-        const ownSlots: NeighborRoomSlot[] = await Promise.all(
-          rooms.map((rm: any) => buildSlot(rm, h.title, '나'))
+        const ownBundles = await Promise.all(rooms.map((rm: any) => buildRoomBundle(rm, h.title, '나')))
+        const memberBundles = await Promise.all(
+          memberRooms.map((rm: any) => buildRoomBundle(rm, rm._house_title || '', '참여'))
         )
-        const memberSlots: NeighborRoomSlot[] = await Promise.all(
-          memberRooms.map((rm: any) => buildSlot(rm, rm._house_title || '', '참여'))
-        )
-        const slots = [...ownSlots, ...memberSlots]
+        const ownSlots = ownBundles.map((b) => b.slot)
+        const memberSlots = memberBundles.map((b) => b.slot)
 
         const chips: NeighborChip[] = [
           {
@@ -157,9 +160,8 @@ export default function LivingPage() {
         }
         setCorridor(chips)
 
-        const views = slots
-          .map((s) => s.latestPost)
-          .filter((p): p is PostBlockData => !!p)
+        const views = [...ownBundles, ...memberBundles]
+          .flatMap((b) => b.feed)
           .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
         setRoomViews(views)
       } catch {
