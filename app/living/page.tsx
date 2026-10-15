@@ -97,14 +97,29 @@ export default function LivingPage() {
 
         const buildSlot = async (rm: any, houseTitle: string, relation: string) => {
           const pd = await fetch(`/api/corenull/posts?room_id=${rm.id}`).then((r) => r.json())
-          const latest =
-            (pd.data || []).find((p: any) => p.type !== 'comment') || (pd.data || [])[0]
+          const roomPosts = (pd.data || []).filter((p: any) => p.type !== 'comment')
+          const latest = roomPosts[0]
           const isMember = relation === '참여'
           return {
             roomId: rm.id,
             roomName: isMember
               ? `참여 · ${rm._house_title || houseTitle || ''} · ${rm.room_name}`.replace(/ ·  · /g, ' · ')
               : rm.room_name,
+            posts: roomPosts.map((post: any) => ({
+              id: post.id,
+              content: post.content,
+              media: post.meta?.media,
+              created_at: post.created_at,
+              comment_count: post.comment_count ?? 0,
+              room_id: rm.id,
+              view_meta: {
+                house_name: rm._house_title || houseTitle,
+                room_name: rm.room_name,
+                status: roomStatusLabel(rm),
+                stage_emoji: rm.seed_mode || rm.room_type === 'seed' ? '🌱' : undefined,
+                relation,
+              },
+            })),
             latestPost: latest
               ? {
                   id: latest.id,
@@ -125,10 +140,10 @@ export default function LivingPage() {
           }
         }
 
-        const ownSlots: NeighborRoomSlot[] = await Promise.all(
+        const ownSlots = await Promise.all(
           rooms.map((rm: any) => buildSlot(rm, h.title, '나'))
         )
-        const memberSlots: NeighborRoomSlot[] = await Promise.all(
+        const memberSlots = await Promise.all(
           memberRooms.map((rm: any) => buildSlot(rm, rm._house_title || '', '참여'))
         )
         const slots = [...ownSlots, ...memberSlots]
@@ -158,8 +173,7 @@ export default function LivingPage() {
         setCorridor(chips)
 
         const views = slots
-          .map((s) => s.latestPost)
-          .filter((p): p is PostBlockData => !!p)
+          .flatMap((s) => s.posts)
           .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
         setRoomViews(views)
       } catch {
