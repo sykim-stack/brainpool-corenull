@@ -12,47 +12,10 @@ import PlazaHeroBlock from '@/components/blocks/PlazaHeroBlock'
 import RoomCard from '@/components/corenull/RoomCard'
 import CoreNullLogo from '@/components/corenull/CoreNullLogo'
 import { PostBlockData } from '@/components/blocks/PostBlock'
+import { BRICK_LAYOUT, partitionBrick } from '@/lib/brickLayout'
 
 const LANG_FLAG: Record<string, string> = {
   ko: '🇰🇷', vi: '🇻🇳', en: '🇺🇸', ja: '🇯🇵', zh: '🇨🇳',
-}
-
-/** 비이웃 공개방: 벽돌 배치, 페이지당 10개, 10개 넘으면 스와이프 */
-const PUBLIC_ROOMS_PAGE = 10
-/** 데스크탑: 3-2-3-2 (=10) */
-const BRICK_PATTERN_DESKTOP = [3, 2, 3, 2]
-
-function useBrickPattern() {
-  return BRICK_PATTERN_DESKTOP
-}
-
-/** 모바일: 1→길게 / 2→나란히 / 3→2+1 (빈 칸 없음). PC: 3-2-3-2 */
-function partitionBrick<T>(items: T[], viewMode: 'desktop' | 'mobile' = 'desktop'): { cards: T[]; cols: string; offset: boolean }[] {
-  const rows: { cards: T[]; cols: string; offset: boolean }[] = []
-  let i = 0
-  if (viewMode === 'mobile') {
-    while (i < items.length) {
-      const left = items.length - i
-      const take = left === 1 ? 1 : 2
-      const cards = items.slice(i, i + take)
-      rows.push({ cards, cols: cards.length === 1 ? 'large' : '2', offset: false })
-      i += cards.length
-    }
-    return rows
-  }
-  const pattern = useBrickPattern()
-  let pi = 0
-  let prevCols = ''
-  while (i < items.length) {
-    const want = pattern[pi % pattern.length]
-    const cards = items.slice(i, i + want)
-    const cols = cards.length === 1 ? 'large' : cards.length === 3 ? '3' : '2'
-    rows.push({ cards, cols, offset: cols === '2' && prevCols === '3' })
-    prevCols = cols
-    i += cards.length
-    pi++
-  }
-  return rows
 }
 
 function isYardVisibleRoom(rm: any) {
@@ -115,7 +78,7 @@ export default function PlazaPage() {
 
   const [publicRooms, setPublicRooms] = useState<any[]>([])
   const [publicPage, setPublicPage] = useState(0)
-  const isMobile = useMediaQuery('(max-width: 768px)')
+  const isMobile = useMediaQuery('(max-width: 767px)')
 
   const loadAll = useCallback(async (key: string) => {
     setLoading(true)
@@ -222,11 +185,12 @@ export default function PlazaPage() {
     else router.push(`/posts/${postId}`)
   }
 
-  const needsSwipe = publicRooms.length > PUBLIC_ROOMS_PAGE
-  const pageCount = needsSwipe ? Math.ceil(publicRooms.length / PUBLIC_ROOMS_PAGE) : 1
+  const publicRoomsPageSize = isMobile ? BRICK_LAYOUT.mobile.pageSize : BRICK_LAYOUT.desktop.pageSize
+  const needsSwipe = publicRooms.length > publicRoomsPageSize
+  const pageCount = needsSwipe ? Math.ceil(publicRooms.length / publicRoomsPageSize) : 1
   const safePage = Math.min(publicPage, Math.max(0, pageCount - 1))
   const visibleRooms = needsSwipe
-    ? publicRooms.slice(safePage * PUBLIC_ROOMS_PAGE, safePage * PUBLIC_ROOMS_PAGE + PUBLIC_ROOMS_PAGE)
+    ? publicRooms.slice(safePage * publicRoomsPageSize, safePage * publicRoomsPageSize + publicRoomsPageSize)
     : publicRooms
 
   useEffect(() => {

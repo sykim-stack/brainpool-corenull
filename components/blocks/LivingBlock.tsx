@@ -6,11 +6,6 @@ import NeighborContentBlock, { NeighborChip } from './NeighborContentBlock'
 import { PostBlockData } from './PostBlock'
 import { RingData } from './RingBlock'
 
-const LIVING_BRICK_PATTERN = {
-  desktop: [3, 2, 3, 2, 3],
-  mobile: [2, 1, 2, 1, 2],
-}
-
 /**
  * LivingBlock — 거실 (구조 닫음)
  * Hero → 복도(골목 블록 · 방 1개) → 최신글 brick 3-2-3-2-3
@@ -92,7 +87,6 @@ export default function LivingBlock({
       <MyContentBlock
         title="최신글"
         layout="brick"
-        brickPattern={LIVING_BRICK_PATTERN}
         posts={roomViews}
         onPostClick={onPostClick}
         onCommentClick={onCommentClick}

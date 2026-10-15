@@ -2,13 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import PostBlock, { PostBlockData, PostBlockGrid } from './PostBlock'
+import { BRICK_LAYOUT, partitionBrick } from '@/lib/brickLayout'
 
 const DENSITY_MAX = 3
-const BRICK_PAGE_DESKTOP = 10
-const BRICK_PAGE_MOBILE = 6
-/** PC: 3-2-3-2 / 모바일: 2칸 우선·남은 1칸 가로 풀 */
-const BRICK_PATTERN_DESKTOP = [3, 2, 3, 2]
-const BRICK_PATTERN_MOBILE = [2, 1]
 
 export type MyContentLayout = 'density' | 'brick'
 
@@ -27,44 +23,6 @@ export interface MyContentBlockProps {
   enableInlineComment?: boolean
   ownerKey?: string
   showHouseName?: boolean
-  brickPattern?: { desktop: number[]; mobile: number[] }
-}
-
-/** PC: pattern 반복. 모바일: 2칸 우선, 남는 1칸은 가로 풀(빈 공간 없음)
- *  1→길게 / 2→나란히 / 3→2+1 */
-function partitionBrick<T>(
-  items: T[],
-  pattern: number[],
-  mobile = false,
-  useExactMobilePattern = false
-): { cards: T[]; cols: string; offset: boolean }[] {
-  const rows: { cards: T[]; cols: string; offset: boolean }[] = []
-  let i = 0
-  if (mobile) {
-    let pi = 0
-    while (i < items.length) {
-      const left = items.length - i
-      const take = useExactMobilePattern ? pattern[pi % pattern.length] : left === 1 ? 1 : 2
-      const cards = items.slice(i, i + take)
-      const cols = cards.length === 1 ? 'large' : cards.length === 3 ? '3' : '2'
-      rows.push({ cards, cols, offset: false })
-      i += cards.length
-      pi++
-    }
-    return rows
-  }
-  let pi = 0
-  let prevCols = ''
-  while (i < items.length) {
-    const want = pattern[pi % pattern.length]
-    const cards = items.slice(i, i + want)
-    const cols = cards.length === 1 ? 'large' : cards.length === 3 ? '3' : '2'
-    rows.push({ cards, cols, offset: cols === '2' && prevCols === '3' })
-    prevCols = cols
-    i += cards.length
-    pi++
-  }
-  return rows
 }
 
 export default function MyContentBlock({
@@ -82,7 +40,6 @@ export default function MyContentBlock({
   enableInlineComment = false,
   ownerKey,
   showHouseName = true,
-  brickPattern,
 }: MyContentBlockProps) {
   const [page, setPage] = useState(0)
   const [wide, setWide] = useState(false)
@@ -96,13 +53,10 @@ export default function MyContentBlock({
   }, [])
 
   const isBrick = layout === 'brick'
-  const activePattern = wide ? brickPattern?.desktop : brickPattern?.mobile
   const pageSize = isBrick
-    ? activePattern
-      ? activePattern.reduce((total, rowSize) => total + rowSize, 0)
-      : wide
-        ? BRICK_PAGE_DESKTOP
-        : BRICK_PAGE_MOBILE
+    ? wide
+      ? BRICK_LAYOUT.desktop.pageSize
+      : BRICK_LAYOUT.mobile.pageSize
     : DENSITY_MAX
   const source = isBrick ? posts : posts.slice(0, DENSITY_MAX)
   const pageCount = isBrick ? Math.max(1, Math.ceil(source.length / pageSize)) : 1
@@ -118,14 +72,7 @@ export default function MyContentBlock({
     : source
 
   const brickRows = isBrick
-    ? partitionBrick(
-        visible,
-        wide
-          ? brickPattern?.desktop || BRICK_PATTERN_DESKTOP
-          : brickPattern?.mobile || BRICK_PATTERN_MOBILE,
-        !wide,
-        !wide && !!brickPattern
-      )
+    ? partitionBrick(visible, wide ? 'desktop' : 'mobile')
     : []
 
   const renderPost = (post: PostBlockData) => (
@@ -224,7 +171,7 @@ export default function MyContentBlock({
       ) : !wide ? (
         /* 모바일 density도 2+1 팩 — 마지막 1개 빈칸 방지 */
         <div className="cn-brick">
-          {partitionBrick(visible, BRICK_PATTERN_MOBILE, true).map((row, ri) => (
+          {partitionBrick(visible, 'mobile').map((row, ri) => (
             <div
               key={ri}
               className="cn-brick-row"
