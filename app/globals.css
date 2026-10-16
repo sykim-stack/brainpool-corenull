@@ -186,20 +186,17 @@ body {
   .cn-brick-row[data-cols="3"] {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
-  /* PC 2칸: 카드 너비를 3칸과 동일하게 고정 후 가운데 배치
-     3칸 카드 = (100% - gap*2) / 3  →  gap 12px 기준 (100% - 24px) / 3 */
+  /* PC 2칸 = 전체 폭 50:50 (가운데 여백 없음) */
   .cn-brick-row[data-cols="2"] {
-    display: flex;
-    justify-content: center;
-    align-items: stretch;
-    gap: 12px;
     width: 100%;
-    grid-template-columns: none;
+    margin-inline: 0;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .cn-brick-row[data-cols="2"] .cn-post-card {
-    width: calc((100% - 24px) / 3);
-    max-width: calc((100% - 24px) / 3);
-    flex: 0 0 calc((100% - 24px) / 3);
+    width: 100%;
+    max-width: none;
+    flex: none;
   }
 }
 .cn-post-card[data-large="true"] {
