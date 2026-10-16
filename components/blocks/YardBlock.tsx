@@ -3,15 +3,20 @@
 import HeroBlock, { HeroBackground, HeroDoorplate } from './HeroBlock'
 import MyContentBlock from './MyContentBlock'
 import NeighborContentBlock, { NeighborChip } from './NeighborContentBlock'
-import { PostBlockData } from './PostBlock'
 import { RingData } from './RingBlock'
+import { PostBlockData } from './PostBlock'
+
+export interface DiscoveryItem {
+  id: string
+  label: string
+}
 
 export interface YardRelationRow {
   id: string
-  houseId: string
+  status: 'pending' | 'accepted'
+  direction: 'outgoing' | 'incoming'
   title: string
-  status: 'accepted' | 'pending'
-  direction?: 'incoming' | 'outgoing'
+  houseId?: string
   avatarUrl?: string | null
   langFlag?: string
 }
@@ -26,37 +31,53 @@ export interface YardBlockProps {
   doorplateHandles?: React.ReactNode
   loading?: boolean
   visitorMode?: boolean
-  discoveries?: any[]
+  discoveries?: DiscoveryItem[]
   onDiscoveryDismiss?: (id: string) => void
+  /** 골목 = 발견 (모르는 집). 연결된 이웃과 합치지 않음 */
   recommended?: NeighborChip[]
   onRecommendHouseClick?: (houseId: string) => void
   onAcceptedNeighborClick?: (houseId: string) => void
   onApplyNeighbor?: (houseId: string) => void
   applyLoadingHouseId?: string | null
   relations?: YardRelationRow[]
-  onOpenRelations?: () => void
-  onAcceptRelation?: (id: string) => void
-  onRemoveRelation?: (id: string) => void
+  onAcceptRelation?: (neighborId: string) => void
+  onRemoveRelation?: (neighborId: string) => void
   relationActingId?: string | null
+  onOpenRelations?: () => void
   neighborFeed?: PostBlockData[]
   myPosts?: PostBlockData[]
   publicPosts?: PostBlockData[]
   onPostClick?: (postId: string, roomId?: string) => void
   onCommentClick?: (postId: string) => void
   showInterest?: boolean
-  getInterestState?: (postId: string, roomId?: string) => 'none' | 'active' | 'ended'
+  getInterestState?: (postId: string) => 'none' | 'active' | 'ended'
   interestLoadingId?: string | null
-  onInterestClick?: (postId: string, roomId?: string) => void
+  onInterestClick?: (postId: string) => void
   enableInlineComment?: boolean
   ownerKey?: string
   onInterestGoLibrary?: () => void
 }
 
-function NeighborAvatar({ row }: { row: YardRelationRow }) {
-  if (row.avatarUrl) {
-    return <img src={row.avatarUrl} alt="" style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover' }} />
-  }
-  return <span style={{ fontSize: 18 }}>{row.langFlag || '🏡'}</span>
+function NeighborAvatar({
+  row,
+  onClick,
+}: {
+  row: YardRelationRow
+  onClick?: () => void
+}) {
+  const initial = (row.title || '?').trim().charAt(0)
+  return (
+    <button type="button" onClick={onClick} style={styles.relAvatarBtn}>
+      <div style={styles.relAvatarCircle}>
+        {row.avatarUrl ? (
+          <img src={row.avatarUrl} alt="" style={styles.relAvatarImg} />
+        ) : (
+          <span style={styles.relAvatarInitial}>{initial}</span>
+        )}
+      </div>
+      <span style={styles.relAvatarName}>{row.title}</span>
+    </button>
+  )
 }
 
 export default function YardBlock({
@@ -78,9 +99,6 @@ export default function YardBlock({
   applyLoadingHouseId = null,
   relations = [],
   onOpenRelations,
-  onAcceptRelation,
-  onRemoveRelation,
-  relationActingId = null,
   neighborFeed = [],
   myPosts = [],
   publicPosts = [],
@@ -95,8 +113,11 @@ export default function YardBlock({
   onInterestGoLibrary,
 }: YardBlockProps) {
   if (loading) {
-    return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '50vh', fontSize: 40 }}>🌳</div>
+    return <div style={styles.loading}>🌳</div>
   }
+
+  const alleyMode = visitorMode ? 'neighbor' : 'recommend'
+  const acceptedRelations = relations.filter((r) => r.status === 'accepted')
 
   return (
     <div>
@@ -107,54 +128,57 @@ export default function YardBlock({
         doorplate={doorplate}
         heroControls={heroControls}
         avatarControls={avatarControls}
-        doorplateHandles={doorplateHandles}
+        doorplateHandles={!visitorMode ? doorplateHandles : undefined}
       />
 
-      {!visitorMode && recommended.length > 0 && (
-        <NeighborContentBlock
-          tier="recommend"
-          neighbors={recommended}
-          onNeighborClick={(id) => onRecommendHouseClick?.(id)}
-          onAcceptedNeighborClick={onAcceptedNeighborClick}
-          onApplyNeighbor={onApplyNeighbor}
-          applyLoadingHouseId={applyLoadingHouseId}
-          onPostClick={onPostClick}
-        />
+      {discoveries.length > 0 && (
+        <section style={styles.discoverySection}>
+          <div style={styles.discoveryTitle}>✨ 오늘의 발견</div>
+          <div style={styles.discoveryList}>
+            {discoveries.map((d) => (
+              <div key={d.id} style={styles.discoveryCard}>
+                <span style={styles.discoveryText}>{d.label}</span>
+                <button style={styles.discoveryDismiss} onClick={() => onDiscoveryDismiss?.(d.id)}>✕</button>
+              </div>
+            ))}
+          </div>
+        </section>
       )}
 
-      {!visitorMode && relations.length > 0 && (
-        <section style={{ padding: '16px 16px 8px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#5C4A35' }}>관계</div>
+      <NeighborContentBlock
+        tier="recommend"
+        mode={alleyMode}
+        neighbors={recommended}
+        onNeighborClick={(id) => onRecommendHouseClick?.(id)}
+        onAcceptedNeighborClick={onAcceptedNeighborClick}
+        onApplyNeighbor={visitorMode ? undefined : onApplyNeighbor}
+        applyLoadingHouseId={applyLoadingHouseId}
+        onPostClick={onPostClick}
+      />
+
+      {!visitorMode && (
+        <section style={styles.relationSection}>
+          <div style={styles.relationHeader}>
+            <div style={styles.relationTitle}>관계</div>
             {onOpenRelations && (
-              <button type="button" onClick={onOpenRelations} style={{ border: 0, background: 'none', color: '#9A8470', fontSize: 12, cursor: 'pointer' }}>
+              <button type="button" style={styles.relationMore} onClick={onOpenRelations}>
                 관리
               </button>
             )}
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {relations.map((row) => (
-              <div key={row.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: '#FEFCF8', borderRadius: 12, border: '1px solid rgba(92,61,46,0.1)' }}>
-                <NeighborAvatar row={row} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, color: '#1C1208', fontWeight: 500 }}>{row.title}</div>
-                  <div style={{ fontSize: 11, color: '#9A8470' }}>
-                    {row.status === 'accepted' ? '이웃' : row.direction === 'incoming' ? '받은 신청' : '보낸 신청'}
-                  </div>
-                </div>
-                {row.status === 'pending' && row.direction === 'incoming' && onAcceptRelation && (
-                  <button type="button" disabled={relationActingId === row.id} onClick={() => onAcceptRelation(row.id)} style={{ border: 0, background: '#4A7C3F', color: '#fff', borderRadius: 8, padding: '6px 10px', fontSize: 12, cursor: 'pointer' }}>
-                    수락
-                  </button>
-                )}
-                {onRemoveRelation && (
-                  <button type="button" disabled={relationActingId === row.id} onClick={() => onRemoveRelation(row.id)} style={{ border: '1px solid rgba(92,61,46,0.15)', background: 'none', color: '#9A8470', borderRadius: 8, padding: '6px 10px', fontSize: 12, cursor: 'pointer' }}>
-                    {row.status === 'accepted' ? '해제' : '취소'}
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
+          {acceptedRelations.length === 0 ? (
+            <div style={styles.relationEmpty}>아직 이웃이 없어요</div>
+          ) : (
+            <div style={styles.relAvatarRow}>
+              {acceptedRelations.map((row) => (
+                <NeighborAvatar
+                  key={row.id}
+                  row={row}
+                  onClick={() => row.houseId && onAcceptedNeighborClick?.(row.houseId)}
+                />
+              ))}
+            </div>
+          )}
         </section>
       )}
 
@@ -174,21 +198,109 @@ export default function YardBlock({
         emptyLabel="이웃 공개방이 아직 없어요"
       />
 
-      <MyContentBlock
-        title="내 방 최신"
-        layout="density"
-        posts={myPosts}
-        onPostClick={onPostClick}
-        onCommentClick={onCommentClick}
-        showInterest={showInterest}
-        getInterestState={getInterestState}
-        interestLoadingId={interestLoadingId}
-        onInterestClick={onInterestClick}
-        onInterestGoLibrary={onInterestGoLibrary}
-        enableInlineComment={enableInlineComment}
-        ownerKey={ownerKey}
-        emptyLabel="아직 이야기가 없어요"
-      />
+      {!visitorMode && (
+        <MyContentBlock
+          title="내 방 최신"
+          layout="density"
+          posts={myPosts}
+          onPostClick={onPostClick}
+          onCommentClick={onCommentClick}
+          showInterest={showInterest}
+          getInterestState={getInterestState}
+          interestLoadingId={interestLoadingId}
+          onInterestClick={onInterestClick}
+          onInterestGoLibrary={onInterestGoLibrary}
+          enableInlineComment={enableInlineComment}
+          ownerKey={ownerKey}
+          emptyLabel="아직 이야기가 없어요"
+        />
+      )}
+
+      {visitorMode && publicPosts.length > 0 && (
+        <MyContentBlock
+          title="공개방 최신"
+          layout="brick"
+          posts={publicPosts}
+          onPostClick={onPostClick}
+          onCommentClick={onCommentClick}
+          emptyLabel="공개 글이 없어요"
+        />
+      )}
     </div>
   )
+}
+
+const styles: Record<string, React.CSSProperties> = {
+  loading: { display: 'flex', alignItems: 'center', justifyContent: 'center', height: '50vh', fontSize: 40 },
+  discoverySection: { padding: '0 16px 4px' },
+  discoveryTitle: { fontSize: 13, fontWeight: 600, color: '#2C1810', marginBottom: 8 },
+  discoveryList: { display: 'flex', flexDirection: 'column', gap: 8 },
+  discoveryCard: {
+    background: 'linear-gradient(135deg, rgba(193,127,60,0.08), rgba(74,82,64,0.06))',
+    border: '1px solid rgba(193,127,60,0.2)',
+    borderRadius: 12,
+    padding: '12px 14px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  discoveryText: { fontSize: 13, color: '#2C1810', lineHeight: 1.5, flex: 1 },
+  discoveryDismiss: {
+    background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#9A8470',
+    padding: '0 0 0 8px', flexShrink: 0,
+  },
+  relationSection: { padding: '16px', borderTop: '1px solid rgba(92,61,46,0.08)' },
+  relationHeader: {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12,
+  },
+  relationTitle: {
+    fontFamily: "'Noto Serif KR', serif", fontSize: 15, fontWeight: 600, color: '#2C1810',
+  },
+  relationMore: { border: 'none', background: 'none', color: '#9A8470', fontSize: 12, cursor: 'pointer' },
+  relationEmpty: {
+    fontSize: 13, color: '#9A8470', padding: '16px', textAlign: 'center',
+    background: '#FEFCF8', borderRadius: 12, border: '1px dashed rgba(92,61,46,0.12)',
+  },
+  relAvatarRow: {
+    display: 'flex',
+    flexDirection: 'row',
+    gap: 14,
+    overflowX: 'auto',
+    paddingBottom: 4,
+    WebkitOverflowScrolling: 'touch',
+  },
+  relAvatarBtn: {
+    flexShrink: 0,
+    width: 64,
+    border: 'none',
+    background: 'none',
+    padding: 0,
+    cursor: 'pointer',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 6,
+  },
+  relAvatarCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: '50%',
+    background: 'linear-gradient(135deg, #4A5240, #C17F3C)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    boxShadow: '0 2px 8px rgba(44,24,16,0.12)',
+  },
+  relAvatarImg: { width: '100%', height: '100%', objectFit: 'cover' },
+  relAvatarInitial: { fontSize: 18, color: '#FEFCF8', fontWeight: 600 },
+  relAvatarName: {
+    fontSize: 10,
+    color: '#5C4A35',
+    maxWidth: 64,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    textAlign: 'center',
+  },
 }
