@@ -186,13 +186,8 @@ body {
   .cn-brick-row[data-cols="3"] {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+  /* PC 2칸 행 = 3칸 카드와 동일 너비 (항상). 행만 가운데 */
   .cn-brick-row[data-cols="2"] {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  /* 3열 다음 2열은 3열 카드와 같은 카드 너비로, 행만 가운데 정렬.
-     3열 카드 너비 = (컨테이너 - 두 간격) / 3
-     2개 행 너비 = 카드 2개 + 한 간격 */
-  .cn-brick-row[data-cols="2"][data-offset="true"] {
     width: calc((100% - 24px) * 2 / 3 + 12px);
     grid-template-columns: repeat(2, minmax(0, 1fr));
     margin-inline: auto;
