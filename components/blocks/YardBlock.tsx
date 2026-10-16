@@ -33,7 +33,6 @@ export interface YardBlockProps {
   visitorMode?: boolean
   discoveries?: DiscoveryItem[]
   onDiscoveryDismiss?: (id: string) => void
-  /** 골목 = 발견 (모르는 집). 연결된 이웃과 합치지 않음 */
   recommended?: NeighborChip[]
   onRecommendHouseClick?: (houseId: string) => void
   onAcceptedNeighborClick?: (houseId: string) => void
@@ -201,7 +200,7 @@ export default function YardBlock({
       {!visitorMode && (
         <MyContentBlock
           title="내 방 최신"
-          layout="density"
+          layout="brick"
           posts={myPosts}
           onPostClick={onPostClick}
           onCommentClick={onCommentClick}
