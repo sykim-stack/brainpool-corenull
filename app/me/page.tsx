@@ -54,8 +54,7 @@ export default function MePage() {
     })
   }, [])
 
-  // Google 계정으로 Owner 연결 (기존 owner_key 보존 → 구글 sub 매핑)
-  function handleGoogleConnect(ownerKey: string, info?: { isNewUser?: boolean }) {
+  function handleGoogleConnect(ownerKey: string) {
     persistOwnerKey(ownerKey)
     setSyncMsg('✅ Google 계정이 연결되었습니다.')
   }
@@ -70,188 +69,130 @@ export default function MePage() {
     const data = await res.json()
     if (data.data?.code) {
       setSyncCode(data.data.code)
-      setSyncExpiry(new Date(data.data.expires_at))
+      setSyncExpiry(new Date(Date.now() + 10 * 60 * 1000))
       setSyncMode('show')
+      setSyncMsg('')
+    } else {
+      setSyncMsg(data._error || '코드 생성 실패')
     }
   }
 
-  const handleConfirmCode = async () => {
+  const handleRedeemCode = async () => {
     if (!inputCode.trim()) return
-    const res = await fetch('/api/identity?action=link-confirm', {
+    const res = await fetch('/api/identity?action=redeem', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code: inputCode.trim() }),
+      body: JSON.stringify({ code: inputCode.trim(), owner_key: ownerKey }),
     })
     const data = await res.json()
     if (data.data?.owner_key) {
-      // Owner 복구: device_id가 아니라 owner_key 저장
       persistOwnerKey(data.data.owner_key)
-      setSyncMsg('✅ 동기화 완료! 페이지를 새로고침 해주세요.')
+      setOwnerKeyState(data.data.owner_key)
+      setSyncMsg('✅ 기기 연결 완료')
+      setSyncMode('none')
+      setInputCode('')
     } else {
-      setSyncMsg('❌ ' + (data._error || '코드가 올바르지 않아요'))
+      setSyncMsg(data._error || '코드가 유효하지 않아요')
     }
   }
 
   const handleHouseManage = () => {
     if (myHouses.length === 1) router.push(`/houses/${myHouses[0].id}/yard`)
-    else if (myHouses.length > 1) router.push('/')
+    else if (myHouses.length > 1) router.push('/yard')
     else router.push('/houses/create')
   }
 
-  if (ownerReady && !ownerKey) {
-    return <OwnerGate />
-  }
-
-  if (loading) return <div style={styles.loading}>👤</div>
+  if (!ownerReady) return null
+  if (!ownerKey) return <OwnerGate onReady={() => window.location.reload()} />
 
   return (
     <div>
-      <TopBar
-        logo={<CoreNullLogo size="sm" />}
-        title="나"
-      />
+      <TopBar logo={<CoreNullLogo size="sm" />} title="나" />
+      {isInApp && <InAppBrowserNotice name={inAppName} />}
 
-      <div style={styles.body}>
-        <div style={styles.profileCard}>
-          <div style={styles.profileAvatar}>🌱</div>
-          <div>
-            <div style={styles.profileName}>나의 공간</div>
-            <div style={styles.profileDevice}>{ownerKey}</div>
-          </div>
-        </div>
-
-        <div style={styles.statsRow}>
-          <div style={styles.statItem}>
-            <span style={styles.statNum}>{library?.my_posts?.length || 0}</span>
-            <span style={styles.statLabel}>이야기</span>
-          </div>
-          <div style={styles.statDivider} />
-          <div style={styles.statItem}>
-            <span style={styles.statNum}>{library?.footprints?.length || 0}</span>
-            <span style={styles.statLabel}>발자취</span>
-          </div>
-          <div style={styles.statDivider} />
-          <div style={styles.statItem}>
-            <span style={styles.statNum}>{(library?.saved_rooms?.length || 0) + (library?.saved_posts?.length || 0)}</span>
-            <span style={styles.statLabel}>관심</span>
-          </div>
-        </div>
-
+      <div style={{ padding: '16px 16px 40px' }}>
         <div style={styles.menuSection}>
           <div style={styles.menuItem} onClick={() => router.push('/me/library')}>
-            <div style={{ ...styles.menuIcon, background: 'rgba(74,82,64,0.12)' }}>📚</div>
+            <div style={{ ...styles.menuIcon, background: 'rgba(74,124,63,0.12)' }}>📚</div>
             <span style={styles.menuLabel}>서재</span>
-            <span style={styles.menuBadge}>{
-              (library?.footprints?.length || 0) +
-              (library?.saved_rooms?.length || 0) +
-              (library?.saved_posts?.length || 0)
-            }</span>
+            <span style={styles.menuBadge}>{library?.bookmarks?.length || 0}</span>
             <span style={styles.menuArrow}>›</span>
           </div>
           <div style={styles.menuItem} onClick={() => router.push('/me/posts')}>
-            <div style={{ ...styles.menuIcon, background: 'rgba(193,127,60,0.12)' }}>📝</div>
-            <span style={styles.menuLabel}>내가 쓴 이야기</span>
-            <span style={styles.menuBadge}>{library?.my_posts?.length || 0}</span>
+            <div style={{ ...styles.menuIcon, background: 'rgba(58,82,120,0.12)' }}>📝</div>
+            <span style={styles.menuLabel}>내 글</span>
             <span style={styles.menuArrow}>›</span>
           </div>
-          <div style={styles.menuItem} onClick={() => router.push('/me/footprints')}>
-            <div style={{ ...styles.menuIcon, background: 'rgba(200,213,185,0.4)' }}>👣</div>
-            <span style={styles.menuLabel}>발자취</span>
-            <span style={styles.menuBadge}>{library?.footprints?.length || 0}</span>
-            <span style={styles.menuArrow}>›</span>
-          </div>
-          <div style={styles.menuItem} onClick={() => router.push('/me/saved')}>
-            <div style={{ ...styles.menuIcon, background: 'rgba(200,213,185,0.4)' }}>🔖</div>
-            <span style={styles.menuLabel}>관심</span>
-            <span style={styles.menuBadge}>{(library?.saved_rooms?.length || 0) + (library?.saved_posts?.length || 0)}</span>
+          <div style={styles.menuItem} onClick={() => router.push('/me/neighbors')}>
+            <div style={{ ...styles.menuIcon, background: 'rgba(193,127,60,0.12)' }}>🤝</div>
+            <span style={styles.menuLabel}>이웃</span>
+            {pendingReceived > 0 && <span style={styles.menuBadge}>{pendingReceived}</span>}
             <span style={styles.menuArrow}>›</span>
           </div>
         </div>
 
         <div style={styles.menuSection}>
-          <div style={styles.menuItem} onClick={() => router.push('/me/house')}>
-            <div style={{ ...styles.menuIcon, background: 'rgba(193,127,60,0.12)' }}>🖼️</div>
-            <span style={styles.menuLabel}>집 이미지</span>
-            <span style={styles.menuArrow}>›</span>
-          </div>
           <div style={styles.menuItem} onClick={handleHouseManage}>
             <div style={{ ...styles.menuIcon, background: 'rgba(193,127,60,0.12)' }}>🏡</div>
             <span style={styles.menuLabel}>내 집 관리</span>
-            <span style={styles.menuBadge}>{myHouses.length > 0 ? myHouses.length : ''}</span>
-            <span style={styles.menuArrow}>›</span>
-          </div>
-          <div style={styles.menuItem} onClick={() => router.push('/me/neighbors')}>
-            <div style={{ ...styles.menuIcon, background: 'rgba(193,127,60,0.12)' }}>🏘️</div>
-            <span style={styles.menuLabel}>이웃</span>
-            {pendingReceived > 0 && (
-              <span style={{ ...styles.menuBadge, color: '#C17F3C', fontWeight: 600 }}>{pendingReceived}</span>
-            )}
-            <span style={styles.menuArrow}>›</span>
-          </div>
-          <div style={styles.menuItem}>
-            <div style={{ ...styles.menuIcon, background: 'rgba(200,213,185,0.4)' }}>⚙️</div>
-            <span style={styles.menuLabel}>설정</span>
             <span style={styles.menuArrow}>›</span>
           </div>
         </div>
 
         <div style={styles.menuSection}>
           <div style={styles.syncHeader}>
-            <span style={styles.syncTitle}>📱 기기 동기화</span>
-            <span style={styles.syncDesc}>다른 기기에서 같은 계정으로 이어가기</span>
+            <span style={styles.syncTitle}>🔗 기기 연결</span>
+            <span style={styles.syncDesc}>다른 기기에서 같은 Owner로 들어가려면</span>
           </div>
-          <div style={{ display: 'flex', gap: 8, padding: '0 16px 16px' }}>
+          <div style={{ display: 'flex', gap: 8, padding: '0 16px 12px' }}>
             <button
               style={{ ...styles.syncBtn, ...(syncMode === 'show' ? styles.syncBtnActive : {}) }}
-              onClick={() => { setSyncMode('show'); handleGenerateCode() }}
-            >코드 발급</button>
+              onClick={handleGenerateCode}
+            >
+              코드 만들기
+            </button>
             <button
               style={{ ...styles.syncBtn, ...(syncMode === 'input' ? styles.syncBtnActive : {}) }}
-              onClick={() => { setSyncMode('input'); setSyncCode(''); setSyncMsg('') }}
-            >코드 입력</button>
+              onClick={() => { setSyncMode('input'); setSyncMsg('') }}
+            >
+              코드 입력
+            </button>
           </div>
           {syncMode === 'show' && syncCode && (
             <div style={styles.syncBox}>
               <div style={styles.syncCode}>{syncCode}</div>
-              <div style={styles.syncExpiry}>{syncExpiry ? `${syncExpiry.toLocaleTimeString('ko-KR')} 까지` : ''}</div>
-              <div style={styles.syncHint}>새 기기에서 이 코드를 입력하세요 (5분 유효)</div>
+              <div style={styles.syncExpiry}>10분 안에 입력하세요</div>
             </div>
           )}
           {syncMode === 'input' && (
             <div style={styles.syncBox}>
               <input
                 style={styles.syncInput}
-                placeholder="6자리 코드 입력"
                 value={inputCode}
-                onChange={e => setInputCode(e.target.value)}
+                onChange={(e) => setInputCode(e.target.value.toUpperCase())}
                 maxLength={6}
-                inputMode="numeric"
+                placeholder="코드"
               />
-              <button style={styles.syncConfirmBtn} onClick={handleConfirmCode}>확인</button>
-              {syncMsg && <div style={styles.syncMsg}>{syncMsg}</div>}
+              <button style={styles.syncConfirmBtn} onClick={handleRedeemCode}>연결</button>
             </div>
           )}
+          {syncMsg && <div style={styles.syncMsg}>{syncMsg}</div>}
+        </div>
 
+        <div style={styles.menuSection}>
           <div style={styles.syncHeader}>
             <span style={styles.syncTitle}>🔗 Google 계정 연결</span>
             <span style={styles.syncDesc}>Chrome/Edge/Safari에서 Google 로그인 후 계정 연결</span>
           </div>
-          {isInApp && <InAppBrowserNotice name={inAppName} />}
-          {googleAvailable && !googleError && (
-            <div style={styles.googleConnectBox}>
+          <div style={styles.googleConnectBox}>
+            {googleAvailable ? (
               <div ref={googleRef} style={styles.googleBtnWrap} />
-              <div style={styles.syncHint}>Google 계정으로 로그인하면 다른 기기에서도 같은 집에 연결됩니다.</div>
-            </div>
-          )}
-          {googleError && !isInApp && (
-            <div style={styles.syncHint}>
-              Google 버튼을 불러오지 못했어요. 브라우저가 google.com을 차단하거나,
-              <button style={{ ...styles.link, display: 'block', marginTop: 4 }} onClick={() => window.location.reload()}>새로고침</button>
-            </div>
-          )}
-          {!googleAvailable && !isInApp && !googleError && (
-            <div style={styles.syncHint}>Google 연결은 관리자 설정 중입니다.</div>
-          )}
+            ) : googleError ? (
+              <div style={styles.syncHint}>Google 버튼을 불러오지 못했어요.</div>
+            ) : (
+              <div style={styles.syncHint}>Google 연결은 관리자 설정 중입니다.</div>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -259,29 +200,6 @@ export default function MePage() {
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  loading: { display: 'flex', alignItems: 'center', justifyContent: 'center', height: '50vh', fontSize: 40 },
-  body: { padding: '16px' },
-  profileCard: {
-    background: '#FEFCF8', borderRadius: 20, border: '1px solid rgba(92,61,46,0.12)',
-    padding: '20px', display: 'flex', alignItems: 'center', gap: 16,
-    marginBottom: 12, boxShadow: '0 2px 20px rgba(44,24,16,0.08)',
-  },
-  profileAvatar: {
-    width: 64, height: 64, borderRadius: '50%',
-    background: 'linear-gradient(135deg, #4A5240, #C17F3C)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28,
-  },
-  profileName: { fontFamily: "'Noto Serif KR', serif", fontSize: 18, fontWeight: 600, color: '#2C1810' },
-  profileDevice: { fontSize: 11, color: '#9A8470', marginTop: 4 },
-  statsRow: {
-    background: '#FEFCF8', borderRadius: 16, border: '1px solid rgba(92,61,46,0.12)',
-    padding: '16px', display: 'flex', alignItems: 'center',
-    marginBottom: 12, boxShadow: '0 2px 20px rgba(44,24,16,0.08)',
-  },
-  statItem: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 },
-  statNum: { fontSize: 22, fontWeight: 600, color: '#2C1810' },
-  statLabel: { fontSize: 11, color: '#9A8470' },
-  statDivider: { width: 1, height: 32, background: 'rgba(92,61,46,0.12)' },
   menuSection: {
     background: '#FEFCF8', borderRadius: 16, border: '1px solid rgba(92,61,46,0.12)',
     overflow: 'hidden', marginBottom: 12,
@@ -320,7 +238,7 @@ const styles: Record<string, React.CSSProperties> = {
     width: '100%', padding: '12px', background: '#2C1810', color: 'white',
     border: 'none', borderRadius: 12, fontSize: 14, fontWeight: 600, cursor: 'pointer',
   },
-  syncMsg: { fontSize: 13, color: '#5C4A35', textAlign: 'center' },
+  syncMsg: { fontSize: 13, color: '#5C4A35', textAlign: 'center', padding: '0 16px 12px' },
   googleConnectBox: { padding: '0 16px 16px', display: 'flex', flexDirection: 'column', gap: 8 },
   googleBtnWrap: { width: '100%', display: 'flex', justifyContent: 'center' },
 }
