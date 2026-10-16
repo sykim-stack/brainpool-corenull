@@ -8,7 +8,7 @@ import { RingData } from './RingBlock'
 
 /**
  * LivingBlock — 거실 (구조 닫음)
- * Hero → 복도(골목 블록 · 방 1개) → 최신글 brick 3-2-3
+ * Hero → 복도(골목 블록 · 방 1개) → 최신글 brick 3-2-3-2-3
  * 문패 CTA = 방 만들기
  */
 
@@ -83,7 +83,7 @@ export default function LivingBlock({
         onPostClick={onPostClick}
       />
 
-      {/* 최신글 = 광장/마당과 동일 벽돌 3-2-3 */}
+      {/* 최신글 = desktop 3-2-3-2-3 / mobile 2-1-2-1-2 */}
       <MyContentBlock
         title="최신글"
         layout="brick"

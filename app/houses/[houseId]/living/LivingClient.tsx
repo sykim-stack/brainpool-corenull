@@ -131,14 +131,29 @@ export default function LivingClient() {
               )
         setRoomCount(list.length)
 
-        const slots: NeighborRoomSlot[] = await Promise.all(
+        const slots = await Promise.all(
           list.map(async (rm: any) => {
             const pd = await fetch(`/api/corenull/posts?room_id=${rm.id}`).then((r) => r.json())
-            const latest =
-              (pd.data || []).find((p: any) => p.type !== 'comment') || (pd.data || [])[0]
+            const roomPosts = (pd.data || []).filter((p: any) => p.type !== 'comment')
+            const latest = roomPosts[0]
             return {
               roomId: rm.id,
               roomName: rm.room_name,
+              posts: roomPosts.map((post: any) => ({
+                id: post.id,
+                content: post.content,
+                media: post.meta?.media,
+                created_at: post.created_at,
+                comment_count: post.comment_count ?? 0,
+                room_id: rm.id,
+                view_meta: {
+                  house_name: h.title,
+                  room_name: rm.room_name,
+                  status: roomStatusLabel(rm),
+                  stage_emoji: rm.seed_mode || rm.room_type === 'seed' ? '🌱' : undefined,
+                  relation: rel.kind === 'self' ? '나' : '이웃',
+                },
+              })),
               latestPost: latest
                 ? {
                     id: latest.id,
@@ -173,8 +188,7 @@ export default function LivingClient() {
         ])
 
         const views = slots
-          .map((s) => s.latestPost)
-          .filter((p): p is PostBlockData => !!p)
+          .flatMap((s) => s.posts)
           .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
         setRoomViews(views)
       } finally {

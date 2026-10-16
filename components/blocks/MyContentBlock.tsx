@@ -2,13 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import PostBlock, { PostBlockData, PostBlockGrid } from './PostBlock'
+import { BRICK_LAYOUT, partitionBrick } from '@/lib/brickLayout'
 
 const DENSITY_MAX = 3
-const BRICK_PAGE_DESKTOP = 10
-const BRICK_PAGE_MOBILE = 6
-/** PC: 3-2-3-2 / 모바일: 2칸 우선·남은 1칸 가로 풀 */
-const BRICK_PATTERN_DESKTOP = [3, 2, 3, 2]
-const BRICK_PATTERN_MOBILE = [2, 1]
 
 export type MyContentLayout = 'density' | 'brick'
 
@@ -29,40 +25,6 @@ export interface MyContentBlockProps {
   showHouseName?: boolean
 }
 
-/** PC: pattern 반복. 모바일: 2칸 우선, 남는 1칸은 가로 풀(빈 공간 없음)
- *  1→길게 / 2→나란히 / 3→2+1 */
-function partitionBrick<T>(
-  items: T[],
-  pattern: number[],
-  mobile = false
-): { cards: T[]; cols: string; offset: boolean }[] {
-  const rows: { cards: T[]; cols: string; offset: boolean }[] = []
-  let i = 0
-  if (mobile) {
-    while (i < items.length) {
-      const left = items.length - i
-      const take = left === 1 ? 1 : 2
-      const cards = items.slice(i, i + take)
-      const cols = cards.length === 1 ? 'large' : '2'
-      rows.push({ cards, cols, offset: false })
-      i += cards.length
-    }
-    return rows
-  }
-  let pi = 0
-  let prevCols = ''
-  while (i < items.length) {
-    const want = pattern[pi % pattern.length]
-    const cards = items.slice(i, i + want)
-    const cols = cards.length === 1 ? 'large' : cards.length === 3 ? '3' : '2'
-    rows.push({ cards, cols, offset: cols === '2' && prevCols === '3' })
-    prevCols = cols
-    i += cards.length
-    pi++
-  }
-  return rows
-}
-
 export default function MyContentBlock({
   title = '내 방 최신 콘텐츠',
   posts,
@@ -81,6 +43,7 @@ export default function MyContentBlock({
 }: MyContentBlockProps) {
   const [page, setPage] = useState(0)
   const [wide, setWide] = useState(false)
+  const [touchStartX, setTouchStartX] = useState<number | null>(null)
 
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 768px)')
@@ -91,7 +54,11 @@ export default function MyContentBlock({
   }, [])
 
   const isBrick = layout === 'brick'
-  const pageSize = isBrick ? (wide ? BRICK_PAGE_DESKTOP : BRICK_PAGE_MOBILE) : DENSITY_MAX
+  const pageSize = isBrick
+    ? wide
+      ? BRICK_LAYOUT.desktop.pageSize
+      : BRICK_LAYOUT.mobile.pageSize
+    : DENSITY_MAX
   const source = isBrick ? posts : posts.slice(0, DENSITY_MAX)
   const pageCount = isBrick ? Math.max(1, Math.ceil(source.length / pageSize)) : 1
   const needsSwipe = isBrick && source.length > pageSize
@@ -106,7 +73,7 @@ export default function MyContentBlock({
     : source
 
   const brickRows = isBrick
-    ? partitionBrick(visible, wide ? BRICK_PATTERN_DESKTOP : BRICK_PATTERN_MOBILE, !wide)
+    ? partitionBrick(visible, wide ? 'desktop' : 'mobile')
     : []
 
   const renderPost = (post: PostBlockData) => (
@@ -130,40 +97,58 @@ export default function MyContentBlock({
     <section style={styles.section}>
       <div style={styles.header}>
         <span style={styles.title}>{title}</span>
-        {isBrick && source.length > 0 && (
-          <span style={styles.hint}>
-            {needsSwipe
-              ? `${safePage + 1}/${pageCount} · ${source.length}개`
-              : `${source.length}개`}
-          </span>
-        )}
-      </div>
-
-      {posts.length === 0 ? (
-        <div style={styles.empty}>{emptyLabel}</div>
-      ) : isBrick ? (
-        <div style={styles.brickStage}>
+        <div style={styles.headerActions}>
+          {isBrick && source.length > 0 && (
+            <span style={styles.hint}>
+              {needsSwipe
+                ? `${safePage + 1}/${pageCount} · ${source.length}개`
+                : `${source.length}개`}
+            </span>
+          )}
           {needsSwipe && (
-            <>
+            <div style={styles.headerArrows}>
               <button
                 type="button"
-                style={{ ...styles.setArrow, left: 0 }}
+                style={styles.headerArrow}
                 onClick={() => setPage((p) => (p - 1 + pageCount) % pageCount)}
-                aria-label="이전"
+                aria-label="이전 게시물 묶음"
               >
                 ‹
               </button>
               <button
                 type="button"
-                style={{ ...styles.setArrow, right: 0 }}
+                style={styles.headerArrow}
                 onClick={() => setPage((p) => (p + 1) % pageCount)}
-                aria-label="다음"
+                aria-label="다음 게시물 묶음"
               >
                 ›
               </button>
-            </>
+            </div>
           )}
+        </div>
+      </div>
 
+      {posts.length === 0 ? (
+        <div style={styles.empty}>{emptyLabel}</div>
+      ) : isBrick ? (
+        <div
+          style={styles.brickStage}
+          onTouchStart={(event) => setTouchStartX(event.touches[0]?.clientX ?? null)}
+          onTouchEnd={(event) => {
+            if (!needsSwipe || touchStartX === null) return
+            const deltaX = event.changedTouches[0]?.clientX
+            if (deltaX === undefined) return
+            const distance = deltaX - touchStartX
+            if (Math.abs(distance) >= 45) {
+              setPage((current) =>
+                distance < 0
+                  ? (current + 1) % pageCount
+                  : (current - 1 + pageCount) % pageCount
+              )
+            }
+            setTouchStartX(null)
+          }}
+        >
           <div className="cn-brick">
             {brickRows.map((row, ri) => (
               <div
@@ -185,27 +170,11 @@ export default function MyContentBlock({
             ))}
           </div>
 
-          {needsSwipe && (
-            <div style={styles.dots}>
-              {Array.from({ length: pageCount }).map((_, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  style={{
-                    ...styles.dot,
-                    background: i === safePage ? '#2C1810' : 'rgba(92,61,46,0.2)',
-                  }}
-                  onClick={() => setPage(i)}
-                  aria-label={`페이지 ${i + 1}`}
-                />
-              ))}
-            </div>
-          )}
         </div>
       ) : !wide ? (
         /* 모바일 density도 2+1 팩 — 마지막 1개 빈칸 방지 */
         <div className="cn-brick">
-          {partitionBrick(visible, BRICK_PATTERN_MOBILE, true).map((row, ri) => (
+          {partitionBrick(visible, 'mobile').map((row, ri) => (
             <div
               key={ri}
               className="cn-brick-row"
@@ -245,6 +214,20 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 600,
     color: '#2C1810',
   },
+  headerActions: { display: 'flex', alignItems: 'center', gap: 8 },
+  headerArrows: { display: 'flex', alignItems: 'center', gap: 4 },
+  headerArrow: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    border: '1px solid rgba(92,61,46,0.16)',
+    background: '#FEFCF8',
+    color: '#2C1810',
+    fontSize: 20,
+    lineHeight: '24px',
+    padding: 0,
+    cursor: 'pointer',
+  },
   hint: { fontSize: 11, color: '#9A8470' },
   empty: {
     textAlign: 'center',
@@ -255,36 +238,5 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 14,
     border: '1px dashed rgba(92,61,46,0.15)',
   },
-  brickStage: { position: 'relative' },
-  setArrow: {
-    position: 'absolute',
-    top: '40%',
-    transform: 'translateY(-50%)',
-    zIndex: 2,
-    width: 28,
-    height: 36,
-    borderRadius: 10,
-    border: '1px solid rgba(92,61,46,0.12)',
-    background: 'rgba(254,252,248,0.95)',
-    color: '#2C1810',
-    fontSize: 20,
-    lineHeight: '36px',
-    padding: 0,
-    cursor: 'pointer',
-    boxShadow: '0 2px 8px rgba(44,24,16,0.08)',
-  },
-  dots: {
-    display: 'flex',
-    justifyContent: 'center',
-    gap: 6,
-    marginTop: 12,
-  },
-  dot: {
-    width: 7,
-    height: 7,
-    borderRadius: '50%',
-    border: 'none',
-    padding: 0,
-    cursor: 'pointer',
-  },
+  brickStage: { position: 'relative', touchAction: 'pan-y' },
 }
