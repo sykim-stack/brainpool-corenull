@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import { getOwnerKey } from '@/lib/ownerKey'
 import {
   getPostInterestState,
-  findInterestBookmark,
   interestPostBody,
 } from '@/lib/interest'
 import { pickActiveHouse, setActiveHouseId } from '@/lib/activeHouse'
@@ -121,7 +120,9 @@ export default function YardPage() {
       const list = hRes.data || []
       setHouses(list)
       setBookmarks(bmRes.data || [])
-      const active = pickActiveHouse(list, preferredHouseId)
+      const active = preferredHouseId
+        ? list.find((h: any) => h.id === preferredHouseId) || pickActiveHouse(list)
+        : pickActiveHouse(list)
       if (!active) {
         setHouse(null)
         setLoading(false)
@@ -226,7 +227,7 @@ export default function YardPage() {
               comment_count: latest.comment_count ?? 0,
               room_id: rm.id,
               view_meta: {
-                house_name: active.title,
+                house_name: (active as any).title,
                 room_name: rm.room_name,
                 status: roomStatusLabel(rm),
               },
@@ -258,7 +259,12 @@ export default function YardPage() {
       await fetch('/api/corenull/houses', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'neighbor_request', house_id: house.id, target_house_id: targetHouseId, owner_key: ownerKey }),
+        body: JSON.stringify({
+          action: 'neighbor_request',
+          house_id: house.id,
+          target_house_id: targetHouseId,
+          owner_key: ownerKey,
+        }),
       })
       await reload(ownerKey, house.id)
     } finally {
@@ -269,7 +275,7 @@ export default function YardPage() {
   const handleInterest = async (postId: string, roomId?: string) => {
     setInterestLoadingId(roomId || postId)
     try {
-      const body = interestPostBody({ ownerKey, postId, roomId, bookmarks })
+      const body = interestPostBody(ownerKey, postId, roomId)
       const res = await fetch('/api/corenull/bookmarks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -283,7 +289,7 @@ export default function YardPage() {
   }
 
   if (!ownerReady) return null
-  if (!ownerKey) return <OwnerGate onReady={() => window.location.reload()} />
+  if (!ownerKey) return <OwnerGate />
 
   const acceptedCount = relations.filter((r) => r.status === 'accepted').length
   const langFlag = LANG_FLAG[house?.primary_language] || '🏡'
@@ -365,7 +371,9 @@ export default function YardPage() {
           if (roomId) router.push(`/rooms/${roomId}`)
         }}
         showInterest
-        getInterestState={(postId, roomId) => getPostInterestState(bookmarks, postId, roomId)}
+        getInterestState={(postId: string, roomId?: string) =>
+          getPostInterestState(bookmarks, postId, roomId)
+        }
         interestLoadingId={interestLoadingId}
         onInterestClick={handleInterest}
         enableInlineComment
@@ -385,7 +393,13 @@ export default function YardPage() {
           }}
         />
       )}
-      {showShare && <ShareModal onClose={() => setShowShare(false)} />}
+      {showShare && house && (
+        <ShareModal
+          url={typeof window !== 'undefined' ? window.location.href : ''}
+          title={house.title || 'CoreNull 마당'}
+          onClose={() => setShowShare(false)}
+        />
+      )}
     </div>
   )
 }
