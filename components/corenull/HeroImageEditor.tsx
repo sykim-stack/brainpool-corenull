@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 export type HeroImagePosition = {
   x: number
@@ -29,11 +30,24 @@ function normalize(value?: Partial<HeroImagePosition> | null): HeroImagePosition
 export default function HeroImageEditor({ url, value, label, onSave, onClose }: Props) {
   const [position, setPosition] = useState(() => normalize(value))
   const [saving, setSaving] = useState(false)
+  const [mounted, setMounted] = useState(false)
   const dragRef = useRef<{ x: number; y: number; startX: number; startY: number } | null>(null)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   useEffect(() => {
     setPosition(normalize(value))
   }, [value])
+
+  useEffect(() => {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = prev
+    }
+  }, [])
 
   const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     event.currentTarget.setPointerCapture(event.pointerId)
@@ -48,7 +62,6 @@ export default function HeroImageEditor({ url, value, label, onSave, onClose }: 
   const onPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
     const drag = dragRef.current
     if (!drag) return
-    // 드래그 방향과 배경 이동 방향을 직관적으로 맞춘다.
     setPosition((current) => ({
       ...current,
       x: Math.min(100, Math.max(0, drag.x - (event.clientX - drag.startX) / 3)),
@@ -70,7 +83,9 @@ export default function HeroImageEditor({ url, value, label, onSave, onClose }: 
     }
   }
 
-  return (
+  if (!mounted) return null
+
+  return createPortal(
     <div style={styles.backdrop} role="dialog" aria-modal="true" aria-label={`${label} 위치 조절`}>
       <div style={styles.modal}>
         <div style={styles.header}>
@@ -93,18 +108,18 @@ export default function HeroImageEditor({ url, value, label, onSave, onClose }: 
           onPointerUp={stopDragging}
           onPointerCancel={stopDragging}
         >
-          <div style={styles.overlay}>드래그해서 위치 조절</div>
+          <div style={styles.overlay}>드래그 · 확대</div>
         </div>
 
         <label style={styles.sliderLabel}>
-          <span>확대</span>
+          확대
           <input
             type="range"
-            min="1"
-            max="2.5"
-            step="0.05"
+            min={1}
+            max={2.5}
+            step={0.05}
             value={position.scale}
-            onChange={(event) => setPosition((current) => ({ ...current, scale: Number(event.target.value) }))}
+            onChange={(e) => setPosition((c) => ({ ...c, scale: Number(e.target.value) }))}
             style={styles.slider}
           />
           <strong>{position.scale.toFixed(2)}×</strong>
@@ -118,19 +133,58 @@ export default function HeroImageEditor({ url, value, label, onSave, onClose }: 
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  backdrop: { position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(28,18,8,0.56)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 },
-  modal: { width: 'min(100%, 520px)', background: '#FEFCF8', borderRadius: 18, padding: 16, boxShadow: '0 18px 50px rgba(28,18,8,0.25)' },
+  backdrop: {
+    position: 'fixed',
+    inset: 0,
+    zIndex: 10000,
+    background: 'rgba(28,18,8,0.56)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+  },
+  modal: {
+    width: 'min(100%, 520px)',
+    background: '#FEFCF8',
+    borderRadius: 18,
+    padding: 16,
+    boxShadow: '0 18px 50px rgba(28,18,8,0.25)',
+    position: 'relative',
+    zIndex: 10001,
+  },
   header: { display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 14 },
   title: { fontFamily: "'Noto Serif KR', serif", fontSize: 17, fontWeight: 600, color: '#2C1810' },
   hint: { marginTop: 4, fontSize: 11, color: '#9A8470' },
   close: { border: 0, background: 'none', color: '#9A8470', fontSize: 26, lineHeight: 1, cursor: 'pointer' },
-  canvas: { height: 'min(52vw, 250px)', minHeight: 170, borderRadius: 14, backgroundRepeat: 'no-repeat', cursor: 'grab', touchAction: 'none', position: 'relative', overflow: 'hidden' },
-  overlay: { position: 'absolute', left: '50%', bottom: 12, transform: 'translateX(-50%)', padding: '6px 10px', borderRadius: 999, background: 'rgba(28,18,8,0.62)', color: '#FEFCF8', fontSize: 11, pointerEvents: 'none', whiteSpace: 'nowrap' },
+  canvas: {
+    height: 'min(52vw, 250px)',
+    minHeight: 170,
+    borderRadius: 14,
+    backgroundRepeat: 'no-repeat',
+    cursor: 'grab',
+    touchAction: 'none',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  overlay: {
+    position: 'absolute',
+    left: '50%',
+    bottom: 12,
+    transform: 'translateX(-50%)',
+    padding: '6px 10px',
+    borderRadius: 999,
+    background: 'rgba(28,18,8,0.62)',
+    color: '#FEFCF8',
+    fontSize: 11,
+    pointerEvents: 'none',
+    whiteSpace: 'nowrap',
+  },
   sliderLabel: { display: 'flex', alignItems: 'center', gap: 10, marginTop: 16, color: '#5C4A35', fontSize: 12 },
   slider: { flex: 1, accentColor: '#C17F3C' },
   footer: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 18 },
@@ -141,4 +195,3 @@ const styles: Record<string, React.CSSProperties> = {
 }
 
 export { normalize as normalizeHeroImagePosition }
-
