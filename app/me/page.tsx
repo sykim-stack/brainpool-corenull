@@ -103,7 +103,7 @@ export default function MePage() {
   }
 
   if (!ownerReady) return null
-  if (!ownerKey) return <OwnerGate onReady={() => window.location.reload()} />
+  if (!ownerKey) return <OwnerGate />
 
   return (
     <div>
