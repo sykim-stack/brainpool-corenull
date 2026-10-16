@@ -9,12 +9,12 @@ import CoreNullLogo from '@/components/corenull/CoreNullLogo'
 import HeroImageEditor, { HeroImagePosition } from '@/components/corenull/HeroImageEditor'
 
 // House 이미지 등록 — /write 업로드 파이프라인 재사용 + 클라이언트 압축.
+// 프로필(avatar)은 마당 Hero Ring에서만 다룬다. /me 에서는 제외.
 
-type SlotKey = 'avatar_url' | 'yard_image_url' | 'living_image_url'
-type HeroSlotKey = Exclude<SlotKey, 'avatar_url'>
+type SlotKey = 'yard_image_url' | 'living_image_url'
+type HeroSlotKey = SlotKey
 
 const SLOTS: { key: SlotKey; label: string; hint: string }[] = [
-  { key: 'avatar_url', label: '프로필', hint: 'Ring · 이웃 프로필' },
   { key: 'yard_image_url', label: '마당 배경', hint: '골목 · 마당 Hero' },
   { key: 'living_image_url', label: '거실 배경', hint: '복도 · 거실 Hero' },
 ]
@@ -32,7 +32,6 @@ export default function HouseImagesPage() {
   const [msg, setMsg] = useState('')
 
   useEffect(() => {
-    // House 이미지와 Hero 위치 설정은 House Owner에 귀속한다.
     const key = getOwnerKey()
     setOwnerKey(key)
     if (!key) {
@@ -84,24 +83,21 @@ export default function HouseImagesPage() {
 
       setSaving(true)
       setMsg('저장 중…')
+      const patch: Record<string, string> = { [activeSlot]: item.url }
       const res = await fetch('/api/corenull/houses', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          house_id: house.id,
-          owner_key: ownerKey,
-          [activeSlot]: item.url,
-        }),
+        body: JSON.stringify({ house_id: house.id, owner_key: ownerKey, ...patch }),
       })
       const data = await res.json()
       if (data.data) {
         setHouse(data.data)
-        setMsg(prepared.note ? `저장됐어요 (${prepared.note})` : '저장됐어요')
+        setMsg('저장됐어요')
       } else {
-        setMsg(data._error || '저장 실패 — DB 마이그레이션 확인')
+        setMsg(data._error || '저장 실패')
       }
     } catch {
-      setMsg('네트워크 오류')
+      setMsg('업로드 중 오류')
     }
     setUploading(false)
     setSaving(false)
@@ -115,16 +111,12 @@ export default function HouseImagesPage() {
     const res = await fetch('/api/corenull/houses', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        house_id: house.id,
-        owner_key: ownerKey,
-        [key]: null,
-      }),
+      body: JSON.stringify({ house_id: house.id, owner_key: ownerKey, [key]: null }),
     })
     const data = await res.json()
     if (data.data) {
       setHouse(data.data)
-      setMsg('기본으로 되돌렸어요')
+      setMsg('지웠어요')
     } else {
       setMsg(data._error || '삭제 실패')
     }
@@ -133,29 +125,32 @@ export default function HouseImagesPage() {
 
   const saveHeroPosition = async (key: HeroSlotKey, position: HeroImagePosition) => {
     if (!house || !ownerKey) return
-    setSaving(true)
-    setMsg('위치 저장 중…')
     const positionKey = key === 'yard_image_url' ? 'yard_image_position' : 'living_image_position'
-    try {
-      const res = await fetch('/api/corenull/houses', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ house_id: house.id, owner_key: ownerKey, [positionKey]: position }),
-      })
-      const data = await res.json()
-      if (data.data) {
-        setHouse(data.data)
-        setMsg('Hero 위치가 저장됐어요')
-      } else {
-        throw new Error(data._error || '저장 실패')
-      }
-    } finally {
-      setSaving(false)
+    const res = await fetch('/api/corenull/houses', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        house_id: house.id,
+        owner_key: ownerKey,
+        [positionKey]: position,
+      }),
+    })
+    const data = await res.json()
+    if (data.data) {
+      setHouse(data.data)
+      setMsg('Hero 위치가 저장됐어요')
+    } else {
+      throw new Error(data._error || '위치 저장 실패')
     }
   }
 
   if (loading) {
-    return <div style={styles.loading}>🏡</div>
+    return (
+      <div>
+        <TopBar logo={<CoreNullLogo size="sm" />} title="집 이미지" />
+        <div style={styles.loading}>…</div>
+      </div>
+    )
   }
 
   if (!house) {
@@ -163,8 +158,8 @@ export default function HouseImagesPage() {
       <div>
         <TopBar logo={<CoreNullLogo size="sm" />} title="집 이미지" />
         <div style={styles.empty}>
-          <p>아직 집이 없어요</p>
-          <button style={styles.primaryBtn} onClick={() => router.push('/houses/create')}>
+          <p>먼저 집을 만들어 주세요.</p>
+          <button type="button" style={styles.primaryBtn} onClick={() => router.push('/houses/create')}>
             집 만들기
           </button>
         </div>
@@ -175,75 +170,56 @@ export default function HouseImagesPage() {
   return (
     <div>
       <TopBar logo={<CoreNullLogo size="sm" />} title="집 이미지" />
-
       <div style={styles.body}>
         <p style={styles.lead}>
-          {house.title}
-          <br />
-          <span style={styles.leadSub}>올기기 전 자동으로 가볍게 줄입니다.</span>
+          마당·거실 배경만 여기서 올려요.
+          <span style={styles.leadSub}> 프로필 사진은 마당 Hero Ring에서 다뤄요.</span>
         </p>
-
         {msg && <div style={styles.msg}>{msg}</div>}
 
         {SLOTS.map((slot) => {
-          const url = house[slot.key] as string | null
+          const url = house?.[slot.key] as string | null | undefined
           return (
             <div key={slot.key} style={styles.card}>
               <div style={styles.cardHead}>
-                <div>
-                  <div style={styles.cardTitle}>{slot.label}</div>
-                  <div style={styles.cardHint}>{slot.hint}</div>
-                </div>
+                <div style={styles.cardTitle}>{slot.label}</div>
+                <div style={styles.cardHint}>{slot.hint}</div>
               </div>
               <div
                 style={{
                   ...styles.preview,
-                  backgroundImage: url ? `url(${url})` : undefined,
-                  backgroundPosition: url
-                    ? `${house[slot.key === 'yard_image_url' ? 'yard_image_position' : 'living_image_position']?.x ?? 50}% ${house[slot.key === 'yard_image_url' ? 'yard_image_position' : 'living_image_position']?.y ?? 50}%`
-                    : 'center',
-                  backgroundSize: url
-                    ? ((house[slot.key === 'yard_image_url' ? 'yard_image_position' : 'living_image_position']?.scale ?? 1) === 1
-                        ? 'cover'
-                        : `${(house[slot.key === 'yard_image_url' ? 'yard_image_position' : 'living_image_position']?.scale ?? 1) * 100}%`)
-                    : 'cover',
-                  background: url
-                    ? undefined
-                    : slot.key === 'living_image_url'
-                      ? 'linear-gradient(135deg, #5C4A35 0%, #8A6F52 60%, #D8C4A8 100%)'
-                      : 'linear-gradient(135deg, #4A5240 0%, #7A8C6E 60%, #C8D5B9 100%)',
+                  backgroundImage: url ? `url(${url})` : 'linear-gradient(135deg,#c4b5a5,#9a8470)',
                 }}
               >
-                {!url && (
-                  <span style={styles.previewEmpty}>
-                    {slot.key === 'avatar_url' ? '🏡 기본' : '기본 배경'}
-                  </span>
-                )}
+                {!url && <span style={styles.previewEmpty}>기본 배경</span>}
               </div>
               <div style={styles.actions}>
                 <button
+                  type="button"
                   style={styles.mediaBtn}
-                  disabled={uploading || saving}
                   onClick={() => pickSlot(slot.key)}
+                  disabled={uploading || saving}
                 >
-                  {uploading && activeSlot === slot.key ? '처리 중…' : url ? '📷 바꾸기' : '📷 올리기'}
+                  {uploading && activeSlot === slot.key ? '올리는 중…' : url ? '바꾸기' : '올리기'}
                 </button>
                 {url && (
                   <button
-                    style={styles.clearBtn}
-                    disabled={uploading || saving}
-                    onClick={() => clearSlot(slot.key)}
-                  >
-                    기본으로
-                  </button>
-                )}
-                {url && slot.key !== 'avatar_url' && (
-                  <button
+                    type="button"
                     style={styles.adjustBtn}
+                    onClick={() => setEditingHero(slot.key)}
                     disabled={uploading || saving}
-                    onClick={() => setEditingHero(slot.key as HeroSlotKey)}
                   >
                     위치 조절
+                  </button>
+                )}
+                {url && (
+                  <button
+                    type="button"
+                    style={styles.clearBtn}
+                    onClick={() => clearSlot(slot.key)}
+                    disabled={uploading || saving}
+                  >
+                    지우기
                   </button>
                 )}
               </div>
