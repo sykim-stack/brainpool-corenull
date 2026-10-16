@@ -9,7 +9,8 @@ import TopBar from '@/components/blocks/TopBar'
 import CoreNullLogo from '@/components/corenull/CoreNullLogo'
 import ShareModal from '@/components/corenull/ShareModal'
 import RoomSettingsModal from '@/components/corenull/RoomSettingsModal'
-import PostBlock from '@/components/blocks/PostBlock'
+import PostBlock, { PostBlockData } from '@/components/blocks/PostBlock'
+import MyContentBlock from '@/components/blocks/MyContentBlock'
 
 type Room = {
   id: string
@@ -67,6 +68,19 @@ export default function RoomClient() {
   const [showShare, setShowShare] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [ownerKey, setOwnerKey] = useState('')
+  const [viewMode, setViewMode] = useState<'list' | 'block'>('list')
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('corenull_room_view')
+      if (saved === 'list' || saved === 'block') setViewMode(saved)
+    } catch {}
+  }, [])
+
+  const setViewModePersist = (mode: 'list' | 'block') => {
+    setViewMode(mode)
+    try { localStorage.setItem('corenull_room_view', mode) } catch {}
+  }
 
   const isOwner = house?.owner_key === ownerKey
   const canWrite = isOwner || isMember
@@ -196,9 +210,51 @@ export default function RoomClient() {
         </div>
       )}
 
-      <main style={{ padding: '16px' }}>
+      <main style={{ padding: viewMode === 'block' ? '8px 0 16px' : '16px' }}>
+        {posts.length > 0 && (
+          <div style={viewToggleRow}>
+            <span style={viewToggleLabel}>보기</span>
+            <div style={viewToggleGroup}>
+              <button
+                type="button"
+                style={{ ...viewToggleBtn, ...(viewMode === 'list' ? viewToggleBtnActive : {}) }}
+                onClick={() => setViewModePersist('list')}
+              >
+                리스트
+              </button>
+              <button
+                type="button"
+                style={{ ...viewToggleBtn, ...(viewMode === 'block' ? viewToggleBtnActive : {}) }}
+                onClick={() => setViewModePersist('block')}
+              >
+                블록
+              </button>
+            </div>
+          </div>
+        )}
+
         {posts.length === 0 ? (
           <EmptyState isOwner={canWrite} roomId={roomId} />
+        ) : viewMode === 'block' ? (
+          <MyContentBlock
+            title=""
+            layout="brick"
+            posts={posts.map((post) => ({
+              id: post.id,
+              content: post.content || '',
+              media: (post.meta?.media as any) || undefined,
+              created_at: post.created_at,
+              comment_count: (post as any).comment_count ?? 0,
+              room_id: roomId,
+              view_meta: {
+                house_name: house?.title,
+                room_name: room.room_name,
+              },
+            }))}
+            emptyLabel="아직 이야기가 없어요"
+            onPostClick={(id) => router.push(`/posts/${id}`)}
+            onCommentClick={(id) => router.push(`/posts/${id}`)}
+          />
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {posts.map((post) => (
@@ -288,4 +344,20 @@ const countdownBanner: React.CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 12, margin: '12px 16px',
   padding: '12px 14px', borderRadius: 12, border: '1px solid',
   background: '#fef3e2', color: '#C17F3C', fontWeight: 600,
+}
+
+const viewToggleRow: React.CSSProperties = {
+  display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
+  gap: 8, marginBottom: 12,
+}
+const viewToggleLabel: React.CSSProperties = { fontSize: 12, color: '#9A8470', marginRight: 4 }
+const viewToggleGroup: React.CSSProperties = {
+  display: 'inline-flex', borderRadius: 10, border: '1px solid rgba(92,61,46,0.12)', overflow: 'hidden',
+}
+const viewToggleBtn: React.CSSProperties = {
+  border: 'none', background: '#FEFCF8', color: '#9A8470', fontSize: 12,
+  padding: '6px 12px', cursor: 'pointer',
+}
+const viewToggleBtnActive: React.CSSProperties = {
+  background: '#2C1810', color: '#FEFCF8',
 }
