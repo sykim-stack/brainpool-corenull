@@ -18,6 +18,7 @@ export interface LivingBlockProps {
   avatar?: React.ReactNode
   doorplate: HeroDoorplate
   heroControls?: React.ReactNode
+  avatarControls?: React.ReactNode
 
   /** 복도용 — 보통 이 집 1칩 + rooms[] */
   corridor: NeighborChip[]
@@ -44,6 +45,7 @@ export default function LivingBlock({
   avatar,
   doorplate,
   heroControls,
+  avatarControls,
   corridor,
   onCorridorHouseClick,
   roomViews,
@@ -70,9 +72,9 @@ export default function LivingBlock({
         avatar={avatar}
         doorplate={doorplate}
         heroControls={heroControls}
+        avatarControls={avatarControls}
       />
 
-      {/* 복도 = 골목 블록 · 방 1개씩 */}
       <NeighborContentBlock
         tier="invite"
         mode="neighbor"
@@ -83,7 +85,6 @@ export default function LivingBlock({
         onPostClick={onPostClick}
       />
 
-      {/* 최신글 = desktop 3-2-3-2-3 / mobile 2-1-2-1-2 */}
       <MyContentBlock
         title="최신글"
         layout="brick"
