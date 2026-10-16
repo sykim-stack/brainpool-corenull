@@ -28,6 +28,7 @@ export interface HeroBlockProps {
   avatar?: React.ReactNode
   doorplate: HeroDoorplate
   heroControls?: React.ReactNode
+  avatarControls?: React.ReactNode
   /** 마당 전용: 집 전환·문패 수정 등 손잡이 (문패 아래) */
   doorplateHandles?: React.ReactNode
 }
@@ -42,12 +43,12 @@ export default function HeroBlock({
   avatar,
   doorplate,
   heroControls,
+  avatarControls,
   doorplateHandles,
 }: HeroBlockProps) {
   const stats = [doorplate.since, formatCount(doorplate.roomCount, '방'), formatCount(doorplate.neighborCount, '이웃')]
     .filter(Boolean)
     .join(' · ')
-  // DB에 예전 House가 있어 설정이 일부만 와도 Hero는 안전한 기본값으로 렌더링한다.
   const imagePosition = { x: 50, y: 50, scale: 1, ...(background.position || {}) }
 
   return (
@@ -69,7 +70,10 @@ export default function HeroBlock({
       </div>
 
       <div style={styles.ringHolder}>
-        <RingBlock data={ring} size={RING_SIZE} centerContent={avatar} />
+        <div style={{ position: 'relative', width: RING_SIZE, height: RING_SIZE }}>
+          <RingBlock data={ring} size={RING_SIZE} centerContent={avatar} />
+          {avatarControls}
+        </div>
       </div>
 
       <div style={styles.doorplate}>
@@ -129,9 +133,15 @@ const styles: Record<string, React.CSSProperties> = {
   },
   heroControls: {
     position: 'absolute',
-    top: 16,
-    right: 16,
+    inset: 0,
     zIndex: 3,
+    pointerEvents: 'none',
+  },
+  avatarControls: {
+    position: 'absolute',
+    inset: 0,
+    zIndex: 3,
+    pointerEvents: 'none',
   },
   ringHolder: {
     position: 'absolute',
