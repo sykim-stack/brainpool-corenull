@@ -30,7 +30,8 @@ export function partitionBrick<T>(items: T[], viewMode: BrickViewMode = 'desktop
     rows.push({
       cards,
       cols: columns,
-      offset: viewMode === 'desktop' && columns === '2' && previousColumns === '3',
+      // PC 2칸 행은 항상 3칸 카드 너비로 (CSS data-offset / data-cols=2)
+      offset: viewMode === 'desktop' && columns === '2',
     })
     previousColumns = columns
     i += cards.length
