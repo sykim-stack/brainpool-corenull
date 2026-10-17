@@ -106,7 +106,7 @@ export default function InlineHeroImageControls({
         {!open ? (
           <button
             type="button"
-            className={isAvatar ? undefined : 'cn-hero-edit-btn'}
+            className={isAvatar ? 'cn-avatar-edit-btn' : 'cn-hero-edit-btn'}
             style={isAvatar ? styles.avatarEditBtn : styles.editBtn}
             onClick={(e) => {
               e.preventDefault()
@@ -119,7 +119,10 @@ export default function InlineHeroImageControls({
             {uploading ? '…' : '수정'}
           </button>
         ) : (
-          <div style={isAvatar ? styles.avatarMenu : styles.menu}>
+          <div
+            style={isAvatar ? styles.avatarMenu : styles.menu}
+            className={isAvatar ? 'cn-avatar-menu-open' : undefined}
+          >
             <button type="button" style={styles.menuBtn} onClick={pickImage} disabled={uploading}>
               {uploading ? '올리는 중…' : imageUrl ? '사진 바꾸기' : '사진 등록'}
             </button>
@@ -160,16 +163,26 @@ export default function InlineHeroImageControls({
         />
       )}
       <style>{`
+        /* 배경 Hero: 호버 시 수정 버튼 */
         .cn-hero-edit-zone .cn-hero-edit-btn {
           opacity: 0;
-          transition: opacity .18s ease, transform .18s ease;
+          transition: opacity .18s ease;
         }
         .cn-hero-edit-zone:hover .cn-hero-edit-btn,
         .cn-hero-edit-zone:focus-within .cn-hero-edit-btn {
           opacity: 1;
         }
-        @media (hover: none) {
-          .cn-hero-edit-zone .cn-hero-edit-btn { opacity: 0.95; }
+        /* 프로필: 링 호버/포커스 시에만 표시 (항상 노출 금지) */
+        .cn-avatar-edit-zone .cn-avatar-edit-btn {
+          opacity: 0;
+          transition: opacity .18s ease;
+          pointer-events: none;
+        }
+        .cn-avatar-edit-zone:hover .cn-avatar-edit-btn,
+        .cn-avatar-edit-zone:focus-within .cn-avatar-edit-btn,
+        .cn-avatar-edit-zone .cn-avatar-edit-btn.cn-open {
+          opacity: 1;
+          pointer-events: auto;
         }
       `}</style>
     </>
