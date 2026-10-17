@@ -56,7 +56,7 @@ export default function RingBlock({
         width={size}
         height={size}
         viewBox={`0 0 ${size} ${size}`}
-        style={{ position: 'absolute', top: 0, left: 0 }}
+        style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none' }}
       >
         {rings.map((ring, i) => {
           const radius = minRadius + step * (i + 1)
@@ -90,10 +90,8 @@ export default function RingBlock({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            background: '#FEFCF8',
-            border: `2px solid ${color}`,
+            background: 'rgba(254,252,248,0.92)',
             boxShadow: '0 2px 12px rgba(44,24,16,0.12)',
-            boxSizing: 'border-box',
           }}
         >
           {centerContent}

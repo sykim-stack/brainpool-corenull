@@ -73,7 +73,12 @@ export default function HeroBlock({
         <div style={{ position: 'relative', width: RING_SIZE, height: RING_SIZE }}>
           <RingBlock data={ring} size={RING_SIZE} centerContent={avatar} />
           {avatarControls && (
-            <div style={styles.avatarControlsSlot}>{avatarControls}</div>
+            <div
+              style={styles.avatarControlsSlot}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {avatarControls}
+            </div>
           )}
         </div>
       </div>
@@ -141,18 +146,21 @@ const styles: Record<string, React.CSSProperties> = {
   },
   avatarControlsSlot: {
     position: 'absolute',
-    inset: 0,
-    zIndex: 20,
-    pointerEvents: 'none',
+    right: 0,
+    bottom: 20,
+    zIndex: 30,
+    pointerEvents: 'auto',
   },
   ringHolder: {
     position: 'absolute',
     top: BG_HEIGHT - RING_SIZE / 2,
     left: '50%',
     transform: 'translateX(-50%)',
-    zIndex: 5,
+    zIndex: 10,
   },
   doorplate: {
+    position: 'relative',
+    zIndex: 1,
     paddingTop: RING_SIZE / 2 + 16,
     paddingBottom: 20,
     paddingLeft: 20,
