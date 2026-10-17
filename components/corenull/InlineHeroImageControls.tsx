@@ -108,7 +108,11 @@ export default function InlineHeroImageControls({
             type="button"
             className={isAvatar ? undefined : 'cn-hero-edit-btn'}
             style={isAvatar ? styles.avatarEditBtn : styles.editBtn}
-            onClick={() => setOpen(true)}
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              setOpen(true)
+            }}
             disabled={uploading}
             aria-label={`${meta.label} 수정`}
           >
@@ -184,10 +188,8 @@ const styles: Record<string, React.CSSProperties> = {
     pointerEvents: 'auto',
   },
   avatarOverlay: {
-    position: 'absolute',
-    right: 8,
-    bottom: 28,
-    zIndex: 20,
+    position: 'relative',
+    zIndex: 30,
     pointerEvents: 'auto',
   },
   compactWrap: {
@@ -209,17 +211,20 @@ const styles: Record<string, React.CSSProperties> = {
   },
   avatarEditBtn: {
     pointerEvents: 'auto',
-    minWidth: 36,
+    position: 'relative',
+    zIndex: 31,
+    minWidth: 44,
     height: 36,
-    padding: '0 10px',
+    padding: '0 12px',
     borderRadius: 999,
     border: '2px solid #FEFCF8',
-    background: 'rgba(28,18,8,0.82)',
+    background: 'rgba(28,18,8,0.88)',
     color: '#FEFCF8',
     fontSize: 12,
     fontWeight: 600,
     cursor: 'pointer',
     boxShadow: '0 2px 10px rgba(0,0,0,0.35)',
+    touchAction: 'manipulation',
   },
   menu: {
     pointerEvents: 'auto',
@@ -234,16 +239,19 @@ const styles: Record<string, React.CSSProperties> = {
   },
   avatarMenu: {
     pointerEvents: 'auto',
+    position: 'absolute',
+    right: 0,
+    bottom: '100%',
+    marginBottom: 6,
     display: 'flex',
     flexDirection: 'column',
     gap: 4,
-    background: 'rgba(28,18,8,0.88)',
+    background: 'rgba(28,18,8,0.92)',
     borderRadius: 12,
     padding: 6,
-    minWidth: 110,
-    position: 'absolute',
-    right: 0,
-    bottom: 44,
+    minWidth: 120,
+    zIndex: 40,
+    boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
   },
   menuBtn: {
     border: 0,
