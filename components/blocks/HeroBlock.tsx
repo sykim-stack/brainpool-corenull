@@ -70,7 +70,11 @@ export default function HeroBlock({
       </div>
 
       <div style={styles.ringHolder}>
-        <div style={{ position: 'relative', width: RING_SIZE, height: RING_SIZE }}>
+        <div
+          className="cn-avatar-edit-zone"
+          tabIndex={0}
+          style={{ position: 'relative', width: RING_SIZE, height: RING_SIZE, outline: 'none' }}
+        >
           <RingBlock data={ring} size={RING_SIZE} centerContent={avatar} />
           {avatarControls && (
             <div
