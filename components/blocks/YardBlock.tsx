@@ -149,7 +149,6 @@ export default function YardBlock({
         mode={alleyMode}
         neighbors={recommended}
         onNeighborClick={(id) => onRecommendHouseClick?.(id)}
-        onAcceptedNeighborClick={onAcceptedNeighborClick}
         onApplyNeighbor={visitorMode ? undefined : onApplyNeighbor}
         applyLoadingHouseId={applyLoadingHouseId}
         onPostClick={onPostClick}
