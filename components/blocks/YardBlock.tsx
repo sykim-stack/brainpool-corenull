@@ -196,6 +196,7 @@ export default function YardBlock({
         emptyLabel="이웃 공개방이 아직 없어요"
       />
 
+      {/* 내 방 최신 — 구조 확정: layout=brick · PC 3-2-3-2-3 · 모바일 2-1-2-1-2 (방이 늘어도 동일) */}
       {!visitorMode && (
         <MyContentBlock
           title="내 방 최신"
