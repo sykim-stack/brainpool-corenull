@@ -213,8 +213,9 @@ export default function YardPage() {
       )
       setNeighborFeed(feedNested.flat().slice(0, 20))
 
+      // 내 방 최신: 방당 최신 1 · brick 3-2-3-2-3 / 2-1-2-1-2 (상한 40방)
       const mineNested = await Promise.all(
-        myRooms.slice(0, 6).map(async (rm: any) => {
+        myRooms.slice(0, 40).map(async (rm: any) => {
           try {
             const pd = await fetch(`/api/corenull/posts?room_id=${rm.id}`).then((r) => r.json())
             const latest = (pd.data || []).find((x: any) => x.type !== 'comment') || (pd.data || [])[0]
