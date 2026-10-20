@@ -414,7 +414,7 @@ attempt 5 이후: 운영 정책에 따른 quarantine 또는 수동 재시도
 
 - `201 Created`: 신규 event가 durable하게 저장된 경우에만 반환한다.
 - `200 OK`: 기존 `event_id`의 모든 immutable field가 기존 row와 정확히 일치하는 재전송에만 반환한다.
-- `409 EVENT_IDEMPOTENCY_CONFLICT`: 같은 `event_id`인데 `source`, `event_type`, `source_record_id`, `source_revision`, normalized `occurred_at`, `owner_id`, canonical payload 또는 `payload_sha256` 중 하나라도 다르다.
+- `409 EVENT_IDEMPOTENCY_CONFLICT`: 같은 `event_id`인데 `source`, `event_type`, `source_record_id`, `source_revision`, normalized `occurred_at`, `owner_id`, `house_id`, `room_id`, canonical payload 또는 `payload_sha256` 중 하나라도 다르다.
 - `409 EVENT_IDENTITY_CONFLICT`: 다른 `event_id`가 이미 존재하는 `(source, source_record_id, source_revision, event_type)`를 재사용한다.
 - `422 PAYLOAD_HASH_MISMATCH`: 수신 측 재계산 hash와 전달 hash가 다르다.
 - `422 REVISION_UNEXPECTED`: Stage A `space.message.created`의 revision이 1이 아니다.
