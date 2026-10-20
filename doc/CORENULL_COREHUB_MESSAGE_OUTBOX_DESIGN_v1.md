@@ -258,6 +258,8 @@ CHECK(attempt_count >= 0)
 
 `owner_id`는 CoreHub 계약 이름이며, CoreNull 내부 mapping source는 verified `auth_user_id`다.
 
+`payload_sha256`은 **payload 객체만**의 canonical JSON UTF-8 바이트에 대한 SHA-256이다. 송신자와 수신자는 동일한 canonicalization 규칙을 사용해야 한다(권장: RFC 8785 JCS). 수신자는 전달된 hash를 신뢰하지 않고 payload를 독립적으로 canonicalize해 재계산한다. 양쪽 구현은 공통 test vector로 검증한다. Hash는 무결성 불일치 탐지용이며 producer 인증이나 서명을 대체하지 않는다.
+
 ## 6. Transaction write 설계
 
 ### 6.1 신규 Message
@@ -314,8 +316,8 @@ worker는 outbox row를 다음 순서로 처리한다.
 1. `status in ('pending','retry_wait')`이고 `available_at <= now()`인 row를 claim한다.
 2. claim 시 `status='processing'`, `lease_token=random_uuid()`, `lease_until=now()+lease_duration`, `attempt_count+1`을 원자적으로 기록한다.
 3. claim된 payload와 event_id를 그대로 CoreHub에 전송한다.
-4. `200/201` 또는 CoreHub가 정의한 duplicate success는 `sent`로 finalize한다.
-5. `401/403/409`는 자동 무한 retry하지 않고 `quarantined`로 전환한다.
+4. CoreHub가 계약한 `201 Created`(신규 저장) 또는 `200 OK`(동일 이벤트의 정확한 중복)만 `sent`로 finalize한다.
+5. `401/403/409/422`는 자동 무한 retry하지 않고 `quarantined`로 전환한다. `409`는 idempotency/identity conflict, `422`는 hash/schema/revision contract 위반이다.
 6. `408/429/5xx/network`는 backoff 후 `retry_wait`로 전환한다.
 7. finalize 조건에 `id`와 현재 `lease_token`을 모두 포함한다.
 8. lease가 만료된 worker의 늦은 응답은 update row count 0으로 처리한다.
@@ -359,7 +361,8 @@ attempt 5 이후: 운영 정책에 따른 quarantine 또는 수동 재시도
 - [ ] expected revision 1 update는 revision 2
 - [ ] stale expected revision update는 409
 - [ ] duplicate event는 하나의 outbox identity만 생성
-- [ ] revision 2 event가 revision 1보다 먼저 도착하면 CoreHub policy대로 pending/quarantine
+- [ ] `space.message.created`의 `source_revision != 1`은 CoreHub가 `422 REVISION_UNEXPECTED`로 거부하고 outbox가 quarantine 처리
+- [ ] revision 2 event는 Stage A에서 전송하지 않음; 향후 update event는 별도 계약 승인 후 추가
 
 ### Outbox
 
@@ -368,7 +371,8 @@ attempt 5 이후: 운영 정책에 따른 quarantine 또는 수동 재시도
 - [ ] CoreHub 503은 retry_wait
 - [ ] CoreHub 409 conflict는 quarantine
 - [ ] lease expiry 후 stale worker finalize는 no-op
-- [ ] 같은 payload retry는 같은 hash 유지
+- [ ] 같은 payload retry는 동일 canonicalization 규칙으로 같은 hash 유지
+- [ ] CoreHub 422는 retry가 아니라 quarantine으로 분류
 - [ ] 원본 Message content는 producer/worker 과정에서 변경되지 않음
 
 ### Scope
@@ -405,3 +409,14 @@ attempt 5 이후: 운영 정책에 따른 quarantine 또는 수동 재시도
 - [ ] 기존 원본 Message의 payload·row count 불변 확인
 
 현재 이 문서는 설계 제안이며, 운영 DB·staging DB 모두에 migration이나 write를 실행하지 않았다.
+
+### 11.1 CoreHub receiver의 idempotency 응답과 일치 조건
+
+- `201 Created`: 신규 event가 durable하게 저장된 경우에만 반환한다.
+- `200 OK`: 기존 `event_id`의 모든 immutable field가 기존 row와 정확히 일치하는 재전송에만 반환한다.
+- `409 EVENT_IDEMPOTENCY_CONFLICT`: 같은 `event_id`인데 `source`, `event_type`, `source_record_id`, `source_revision`, normalized `occurred_at`, `owner_id`, canonical payload 또는 `payload_sha256` 중 하나라도 다르다.
+- `409 EVENT_IDENTITY_CONFLICT`: 다른 `event_id`가 이미 존재하는 `(source, source_record_id, source_revision, event_type)`를 재사용한다.
+- `422 PAYLOAD_HASH_MISMATCH`: 수신 측 재계산 hash와 전달 hash가 다르다.
+- `422 REVISION_UNEXPECTED`: Stage A `space.message.created`의 revision이 1이 아니다.
+
+동일 `event_id`와 동일 hash만으로 duplicate를 판정하지 않는다. DB unique constraint와 atomic insert/conflict-reload가 멱등성의 최종 경계다.
