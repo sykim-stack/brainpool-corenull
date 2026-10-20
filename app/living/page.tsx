@@ -18,6 +18,7 @@ import { NeighborChip, NeighborRoomSlot } from '@/components/blocks/NeighborCont
 import { RingData } from '@/components/blocks/RingBlock'
 import { houseHeroBackground, houseAvatarUrl } from '@/lib/houseImages'
 import InlineHeroImageControls from '@/components/corenull/InlineHeroImageControls'
+import { createLivingSampleView } from '@/lib/livingSamples'
 
 const LANG_FLAG: Record<string, string> = {
   ko: '🇰🇷', vi: '🇻🇳', en: '🇺🇸', ja: '🇯🇵', zh: '🇨🇳',
@@ -91,12 +92,14 @@ export default function LivingPage() {
             r.json()
           ),
         ])
+        if (rd._error || wr._error) throw new Error('living_rooms_load_failed')
         const rooms = rd.data || []
         const memberRooms = (wr.member || []).filter((rm: any) => rm.house_id !== h.id)
         setRoomCount(rooms.length + memberRooms.length)
 
         const buildSlot = async (rm: any, houseTitle: string, relation: string) => {
           const pd = await fetch(`/api/corenull/posts?room_id=${rm.id}`).then((r) => r.json())
+          if (pd._error) throw new Error('living_posts_load_failed')
           const roomPosts = (pd.data || []).filter((p: any) => p.type !== 'comment')
           const latest = roomPosts[0]
           const isMember = relation === '참여'
@@ -170,12 +173,17 @@ export default function LivingPage() {
             rooms: memberSlots,
           })
         }
-        setCorridor(chips)
-
         const views = slots
           .flatMap((s) => s.posts)
           .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-        setRoomViews(views)
+        if (views.length === 0) {
+          const sampleView = createLivingSampleView(key)
+          setCorridor(sampleView.corridor)
+          setRoomViews(sampleView.posts)
+        } else {
+          setCorridor(chips)
+          setRoomViews(views)
+        }
       } catch {
         setCorridor([])
         setRoomViews([])
