@@ -19,6 +19,8 @@ export interface PostBlockData {
   comment_count?: number
   view_meta?: PostBlockViewMeta
   room_id?: string
+  /** 화면 전용 샘플. DB 메시지가 아니므로 실제 활동 동작을 제공하지 않는다. */
+  isSample?: boolean
 }
 
 export interface PostBlockProps {
@@ -77,10 +79,11 @@ export default function PostBlock({
   const [commentsLoading, setCommentsLoading] = useState(false)
 
   const isGallery = variant === 'gallery'
+  const isSample = !!post.isSample
   const hasMedia = !!(post.media && post.media.length > 0)
 
   useEffect(() => {
-    if (!commentOpen || !enableInlineComment) return
+    if (isSample || !commentOpen || !enableInlineComment) return
     let cancelled = false
     setCommentsLoading(true)
     fetch(`/api/corenull/posts?parent_id=${post.id}`)
@@ -112,7 +115,7 @@ export default function PostBlock({
     return () => {
       cancelled = true
     }
-  }, [commentOpen, enableInlineComment, post.id])
+  }, [commentOpen, enableInlineComment, isSample, post.id])
 
   const meta = post.view_meta
   const status = meta?.status
@@ -132,7 +135,7 @@ export default function PostBlock({
   const submitComment = async (e: React.FormEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    if (!commentText.trim() || !ownerKey || submitting) return
+    if (isSample || !commentText.trim() || !ownerKey || submitting) return
     const roomId = post.room_id
     if (!roomId) {
       onCommentClick?.()
@@ -180,12 +183,20 @@ export default function PostBlock({
     : styles.content
 
   return (
-    <div style={cardStyle} onClick={onClick} role={onClick ? 'button' : undefined}>
+    <div
+      style={isSample ? { ...cardStyle, cursor: 'default' } : cardStyle}
+      onClick={isSample ? undefined : onClick}
+      role={!isSample && onClick ? 'button' : undefined}
+    >
       {(status || stage) && (
         <div style={styles.badgeRow}>
+          {isSample && <span style={styles.sampleBadge}>샘플</span>}
           {status && <span style={styles.statusBadge}>{status}</span>}
           {stage && <span style={styles.stageDot}>{stage}</span>}
         </div>
+      )}
+      {isSample && !status && !stage && (
+        <div style={styles.badgeRow}><span style={styles.sampleBadge}>샘플</span></div>
       )}
 
       {hasMedia ? (
@@ -195,7 +206,7 @@ export default function PostBlock({
         >
           <MediaRenderer media={post.media!} aspect="fill" />
         </div>
-      ) : !isGallery ? (
+      ) : !isGallery || isSample ? (
         <div style={styles.mediaEmpty} aria-hidden>
           <span style={styles.mediaEmptyMark}>✎</span>
         </div>
@@ -205,15 +216,15 @@ export default function PostBlock({
 
       <div style={styles.footerRow}>
         <div style={styles.footerLeft}>
-          <span style={styles.date}>{formatDate(post.created_at)}</span>
-          {showComments && (
+          <span style={styles.date}>{isSample ? '샘플 게시글' : formatDate(post.created_at)}</span>
+          {showComments && !isSample && (
             <button type="button" style={styles.commentBtn} onClick={handleCommentBtn}>
               💬 {localCount}
             </button>
           )}
         </div>
 
-        {showInterest && (
+        {showInterest && !isSample && (
           <button
             type="button"
             style={{
@@ -232,7 +243,7 @@ export default function PostBlock({
         )}
       </div>
 
-      {showInterest && interestState === 'active' && onInterestGoLibrary && (
+      {showInterest && !isSample && interestState === 'active' && onInterestGoLibrary && (
         <button
           type="button"
           style={styles.libraryLink}
@@ -369,6 +380,10 @@ const styles: Record<string, React.CSSProperties> = {
     overflow: 'hidden',
   },
   badgeRow: { display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 },
+  sampleBadge: {
+    fontSize: 10, color: '#6F5723', background: 'rgba(201,162,75,0.16)',
+    border: '1px solid rgba(201,162,75,0.28)', padding: '2px 8px', borderRadius: 999,
+  },
   statusBadge: {
     fontSize: 10,
     color: '#5C4A35',

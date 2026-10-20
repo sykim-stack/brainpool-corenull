@@ -8,6 +8,7 @@ import { roomCorridorCoverUrl } from '@/lib/corridorImages'
 export interface NeighborRoomSlot {
   roomId: string
   roomName: string
+  coverUrl?: string | null
   latestPost?: PostBlockData | null
 }
 
@@ -99,7 +100,7 @@ export default function NeighborContentBlock({
   const activeRoomIndex = roomPage * step
   const resolvedCoverUrl =
     tier === 'invite' && rooms.length > 0
-      ? roomCorridorCoverUrl(activeRoomIndex)
+      ? rooms[activeRoomIndex]?.coverUrl || roomCorridorCoverUrl(activeRoomIndex)
       : current?.coverUrl || null
 
   const goNeighbor = (dir: -1 | 1) => {

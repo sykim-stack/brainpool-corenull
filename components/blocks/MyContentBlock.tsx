@@ -62,6 +62,7 @@ export default function MyContentBlock({
   const source = isBrick ? posts : posts.slice(0, DENSITY_MAX)
   const pageCount = isBrick ? Math.max(1, Math.ceil(source.length / pageSize)) : 1
   const needsSwipe = isBrick && source.length > pageSize
+  const hasSamplePosts = source.some((post) => post.isSample)
 
   useEffect(() => {
     if (page >= pageCount) setPage(Math.max(0, pageCount - 1))
@@ -98,7 +99,7 @@ export default function MyContentBlock({
       <div style={styles.header}>
         <span style={styles.title}>{title}</span>
         <div style={styles.headerActions}>
-          {isBrick && source.length > 0 && (
+          {isBrick && source.length > 0 && !hasSamplePosts && (
             <span style={styles.hint}>
               {needsSwipe
                 ? `${safePage + 1}/${pageCount} · ${source.length}개`
