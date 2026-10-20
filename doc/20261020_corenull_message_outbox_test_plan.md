@@ -81,10 +81,14 @@ The outbox must persist an immutable payload snapshot at the same transaction bo
 | CN-28 | Lease expires and old worker returns late | Old lease token cannot finalize row |
 | CN-29 | Receiver committed event but response was lost | Retry exact event; receiver returns 200 duplicate; one receiver row |
 | CN-30 | Worker crashes after claim | Expired lease can be reclaimed according to documented policy |
-| CN-31 | Secret missing from worker environment | Fail closed; no unauthenticated send |
+| CN-31 | Approved HMAC key missing from worker environment | Fail closed; no unauthenticated send |
 | CN-32 | Logging on any path | No bearer secret/token or full message content in ordinary logs |
 
-## 7. Cross-system end-to-end checks
+## 7. Authentication gate
+
+CoreHub PR #2's ADR-001 currently proposes HMAC service-to-service authentication but remains unapproved. Do not implement a Bearer shared-secret variant as if it were accepted. Before enabling the worker, approve the signed fields (method, path, timestamp, nonce, canonical body hash), nonce replay protection, key rotation, and how `owner_id`/`house_id` are bound to verified ownership.
+
+## 8. Cross-system end-to-end checks
 
 On disposable staging only:
 
@@ -98,7 +102,7 @@ On disposable staging only:
 8. Verify no Facts, Connection, Meaning, Opportunity, approval, or promotion side effects in Stage A.
 9. Verify existing legacy writes and existing `pushFact()` behavior are not silently altered by the documentation-only PR.
 
-## 8. Exit criteria
+## 9. Exit criteria
 
 - [ ] Identity mapping ownership and conflict behavior are approved.
 - [ ] Message/outbox atomicity is proven with rollback tests.
