@@ -117,7 +117,11 @@ export default function YardPage() {
         fetch(`/api/corenull/houses?owner_key=${key}`).then((r) => r.json()),
         fetch(`/api/corenull/bookmarks?owner_key=${key}`).then((r) => r.json()).catch(() => ({ data: [] })),
       ])
-      const list = hRes.data || []
+      if (hRes._error || !Array.isArray(hRes.data)) {
+        setLoading(false)
+        return
+      }
+      const list = hRes.data
       setHouses(list)
       setBookmarks(bmRes.data || [])
       const active = preferredHouseId
@@ -126,6 +130,7 @@ export default function YardPage() {
       if (!active) {
         setHouse(null)
         setLoading(false)
+        router.replace('/living')
         return
       }
       setActiveHouseId(active.id)
@@ -242,7 +247,7 @@ export default function YardPage() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [router])
 
   useEffect(() => {
     if (!ownerKey) return

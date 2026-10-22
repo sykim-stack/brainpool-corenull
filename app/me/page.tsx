@@ -99,7 +99,7 @@ export default function MePage() {
   const handleHouseManage = () => {
     if (myHouses.length === 1) router.push(`/houses/${myHouses[0].id}/yard`)
     else if (myHouses.length > 1) router.push('/yard')
-    else router.push('/houses/create')
+    else router.push('/living')
   }
 
   if (!ownerReady) return null

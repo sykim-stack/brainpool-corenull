@@ -19,6 +19,7 @@ import { RingData } from '@/components/blocks/RingBlock'
 import { houseHeroBackground, houseAvatarUrl } from '@/lib/houseImages'
 import InlineHeroImageControls from '@/components/corenull/InlineHeroImageControls'
 import { createLivingSampleView } from '@/lib/livingSamples'
+import HouseCreateForm from '@/components/corenull/HouseCreateForm'
 
 const LANG_FLAG: Record<string, string> = {
   ko: '🇰🇷', vi: '🇻🇳', en: '🇺🇸', ja: '🇯🇵', zh: '🇨🇳',
@@ -60,6 +61,7 @@ export default function LivingPage() {
   const [roomViews, setRoomViews] = useState<PostBlockData[]>([])
   const [roomCount, setRoomCount] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [showHouseCreate, setShowHouseCreate] = useState(false)
 
   const [bookmarks, setBookmarks] = useState<BookmarkRow[]>([])
   const [interestLoadingId, setInterestLoadingId] = useState<string | null>(null)
@@ -76,10 +78,19 @@ export default function LivingPage() {
       fetch(`/api/corenull/houses?owner_key=${key}`).then((r) => r.json()),
       fetch(`/api/corenull/bookmarks?owner_key=${key}`).then((r) => r.json()),
     ]).then(async ([hData, bData]) => {
+      if (hData._error || !Array.isArray(hData.data)) {
+        setLoading(false)
+        return
+      }
       if (bData.data) setBookmarks(bData.data)
-      const list = hData.data || []
+      const list = hData.data
       const h = pickActiveHouse(list) || list[0]
       if (!h) {
+        const sampleView = createLivingSampleView(key)
+        setCorridor(sampleView.corridor)
+        setRoomViews(sampleView.posts)
+        setRoomCount(0)
+        setShowHouseCreate(true)
         setLoading(false)
         return
       }
@@ -190,6 +201,10 @@ export default function LivingPage() {
       } finally {
         setLoading(false)
       }
+    }).catch(() => {
+      setCorridor([])
+      setRoomViews([])
+      setLoading(false)
     })
   }, [])
 
@@ -284,7 +299,9 @@ export default function LivingPage() {
                 label: '+ 방 만들기',
                 onClick: () => router.push('/write?new_room=1'),
               }
-            : undefined,
+            : ownerKey
+              ? { label: '+ 집 만들기', onClick: () => setShowHouseCreate(true) }
+              : undefined,
         }}
         corridor={corridor}
         onCorridorHouseClick={() => {}}
@@ -301,6 +318,13 @@ export default function LivingPage() {
         enableInlineComment
         ownerKey={ownerKey}
       />
+      {showHouseCreate && ownerKey && (
+        <HouseCreateForm
+          variant="modal"
+          ownerKey={ownerKey}
+          onClose={() => setShowHouseCreate(false)}
+        />
+      )}
     </div>
   )
 }
