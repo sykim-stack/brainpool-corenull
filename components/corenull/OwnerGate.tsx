@@ -4,7 +4,7 @@
 // House를 만들기 전에 Owner를 복구하거나 신규임을 명시적으로 확정한다.
 //
 // [기존 집 연결]  → recover 코드 입력 → setOwnerKey → 재진입
-// [새로 시작]    → createOwnerKey → /houses/create
+// [새로 시작]    → createOwnerKey → /living (샘플 거실 + 집 만들기 모달)
 // [Google 계정] → GIS → /api/auth/google → google sub ↔ owner_key 매핑
 //                  (기존 owner_key 보존 / 신규면 새 owner_key)
 //
@@ -31,7 +31,7 @@ export default function OwnerGate() {
   function handleGoogle(ownerKey: string, info?: { isNewUser?: boolean }) {
     setOwnerKey(ownerKey)
     // 복구한 owner_key가 있으면 기족 집 재연결, 없으면(신규) 집 만들기 유도
-    router.push(info?.isNewUser ? '/houses/create' : '/')
+    router.push(info?.isNewUser ? '/living' : '/')
   }
 
   const handleRecover = async () => {
@@ -63,7 +63,7 @@ export default function OwnerGate() {
 
   const handleNew = () => {
     createOwnerKey()
-    router.push('/houses/create')
+    router.push('/living')
   }
 
   return (
