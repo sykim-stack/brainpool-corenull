@@ -11,6 +11,7 @@ interface SampleRoom {
   name: string
   coverUrl: string
   posts: string[]
+  postImages: string[]
 }
 
 interface SampleSet {
@@ -27,6 +28,7 @@ const SAMPLE_SETS: SampleSet[] = [
         id: 'window-garden',
         name: '창가의 작은 정원',
         coverUrl: '/alley/corridor-01.jpg',
+        postImages: ['/samples/garden-window.png', '/samples/seasonal-tree.png'],
         posts: [
           '오늘 아침, 어제보다 잎이 조금 더 펼쳐졌다.',
           '햇빛 드는 자리를 찾아 화분을 옮겼다. 여기서 잘 자라면 좋겠다.',
@@ -39,6 +41,7 @@ const SAMPLE_SETS: SampleSet[] = [
         id: 'garden-notes',
         name: '정원 메모',
         coverUrl: '/alley/corridor-02.jpg',
+        postImages: ['/samples/desk-notes.png'],
         posts: [
           '분갈이는 주말에 하기로 했다. 흙과 작은 화분을 준비해야겠다.',
           '비가 온 뒤라 흙이 촉촉하다. 오늘은 그냥 지켜보기.',
@@ -50,6 +53,7 @@ const SAMPLE_SETS: SampleSet[] = [
         id: 'garden-seasons',
         name: '계절이 오는 자리',
         coverUrl: '/alley/corridor-03.jpg',
+        postImages: ['/samples/seasonal-tree.png', '/samples/garden-window.png'],
         posts: [
           '계절이 바뀌는 건 창가의 빛이 먼저 알려준다.',
           '오늘은 화분 사이에 새 자리를 하나 만들었다.',
@@ -66,6 +70,7 @@ const SAMPLE_SETS: SampleSet[] = [
         id: 'our-table',
         name: '오늘의 식탁',
         coverUrl: '/alley/corridor-04.jpg',
+        postImages: ['/samples/shared-table.png', '/samples/everyday-together.png'],
         posts: [
           '저녁은 있는 재료로 간단하게 차렸다. 같이 먹으니 더 맛있었다.',
           '새로 해본 반찬이 생각보다 괜찮아서 다음에도 만들어보기로.',
@@ -78,6 +83,7 @@ const SAMPLE_SETS: SampleSet[] = [
         id: 'kitchen-notes',
         name: '부엌의 메모',
         coverUrl: '/alley/corridor-05.jpg',
+        postImages: ['/samples/desk-notes.png'],
         posts: [
           '다음에는 간을 조금 덜 하고 마지막에 맞춰보기.',
           '냉장고에 남은 채소부터 쓰면 좋겠다.',
@@ -89,6 +95,7 @@ const SAMPLE_SETS: SampleSet[] = [
         id: 'weekend-market',
         name: '주말 장보기',
         coverUrl: '/alley/corridor-01.jpg',
+        postImages: ['/samples/everyday-together.png', '/samples/shared-table.png'],
         posts: [
           '장을 보기 전에 냉장고부터 확인했다. 이번에는 꼭 필요한 것만.',
           '시장에 갔다가 제철 과일을 한 봉지 담아왔다.',
@@ -105,6 +112,7 @@ const SAMPLE_SETS: SampleSet[] = [
         id: 'slow-walk',
         name: '천천히 걷는 길',
         coverUrl: '/alley/corridor-02.jpg',
+        postImages: ['/samples/slow-walk.png', '/samples/seasonal-tree.png'],
         posts: [
           '오늘은 익숙한 길을 조금 천천히 걸었다.',
           '돌아오는 길에 바람이 좋아서 잠깐 더 걷기로 했다.',
@@ -117,6 +125,7 @@ const SAMPLE_SETS: SampleSet[] = [
         id: 'desk-notes',
         name: '책상 위 기록',
         coverUrl: '/alley/corridor-03.jpg',
+        postImages: ['/samples/desk-notes.png'],
         posts: [
           '책상 위를 정리하고 오늘 할 일을 하나만 남겨두었다.',
           '읽던 페이지에 작은 표시를 해두고 잠시 쉬었다.',
@@ -128,6 +137,7 @@ const SAMPLE_SETS: SampleSet[] = [
         id: 'small-things',
         name: '작은 것들',
         coverUrl: '/alley/corridor-04.jpg',
+        postImages: ['/samples/garden-window.png', '/samples/seasonal-tree.png'],
         posts: [
           '별일 없던 하루에서 마음에 남은 장면 하나.',
           '창문 너머 구름이 천천히 모양을 바꿨다.',
@@ -155,6 +165,9 @@ export function createLivingSampleView(ownerKey: string): LivingSampleView {
     const posts = room.posts.map((content, index): PostBlockData => ({
       id: `sample-${sample.id}-${room.id}-${index + 1}`,
       content,
+      media: room.postImages[index % room.postImages.length]
+        ? [{ type: 'image', url: room.postImages[index % room.postImages.length] }]
+        : undefined,
       // 화면에서는 실제 날짜 대신 '샘플 게시글'로 표시하며, 정렬 용도로만 고정 시각을 쓴다.
       created_at: new Date(Date.UTC(2026, 0, 1, 0, 60 - roomIndex * 20 - index)).toISOString(),
       comment_count: 0,
