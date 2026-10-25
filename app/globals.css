@@ -106,6 +106,11 @@ body {
   }
 }
 
+/* 거실: 방 이름은 복도 사진 위에, 최신 글 이미지는 넓은 히어로로 유지 */
+.cn-alley-row[data-tier="invite"] .cn-alley-corridor-col {
+  height: calc(var(--cn-alley-frame) - 72px);
+}
+
 .cn-alley-dots {
   display: flex;
   justify-content: center;
@@ -156,6 +161,44 @@ body {
   }
   .cn-post-grid[data-count="1"] {
     grid-template-columns: 1fr;
+  }
+  .cn-sample-badge-row {
+    flex-wrap: wrap;
+    align-content: flex-start;
+    column-gap: 4px !important;
+    row-gap: 4px !important;
+    max-height: 38px;
+    overflow: hidden;
+  }
+  .cn-sample-badge {
+    max-width: 100%;
+    padding: 2px 6px !important;
+    font-size: 9px !important;
+    line-height: 1.2;
+    white-space: nowrap;
+  }
+  .cn-sample-footer {
+    min-width: 0;
+    gap: 2px;
+  }
+  .cn-sample-footer-left {
+    min-width: 0;
+    gap: 6px !important;
+  }
+  .cn-sample-footer-date {
+    font-size: 9px !important;
+    white-space: nowrap;
+  }
+  .cn-sample-footer-comment {
+    flex-shrink: 0;
+    font-size: 11px !important;
+    white-space: nowrap;
+  }
+  .cn-sample-footer-interest {
+    flex-shrink: 0;
+    padding: 3px 5px !important;
+    font-size: 10px !important;
+    white-space: nowrap;
   }
 }
 @media (min-width: 768px) {

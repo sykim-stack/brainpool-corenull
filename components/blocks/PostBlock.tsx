@@ -21,6 +21,9 @@ export interface PostBlockData {
   room_id?: string
   /** 화면 전용 샘플. DB 메시지가 아니므로 실제 활동 동작을 제공하지 않는다. */
   isSample?: boolean
+  /** 화면에서 기능을 소개하는 샘플 전용 표시. DB에 저장하지 않는다. */
+  sampleBadges?: string[]
+  sampleCommentCount?: number
 }
 
 export interface PostBlockProps {
@@ -188,15 +191,15 @@ export default function PostBlock({
       onClick={isSample ? undefined : onClick}
       role={!isSample && onClick ? 'button' : undefined}
     >
-      {(status || stage) && (
-        <div style={styles.badgeRow}>
-          {isSample && <span style={styles.sampleBadge}>샘플</span>}
+      {(status || stage || isSample) && (
+        <div className={isSample ? 'cn-sample-badge-row' : undefined} style={styles.badgeRow}>
+          {isSample && <span className="cn-sample-badge" style={styles.sampleBadge}>샘플</span>}
+          {isSample && post.sampleBadges?.map((badge) => (
+            <span key={badge} className="cn-sample-badge" style={styles.sampleFeatureBadge}>{badge}</span>
+          ))}
           {status && <span style={styles.statusBadge}>{status}</span>}
           {stage && <span style={styles.stageDot}>{stage}</span>}
         </div>
-      )}
-      {isSample && !status && !stage && (
-        <div style={styles.badgeRow}><span style={styles.sampleBadge}>샘플</span></div>
       )}
 
       {hasMedia ? (
@@ -214,9 +217,23 @@ export default function PostBlock({
 
       <div style={contentStyle}>{post.content}</div>
 
-      <div style={styles.footerRow}>
-        <div style={styles.footerLeft}>
-          <span style={styles.date}>{isSample ? '샘플 게시글' : formatDate(post.created_at)}</span>
+      <div className={isSample ? 'cn-sample-footer' : undefined} style={styles.footerRow}>
+        <div className={isSample ? 'cn-sample-footer-left' : undefined} style={styles.footerLeft}>
+          <span className={isSample ? 'cn-sample-footer-date' : undefined} style={styles.date}>
+            {isSample ? '샘플 게시글' : formatDate(post.created_at)}
+          </span>
+          {showComments && isSample && (
+            <button
+              type="button"
+              className="cn-sample-footer-comment"
+              style={styles.commentBtn}
+              aria-label={`샘플 댓글 ${post.sampleCommentCount ?? 2}개 (동작하지 않음)`}
+              aria-disabled="true"
+              tabIndex={-1}
+            >
+              💬 {post.sampleCommentCount ?? 2}
+            </button>
+          )}
           {showComments && !isSample && (
             <button type="button" style={styles.commentBtn} onClick={handleCommentBtn}>
               💬 {localCount}
@@ -224,6 +241,18 @@ export default function PostBlock({
           )}
         </div>
 
+        {showInterest && isSample && (
+          <button
+            type="button"
+            className="cn-sample-footer-interest"
+            style={{ ...styles.interestBtn, color: '#9A8470' }}
+            aria-label="관심 아이콘 샘플 (동작하지 않음)"
+            aria-disabled="true"
+            tabIndex={-1}
+          >
+            ○ 관심
+          </button>
+        )}
         {showInterest && !isSample && (
           <button
             type="button"
@@ -387,6 +416,15 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'rgba(201,162,75,0.22)',
     border: '1px solid rgba(173,126,49,0.38)',
     padding: '3px 9px',
+    borderRadius: 999,
+  },
+  sampleFeatureBadge: {
+    fontSize: 10,
+    fontWeight: 600,
+    color: '#4A5240',
+    background: 'rgba(74,82,64,0.08)',
+    border: '1px solid rgba(74,82,64,0.18)',
+    padding: '3px 8px',
     borderRadius: 999,
   },
   statusBadge: {

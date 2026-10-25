@@ -157,7 +157,10 @@ export default function YardBlock({
       {!visitorMode && (
         <section style={styles.relationSection}>
           <div style={styles.relationHeader}>
-            <div style={styles.relationTitle}>관계</div>
+            <div style={styles.relationTitleGroup}>
+              <span aria-hidden="true" style={styles.relationTitleMark} />
+              <div style={styles.relationTitle}>관계</div>
+            </div>
             {onOpenRelations && (
               <button type="button" style={styles.relationMore} onClick={onOpenRelations}>
                 관리
@@ -252,8 +255,16 @@ const styles: Record<string, React.CSSProperties> = {
   relationHeader: {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12,
   },
+  relationTitleGroup: { display: 'flex', alignItems: 'center', gap: 8 },
+  relationTitleMark: {
+    width: 4,
+    height: 17,
+    borderRadius: 999,
+    background: 'linear-gradient(180deg, #D8B96F 0%, #B97835 100%)',
+    boxShadow: '0 1px 4px rgba(193,127,60,0.24)',
+  },
   relationTitle: {
-    fontFamily: "'Noto Serif KR', serif", fontSize: 15, fontWeight: 600, color: '#2C1810',
+    fontFamily: "'Noto Serif KR', serif", fontSize: 16, fontWeight: 600, color: '#2C1810',
   },
   relationMore: { border: 'none', background: 'none', color: '#9A8470', fontSize: 12, cursor: 'pointer' },
   relationEmpty: {

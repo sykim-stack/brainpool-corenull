@@ -179,13 +179,18 @@ export default function NeighborContentBlock({
           <div
             className="cn-alley-row"
             data-posts={Number(!!postA) + Number(!!postB)}
+            data-tier={tier}
             onTouchStart={(event) => setTouchStartX(event.touches[0]?.clientX ?? null)}
             onTouchEnd={handleTouchEnd}
           >
-            <div style={styles.col1}>
+            <div className="cn-alley-corridor-col" style={styles.col1}>
+              {tier === 'invite' && roomA?.roomName && (
+                <div style={styles.corridorRoomTitle}>{roomA.roomName}</div>
+              )}
               <div
                 style={{
                   ...styles.cover,
+                  ...(tier === 'invite' ? { height: 'auto', minHeight: 0 } : {}),
                   cursor: tier === 'public' ? 'pointer' : 'default',
                   background: resolvedCoverUrl
                     ? `center/cover no-repeat url(${resolvedCoverUrl})`
@@ -253,7 +258,7 @@ export default function NeighborContentBlock({
 
             {postA && (
               <div style={styles.colPost}>
-                {roomA && <div style={styles.roomTag}>{roomA.roomName}</div>}
+                {tier !== 'invite' && roomA && <div style={styles.roomTag}>{roomA.roomName}</div>}
                 <div style={styles.postFrame}>
                   <PostBlock
                     post={postA}
@@ -370,6 +375,23 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: 'column',
     minWidth: 0,
     height: ALLEY_FRAME_HEIGHT,
+  },
+  corridorRoomTitle: {
+    flex: '0 0 auto',
+    alignSelf: 'flex-start',
+    maxWidth: '100%',
+    marginBottom: 6,
+    padding: '4px 10px',
+    borderRadius: 999,
+    color: '#79542D',
+    background: 'linear-gradient(135deg, #FFF8E9 0%, #F7EBD0 100%)',
+    border: '1px solid rgba(193,127,60,0.28)',
+    fontFamily: "'Noto Serif KR', serif",
+    fontSize: 12,
+    fontWeight: 600,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
   },
   cover: {
     position: 'relative',
