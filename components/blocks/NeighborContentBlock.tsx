@@ -31,6 +31,7 @@ export interface NeighborContentBlockProps {
   onNeighborClick: (houseId: string) => void
   showNeighborSelector?: boolean
   onPostClick?: (postId: string, roomId?: string) => void
+  onRoomEnter?: (roomId: string) => void
   onApplyNeighbor?: (houseId: string) => void
   applyLoadingHouseId?: string | null
   roomsPerPage?: 1 | 2
@@ -61,6 +62,7 @@ export default function NeighborContentBlock({
   onNeighborClick,
   showNeighborSelector = false,
   onPostClick,
+  onRoomEnter,
   onApplyNeighbor,
   applyLoadingHouseId = null,
   roomsPerPage = 2,
@@ -184,11 +186,12 @@ export default function NeighborContentBlock({
               <div
                 style={{
                   ...styles.cover,
+                  cursor: tier === 'public' ? 'pointer' : 'default',
                   background: resolvedCoverUrl
                     ? `center/cover no-repeat url(${resolvedCoverUrl})`
                     : COVER_GRADIENT[tier],
                 }}
-                onClick={() => current && onNeighborClick(current.houseId)}
+                onClick={() => tier === 'public' && current && onNeighborClick(current.houseId)}
               >
                 <div style={styles.coverShade} />
                 <div style={styles.profileCenter}>
@@ -228,6 +231,21 @@ export default function NeighborContentBlock({
                       : applyLoadingHouseId === current.houseId
                         ? '…'
                         : '신청'}
+                  </button>
+                )}
+
+                {tier === 'invite' && roomA && onRoomEnter && !postA?.isSample && (
+                  <button
+                    type="button"
+                    className="cn-room-enter"
+                    style={styles.enterRoomBtn}
+                    aria-label={`${roomA.roomName} 방 들어가기`}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      onRoomEnter(roomA.roomId)
+                    }}
+                  >
+                    방 들어가기 <span aria-hidden="true">→</span>
                   </button>
                 )}
               </div>
@@ -399,6 +417,28 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 600,
     cursor: 'pointer',
     backdropFilter: 'blur(6px)',
+  },
+  enterRoomBtn: {
+    position: 'absolute',
+    left: '50%',
+    bottom: 14,
+    transform: 'translateX(-50%)',
+    zIndex: 2,
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 8,
+    padding: '8px 15px',
+    borderRadius: 999,
+    border: '1px solid rgba(255,248,233,0.68)',
+    background: 'rgba(44,24,16,0.78)',
+    color: '#FFF9EE',
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: 'pointer',
+    boxShadow: '0 3px 12px rgba(28,18,8,0.18)',
+    backdropFilter: 'blur(6px)',
+    whiteSpace: 'nowrap',
+    transition: 'transform 180ms ease, background-color 180ms ease, box-shadow 180ms ease, border-color 180ms ease',
   },
   colPost: {
     minWidth: 0,

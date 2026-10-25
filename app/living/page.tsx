@@ -305,6 +305,7 @@ export default function LivingPage() {
         }}
         corridor={corridor}
         onCorridorHouseClick={() => {}}
+        onCorridorRoomClick={(roomId) => router.push(`/rooms/${roomId}`)}
         roomViews={roomViews}
         onPostClick={(postId, roomId) =>
           roomId ? router.push(`/rooms/${roomId}`) : router.push(`/posts/${postId}`)

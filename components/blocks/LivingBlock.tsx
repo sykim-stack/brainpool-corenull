@@ -23,6 +23,7 @@ export interface LivingBlockProps {
   /** 복도용 — 보통 이 집 1칩 + rooms[] */
   corridor: NeighborChip[]
   onCorridorHouseClick?: (houseId: string) => void
+  onCorridorRoomClick?: (roomId: string) => void
 
   roomViews: PostBlockData[]
   onPostClick?: (postId: string, roomId?: string) => void
@@ -48,6 +49,7 @@ export default function LivingBlock({
   avatarControls,
   corridor,
   onCorridorHouseClick,
+  onCorridorRoomClick,
   roomViews,
   onPostClick,
   onCommentClick,
@@ -82,6 +84,7 @@ export default function LivingBlock({
         roomsPerPage={1}
         emptyLabel="아직 방이 없어요"
         onNeighborClick={(id) => onCorridorHouseClick?.(id)}
+        onRoomEnter={onCorridorRoomClick}
         onPostClick={onPostClick}
       />
 
