@@ -381,8 +381,13 @@ const styles: Record<string, React.CSSProperties> = {
   },
   badgeRow: { display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 },
   sampleBadge: {
-    fontSize: 10, color: '#6F5723', background: 'rgba(201,162,75,0.16)',
-    border: '1px solid rgba(201,162,75,0.28)', padding: '2px 8px', borderRadius: 999,
+    fontSize: 10,
+    fontWeight: 600,
+    color: '#65491F',
+    background: 'rgba(201,162,75,0.22)',
+    border: '1px solid rgba(173,126,49,0.38)',
+    padding: '3px 9px',
+    borderRadius: 999,
   },
   statusBadge: {
     fontSize: 10,

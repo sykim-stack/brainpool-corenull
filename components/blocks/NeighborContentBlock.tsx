@@ -154,7 +154,10 @@ export default function NeighborContentBlock({
   return (
     <section style={styles.section}>
       <div style={styles.header}>
-        <span style={styles.title}>{title}</span>
+        <div style={styles.titleGroup}>
+          <span aria-hidden="true" style={styles.titleMark} />
+          <span style={styles.title}>{title}</span>
+        </div>
         {countLabel && <span style={styles.count}>{countLabel}</span>}
       </div>
 
@@ -320,7 +323,15 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'rgba(255,255,255,0.34)',
   },
   header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-  title: { fontFamily: "'Noto Serif KR', serif", fontSize: 15, fontWeight: 600, color: '#2C1810' },
+  titleGroup: { display: 'flex', alignItems: 'center', gap: 8 },
+  titleMark: {
+    width: 4,
+    height: 17,
+    borderRadius: 999,
+    background: 'linear-gradient(180deg, #D8B96F 0%, #B97835 100%)',
+    boxShadow: '0 1px 4px rgba(193,127,60,0.24)',
+  },
+  title: { fontFamily: "'Noto Serif KR', serif", fontSize: 16, fontWeight: 600, color: '#2C1810' },
   count: {
     fontSize: 11, color: '#C17F3C', background: '#FFF7E8',
     border: '1px solid rgba(193,127,60,0.16)', borderRadius: 999, padding: '3px 8px',
@@ -397,8 +408,19 @@ const styles: Record<string, React.CSSProperties> = {
     height: ALLEY_FRAME_HEIGHT,
   },
   roomTag: {
-    fontSize: 10, color: '#9A8470', paddingLeft: 2, overflow: 'hidden',
-    textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 0,
+    alignSelf: 'flex-start',
+    maxWidth: '100%',
+    fontSize: 11,
+    fontWeight: 600,
+    color: '#79542D',
+    padding: '4px 9px',
+    borderRadius: 999,
+    background: 'linear-gradient(135deg, #FFF8E9 0%, #F7EBD0 100%)',
+    border: '1px solid rgba(193,127,60,0.22)',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    flexShrink: 0,
   },
   postFrame: {
     flex: 1,

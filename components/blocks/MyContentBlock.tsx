@@ -97,7 +97,10 @@ export default function MyContentBlock({
   return (
     <section style={styles.section}>
       <div style={styles.header}>
-        <span style={styles.title}>{title}</span>
+        <div style={styles.titleGroup}>
+          <span aria-hidden="true" style={styles.titleMark} />
+          <span style={styles.title}>{title}</span>
+        </div>
         <div style={styles.headerActions}>
           {isBrick && source.length > 0 && !hasSamplePosts && (
             <span style={styles.hint}>
@@ -211,9 +214,17 @@ const styles: Record<string, React.CSSProperties> = {
   },
   title: {
     fontFamily: "'Noto Serif KR', serif",
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: 600,
     color: '#2C1810',
+  },
+  titleGroup: { display: 'flex', alignItems: 'center', gap: 8 },
+  titleMark: {
+    width: 4,
+    height: 17,
+    borderRadius: 999,
+    background: 'linear-gradient(180deg, #D8B96F 0%, #B97835 100%)',
+    boxShadow: '0 1px 4px rgba(193,127,60,0.24)',
   },
   headerActions: { display: 'flex', alignItems: 'center', gap: 8 },
   headerArrows: { display: 'flex', alignItems: 'center', gap: 4 },
