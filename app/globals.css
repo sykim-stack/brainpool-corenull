@@ -106,10 +106,7 @@ body {
   }
 }
 
-/* 거실: 방 이름은 복도 사진 위에, 최신 글 이미지는 넓은 히어로로 유지 */
-.cn-alley-row[data-tier="invite"] .cn-alley-corridor-col {
-  height: calc(var(--cn-alley-frame) - 72px);
-}
+/* 거실 복도: 사진·다음 방 최신글 미리보기가 함께 프레임 높이를 채운다. */
 
 .cn-alley-dots {
   display: flex;
@@ -199,6 +196,23 @@ body {
     padding: 3px 5px !important;
     font-size: 10px !important;
     white-space: nowrap;
+  }
+}
+@media (max-width: 360px) {
+  .cn-next-room-preview {
+    flex-basis: 74px !important;
+    height: 74px !important;
+    min-height: 74px !important;
+  }
+  .cn-next-room-preview > div:first-child {
+    width: 84px !important;
+    flex-basis: 84px !important;
+  }
+  .cn-next-room-preview > div:last-child {
+    padding: 5px 7px !important;
+  }
+  .cn-next-room-preview > div:last-child > span:last-child {
+    display: none;
   }
 }
 @media (min-width: 768px) {

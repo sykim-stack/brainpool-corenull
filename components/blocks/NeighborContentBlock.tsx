@@ -100,6 +100,9 @@ export default function NeighborContentBlock({
   // 복도(invite): 방 순번 % 5 공용 커버 (골목 alley-0N과 동일)
   // 골목(public): chip.coverUrl (호출측에서 alley-0N 부여)
   const activeRoomIndex = roomPage * step
+  const nextRoomIndex = rooms.length > 1 ? (activeRoomIndex + 1) % rooms.length : -1
+  const nextRoom = nextRoomIndex >= 0 ? rooms[nextRoomIndex] : null
+  const nextRoomImage = nextRoom?.latestPost?.media?.find((media) => media.type === 'image')?.url
   const resolvedCoverUrl =
     tier === 'invite' && rooms.length > 0
       ? rooms[activeRoomIndex]?.coverUrl || roomCorridorCoverUrl(activeRoomIndex)
@@ -212,9 +215,7 @@ export default function NeighborContentBlock({
                     }
                   />
                   <div style={styles.profileName}>
-                    {tier === 'invite' && roomA?.roomName
-                      ? roomA.roomName
-                      : current?.title}
+                    {current?.title}
                   </div>
                 </div>
 
@@ -254,6 +255,29 @@ export default function NeighborContentBlock({
                   </button>
                 )}
               </div>
+              {tier === 'invite' && nextRoom && (
+                <div
+                  className="cn-next-room-preview"
+                  style={styles.nextRoomPreview}
+                  aria-label={`${nextRoom.roomName} 방 최신글 미리보기`}
+                  role="group"
+                >
+                  <div style={styles.nextRoomThumb} aria-hidden="true">
+                    {nextRoomImage ? (
+                      <img src={nextRoomImage} alt="" style={styles.nextRoomImage} />
+                    ) : (
+                      <span style={styles.nextRoomPlaceholder}>✎</span>
+                    )}
+                  </div>
+                  <div style={styles.nextRoomCopy}>
+                    <span style={styles.nextRoomLabel}>다음 방 · 최신글</span>
+                    <span style={styles.nextRoomName}>{nextRoom.roomName}</span>
+                    <span style={styles.nextRoomContent}>
+                      {nextRoom.latestPost?.content || '아직 최신글이 없어요'}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
 
             {postA && (
@@ -392,6 +416,58 @@ const styles: Record<string, React.CSSProperties> = {
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
+  },
+  nextRoomPreview: {
+    display: 'flex',
+    alignItems: 'stretch',
+    flex: '0 0 82px',
+    height: 82,
+    minHeight: 82,
+    marginTop: 8,
+    overflow: 'hidden',
+    borderRadius: 12,
+    border: '1px solid rgba(193,127,60,0.2)',
+    background: '#FEFCF8',
+    boxShadow: '0 2px 8px rgba(44,24,16,0.05)',
+  },
+  nextRoomThumb: {
+    width: 108,
+    flex: '0 0 108px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    background: 'linear-gradient(135deg, rgba(74,82,64,0.1), rgba(193,127,60,0.12))',
+  },
+  nextRoomImage: { width: '100%', height: '100%', objectFit: 'cover', display: 'block' },
+  nextRoomPlaceholder: { fontSize: 20, color: 'rgba(92,61,46,0.35)' },
+  nextRoomCopy: {
+    display: 'flex',
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'column',
+    justifyContent: 'center',
+    gap: 2,
+    padding: '6px 9px',
+  },
+  nextRoomLabel: { color: '#9A8470', fontSize: 9, lineHeight: 1.2, whiteSpace: 'nowrap' },
+  nextRoomName: {
+    color: '#2C1810',
+    fontFamily: "'Noto Serif KR', serif",
+    fontSize: 11,
+    fontWeight: 600,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  nextRoomContent: {
+    color: '#79542D',
+    fontSize: 10,
+    lineHeight: 1.3,
+    display: '-webkit-box',
+    WebkitLineClamp: 2,
+    WebkitBoxOrient: 'vertical',
+    overflow: 'hidden',
   },
   cover: {
     position: 'relative',
