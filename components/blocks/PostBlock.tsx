@@ -42,6 +42,7 @@ export interface PostBlockProps {
   ownerKey?: string
   onCommentSubmitted?: () => void
   variant?: 'default' | 'gallery'
+  tone?: 'default' | 'living'
 }
 
 function formatDate(iso: string) {
@@ -71,6 +72,7 @@ export default function PostBlock({
   ownerKey,
   onCommentSubmitted,
   variant = 'default',
+  tone = 'default',
 }: PostBlockProps) {
   const [commentOpen, setCommentOpen] = useState(false)
   const [commentText, setCommentText] = useState('')
@@ -83,6 +85,7 @@ export default function PostBlock({
 
   const isGallery = variant === 'gallery'
   const isSample = !!post.isSample
+  const isLivingTone = tone === 'living'
   const hasMedia = !!(post.media && post.media.length > 0)
 
   useEffect(() => {
@@ -122,7 +125,11 @@ export default function PostBlock({
 
   const meta = post.view_meta
   const status = meta?.status
-  const metaParts = [showHouseName ? meta?.house_name : null, meta?.room_name, meta?.relation].filter(Boolean)
+  const metaParts = [
+    showHouseName ? meta?.house_name : null,
+    isLivingTone ? null : meta?.room_name,
+    meta?.relation,
+  ].filter(Boolean)
   const metaLine = metaParts.join(' · ')
   const stage = meta?.stage_emoji
 
@@ -177,9 +184,12 @@ export default function PostBlock({
     }
   }
 
-  const cardStyle: React.CSSProperties = isGallery
+  const baseCardStyle: React.CSSProperties = isGallery
     ? { ...styles.card, ...styles.cardGallery }
     : styles.card
+  const cardStyle: React.CSSProperties = isLivingTone
+    ? { ...baseCardStyle, ...styles.livingCard }
+    : baseCardStyle
 
   const contentStyle: React.CSSProperties = isGallery
     ? { ...styles.content, ...styles.contentGallery }
@@ -187,12 +197,22 @@ export default function PostBlock({
 
   return (
     <div
+      className={isLivingTone && !isSample ? 'cn-living-post-card' : undefined}
       style={isSample ? { ...cardStyle, cursor: 'default' } : cardStyle}
       onClick={isSample ? undefined : onClick}
       role={!isSample && onClick ? 'button' : undefined}
     >
-      {(status || stage || isSample) && (
-        <div className={isSample ? 'cn-sample-badge-row' : undefined} style={styles.badgeRow}>
+      {(status || stage || isSample || (isLivingTone && meta?.room_name)) && (
+        <div
+          className={[
+            isSample ? 'cn-sample-badge-row' : '',
+            isLivingTone ? 'cn-living-badge-row' : '',
+          ].filter(Boolean).join(' ') || undefined}
+          style={styles.badgeRow}
+        >
+          {isLivingTone && meta?.room_name && (
+            <span style={styles.livingRoomBadge}>{meta.room_name}</span>
+          )}
           {isSample && <span className="cn-sample-badge" style={styles.sampleBadge}>샘플</span>}
           {isSample && post.sampleBadges?.map((badge) => (
             <span key={badge} className="cn-sample-badge" style={styles.sampleFeatureBadge}>{badge}</span>
@@ -334,7 +354,7 @@ export default function PostBlock({
       )}
 
       {showViewMeta && metaLine && (
-        <div style={styles.viewMeta}>
+        <div style={isLivingTone ? { ...styles.viewMeta, ...styles.livingViewMeta } : styles.viewMeta}>
           <span>{metaLine}</span>
         </div>
       )}
@@ -402,6 +422,11 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 14,
     overflow: 'hidden',
   },
+  livingCard: {
+    background: 'linear-gradient(180deg, #FFFEFB 0%, #FEFCF8 100%)',
+    border: '1px solid rgba(193,127,60,0.22)',
+    boxShadow: '0 4px 16px rgba(92,61,46,0.075), inset 0 2px 0 rgba(216,185,111,0.48)',
+  },
   mediaGallery: {
     flex: '1 1 auto',
     minHeight: 0,
@@ -424,6 +449,19 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#4A5240',
     background: 'rgba(74,82,64,0.08)',
     border: '1px solid rgba(74,82,64,0.18)',
+    padding: '3px 8px',
+    borderRadius: 999,
+  },
+  livingRoomBadge: {
+    maxWidth: '100%',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontSize: 10,
+    fontWeight: 600,
+    color: '#79542D',
+    background: 'linear-gradient(135deg, #FFF9EC 0%, #F5E8CA 100%)',
+    border: '1px solid rgba(193,127,60,0.28)',
     padding: '3px 8px',
     borderRadius: 999,
   },
@@ -503,5 +541,10 @@ const styles: Record<string, React.CSSProperties> = {
   viewMeta: {
     display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#9A8470',
     paddingTop: 8, borderTop: '1px solid rgba(92,61,46,0.08)', flexShrink: 0,
+  },
+  livingViewMeta: {
+    color: '#8C6B3E',
+    borderTop: '1px solid rgba(193,127,60,0.18)',
+    paddingTop: 6,
   },
 }

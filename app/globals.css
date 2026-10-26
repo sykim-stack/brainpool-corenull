@@ -132,8 +132,24 @@ body {
   outline: 3px solid #D8B96F;
   outline-offset: 3px;
 }
+.cn-living-badge-row {
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 4px !important;
+}
+.cn-living-post-card {
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+@media (hover: hover) and (min-width: 768px) {
+  .cn-living-post-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(193,127,60,0.42) !important;
+    box-shadow: 0 8px 20px rgba(92,61,46,0.12), inset 0 2px 0 rgba(216,185,111,0.6) !important;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
-  .cn-room-enter { transition: none !important; }
+  .cn-room-enter,
+  .cn-living-post-card { transition: none !important; }
 }
 
 /* 포스트 그리드 — 카드 높이 통일 */

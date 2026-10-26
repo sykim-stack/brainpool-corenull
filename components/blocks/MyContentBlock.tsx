@@ -23,6 +23,7 @@ export interface MyContentBlockProps {
   enableInlineComment?: boolean
   ownerKey?: string
   showHouseName?: boolean
+  cardTone?: 'default' | 'living'
 }
 
 export default function MyContentBlock({
@@ -40,6 +41,7 @@ export default function MyContentBlock({
   enableInlineComment = false,
   ownerKey,
   showHouseName = true,
+  cardTone = 'default',
 }: MyContentBlockProps) {
   const [page, setPage] = useState(0)
   const [wide, setWide] = useState(false)
@@ -91,6 +93,7 @@ export default function MyContentBlock({
       enableInlineComment={enableInlineComment}
       ownerKey={ownerKey}
       showHouseName={showHouseName}
+      tone={cardTone}
     />
   )
 

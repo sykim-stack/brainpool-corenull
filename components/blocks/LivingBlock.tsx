@@ -91,6 +91,7 @@ export default function LivingBlock({
       <MyContentBlock
         title="최신글"
         layout="brick"
+        cardTone="living"
         posts={roomViews}
         onPostClick={onPostClick}
         onCommentClick={onCommentClick}
