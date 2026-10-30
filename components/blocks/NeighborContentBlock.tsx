@@ -154,7 +154,10 @@ export default function NeighborContentBlock({
   return (
     <section style={styles.section}>
       <div style={styles.header}>
-        <span style={styles.title}>{title}</span>
+        <div style={styles.titleRow}>
+          <span style={styles.titleMark} aria-hidden />
+          <span style={styles.title}>{title}</span>
+        </div>
         {countLabel && <span style={styles.count}>{countLabel}</span>}
       </div>
 
@@ -320,6 +323,20 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'rgba(255,255,255,0.34)',
   },
   header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  titleRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    minWidth: 0,
+  },
+  titleMark: {
+    width: 3,
+    height: 14,
+    borderRadius: 2,
+    background: 'linear-gradient(180deg, #D4A04A 0%, #C17F3C 55%, #A66B2E 100%)',
+    flexShrink: 0,
+    boxShadow: '0 0 0 1px rgba(193,127,60,0.12)',
+  },
   title: { fontFamily: "'Noto Serif KR', serif", fontSize: 15, fontWeight: 600, color: '#2C1810' },
   count: {
     fontSize: 11, color: '#C17F3C', background: '#FFF7E8',
@@ -360,7 +377,6 @@ const styles: Record<string, React.CSSProperties> = {
     position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
     alignItems: 'center', justifyContent: 'center', gap: 8, zIndex: 1, padding: '8px 8px 40px',
   },
-  // Ring 중앙 칸을 채움. 고정 px이면 칸보다 커서 타원처럼 보임.
   avatarImg: {
     width: '100%',
     height: '100%',
@@ -397,8 +413,19 @@ const styles: Record<string, React.CSSProperties> = {
     height: ALLEY_FRAME_HEIGHT,
   },
   roomTag: {
-    fontSize: 10, color: '#9A8470', paddingLeft: 2, overflow: 'hidden',
-    textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 0,
+    alignSelf: 'flex-start',
+    maxWidth: '100%',
+    fontSize: 11,
+    fontWeight: 600,
+    color: '#2C1810',
+    background: 'rgba(193,127,60,0.12)',
+    border: '1px solid rgba(193,127,60,0.22)',
+    borderRadius: 999,
+    padding: '2px 8px',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    flexShrink: 0,
   },
   postFrame: {
     flex: 1,
