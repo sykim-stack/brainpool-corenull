@@ -8,6 +8,7 @@ import {
   interestPostBody,
 } from '@/lib/interest'
 import { pickActiveHouse, setActiveHouseId } from '@/lib/activeHouse'
+import { createLivingSampleView } from '@/lib/livingSamples'
 import TopBar from '@/components/blocks/TopBar'
 import YardBlock, { YardRelationRow } from '@/components/blocks/YardBlock'
 import CoreNullLogo from '@/components/corenull/CoreNullLogo'
@@ -219,6 +220,7 @@ export default function YardPage() {
       setNeighborFeed(feedNested.flat().slice(0, 20))
 
       // 내 방 최신: 방당 최신 1 · brick 3-2-3-2-3 / 2-1-2-1-2 (상한 40방)
+      // 실게시 0이면 거실과 동일 샘플(isSample) — 글 작성 시 교체
       const mineNested = await Promise.all(
         myRooms.slice(0, 40).map(async (rm: any) => {
           try {
@@ -243,7 +245,13 @@ export default function YardPage() {
           }
         }),
       )
-      setMyPosts(mineNested.filter(Boolean) as PostBlockData[])
+      const realMine = mineNested.filter(Boolean) as PostBlockData[]
+      if (realMine.length === 0) {
+        const sampleView = createLivingSampleView(key)
+        setMyPosts(sampleView.posts)
+      } else {
+        setMyPosts(realMine)
+      }
     } finally {
       setLoading(false)
     }
@@ -279,6 +287,7 @@ export default function YardPage() {
   }
 
   const handleInterest = async (postId: string, roomId?: string) => {
+    if (String(postId).startsWith('sample-')) return
     setInterestLoadingId(roomId || postId)
     try {
       const body = interestPostBody(ownerKey, postId, roomId)
@@ -374,7 +383,8 @@ export default function YardPage() {
         neighborFeed={neighborFeed}
         myPosts={myPosts}
         onPostClick={(postId, roomId) => {
-          if (roomId) router.push(`/rooms/${roomId}`)
+          if (String(postId).startsWith('sample-')) return
+          if (roomId && !String(roomId).startsWith('sample-')) router.push(`/rooms/${roomId}`)
         }}
         showInterest
         getInterestState={(postId: string, roomId?: string) =>
