@@ -97,7 +97,10 @@ export default function MyContentBlock({
   return (
     <section style={styles.section}>
       <div style={styles.header}>
-        <span style={styles.title}>{title}</span>
+        <div style={styles.titleRow}>
+          <span style={styles.titleMark} aria-hidden />
+          <span style={styles.title}>{title}</span>
+        </div>
         <div style={styles.headerActions}>
           {isBrick && source.length > 0 && !hasSamplePosts && (
             <span style={styles.hint}>
@@ -170,7 +173,6 @@ export default function MyContentBlock({
               </div>
             ))}
           </div>
-
         </div>
       ) : !wide ? (
         /* 모바일 density도 2+1 팩 — 마지막 1개 빈칸 방지 */
@@ -208,6 +210,20 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 10,
+  },
+  titleRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    minWidth: 0,
+  },
+  titleMark: {
+    width: 3,
+    height: 14,
+    borderRadius: 2,
+    background: 'linear-gradient(180deg, #D4A04A 0%, #C17F3C 55%, #A66B2E 100%)',
+    flexShrink: 0,
+    boxShadow: '0 0 0 1px rgba(193,127,60,0.12)',
   },
   title: {
     fontFamily: "'Noto Serif KR', serif",

@@ -157,10 +157,13 @@ export default function YardBlock({
       {!visitorMode && (
         <section style={styles.relationSection}>
           <div style={styles.relationHeader}>
-            <div style={styles.relationTitle}>관계</div>
+            <div style={styles.titleRow}>
+              <span style={styles.titleMark} aria-hidden />
+              <span style={styles.relationTitle}>관계</span>
+            </div>
             {onOpenRelations && (
               <button type="button" style={styles.relationMore} onClick={onOpenRelations}>
-                관리
+                관리 ›
               </button>
             )}
           </div>
@@ -196,7 +199,7 @@ export default function YardBlock({
         emptyLabel="이웃 공개방이 아직 없어요"
       />
 
-      {/* 내 방 최신 — 구조 확정: layout=brick · PC 3-2-3-2-3 · 모바일 2-1-2-1-2 (방이 늘어도 동일) */}
+      {/* 내 방 최신 — 구조 확정: layout=brick · PC 3-2-3-2-3 · 모바일 2-1-2-1-2 */}
       {!visitorMode && (
         <MyContentBlock
           title="내 방 최신"
@@ -248,9 +251,30 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#9A8470',
     padding: '0 0 0 8px', flexShrink: 0,
   },
-  relationSection: { padding: '16px', borderTop: '1px solid rgba(92,61,46,0.08)' },
+  relationSection: {
+    margin: '0 12px',
+    padding: '14px 14px 16px',
+    borderRadius: 14,
+    background: 'linear-gradient(180deg, rgba(254,252,248,0.95) 0%, rgba(250,246,238,0.9) 100%)',
+    border: '1px solid rgba(193,127,60,0.14)',
+    boxShadow: '0 1px 0 rgba(255,255,255,0.6) inset',
+  },
   relationHeader: {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12,
+  },
+  titleRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    minWidth: 0,
+  },
+  titleMark: {
+    width: 3,
+    height: 14,
+    borderRadius: 2,
+    background: 'linear-gradient(180deg, #D4A04A 0%, #C17F3C 55%, #A66B2E 100%)',
+    flexShrink: 0,
+    boxShadow: '0 0 0 1px rgba(193,127,60,0.12)',
   },
   relationTitle: {
     fontFamily: "'Noto Serif KR', serif", fontSize: 15, fontWeight: 600, color: '#2C1810',
@@ -258,7 +282,7 @@ const styles: Record<string, React.CSSProperties> = {
   relationMore: { border: 'none', background: 'none', color: '#9A8470', fontSize: 12, cursor: 'pointer' },
   relationEmpty: {
     fontSize: 13, color: '#9A8470', padding: '16px', textAlign: 'center',
-    background: '#FEFCF8', borderRadius: 12, border: '1px dashed rgba(92,61,46,0.12)',
+    background: 'rgba(254,252,248,0.7)', borderRadius: 12, border: '1px dashed rgba(92,61,46,0.12)',
   },
   relAvatarRow: {
     display: 'flex',
@@ -294,8 +318,9 @@ const styles: Record<string, React.CSSProperties> = {
   relAvatarImg: { width: '100%', height: '100%', objectFit: 'cover' },
   relAvatarInitial: { fontSize: 18, color: '#FEFCF8', fontWeight: 600 },
   relAvatarName: {
-    fontSize: 10,
-    color: '#5C4A35',
+    fontSize: 11,
+    fontWeight: 600,
+    color: '#2C1810',
     maxWidth: 64,
     overflow: 'hidden',
     textOverflow: 'ellipsis',
