@@ -80,6 +80,7 @@ export default function LivingBlock({
         mode="neighbor"
         neighbors={corridor}
         roomsPerPage={1}
+        showRoomThumbnails
         emptyLabel="아직 방이 없어요"
         onNeighborClick={(id) => onCorridorHouseClick?.(id)}
         onPostClick={onPostClick}
