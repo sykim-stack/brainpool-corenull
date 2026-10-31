@@ -181,23 +181,22 @@ export default function NeighborContentBlock({
             onTouchEnd={handleTouchEnd}
           >
             <div style={styles.col1}>
-              {showRoomThumbnails && roomA && (
-                <div style={styles.activeRoomTitle}>{roomA.roomName}</div>
-              )}
-              <div
-                style={{
-                  ...styles.cover,
-                  ...(showRoomThumbnails
-                    ? { height: 'calc(var(--cn-alley-frame) - 18px)', minHeight: 0, flex: '0 0 auto' }
-                    : {}),
-                  background: resolvedCoverUrl
-                    ? `center/cover no-repeat url(${resolvedCoverUrl})`
-                    : COVER_GRADIENT[tier],
-                }}
-                onClick={() => current && onNeighborClick(current.houseId)}
-              >
-                <div style={styles.coverShade} />
-                <div style={styles.profileCenter}>
+              <div style={showRoomThumbnails ? styles.roomPanel : undefined}>
+                {showRoomThumbnails && roomA && (
+                  <div style={styles.activeRoomTitle}>{roomA.roomName}</div>
+                )}
+                <div
+                  style={{
+                    ...styles.cover,
+                    ...(showRoomThumbnails ? styles.livingCover : {}),
+                    background: resolvedCoverUrl
+                      ? `center/cover no-repeat url(${resolvedCoverUrl})`
+                      : COVER_GRADIENT[tier],
+                  }}
+                  onClick={() => current && onNeighborClick(current.houseId)}
+                >
+                  <div style={styles.coverShade} />
+                  <div style={styles.profileCenter}>
                   <RingBlock
                     data={current?.ring || DEFAULT_RING}
                     size={128}
@@ -218,26 +217,27 @@ export default function NeighborContentBlock({
                   )}
                 </div>
 
-                {mode === 'recommend' && onApplyNeighbor && current && (
-                  <button
-                    type="button"
-                    style={{
-                      ...styles.applyBtnInCover,
-                      opacity: current.requestPending || applyLoadingHouseId === current.houseId ? 0.55 : 1,
-                    }}
-                    disabled={!!current.requestPending || applyLoadingHouseId === current.houseId}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onApplyNeighbor(current.houseId)
-                    }}
-                  >
-                    {current.requestPending
-                      ? '신청중'
-                      : applyLoadingHouseId === current.houseId
-                        ? '…'
-                        : '신청'}
-                  </button>
-                )}
+                  {mode === 'recommend' && onApplyNeighbor && current && (
+                    <button
+                      type="button"
+                      style={{
+                        ...styles.applyBtnInCover,
+                        opacity: current.requestPending || applyLoadingHouseId === current.houseId ? 0.55 : 1,
+                      }}
+                      disabled={!!current.requestPending || applyLoadingHouseId === current.houseId}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onApplyNeighbor(current.houseId)
+                      }}
+                    >
+                      {current.requestPending
+                        ? '신청중'
+                        : applyLoadingHouseId === current.houseId
+                          ? '…'
+                          : '신청'}
+                    </button>
+                  )}
+                </div>
               </div>
               {showRoomThumbnails && rooms.length > 0 && (
                 <div style={styles.roomThumbnails} aria-label="방 선택">
@@ -374,6 +374,17 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     minWidth: 0,
+    minHeight: 0,
+  },
+  roomPanel: {
+    height: ALLEY_FRAME_HEIGHT,
+    minHeight: 0,
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  livingCover: {
+    flex: '1 1 auto',
+    height: 'auto',
     minHeight: 0,
   },
   activeRoomTitle: {
