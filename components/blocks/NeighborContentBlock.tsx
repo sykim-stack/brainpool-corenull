@@ -35,6 +35,8 @@ export interface NeighborContentBlockProps {
   applyLoadingHouseId?: string | null
   roomsPerPage?: 1 | 2
   emptyLabel?: string
+  /** 거실 전용: 복도 아래 방별 이미지 썸네일 표시 */
+  showRoomThumbnails?: boolean
 }
 
 const TIER_LABEL: Record<string, string> = { public: '골목', invite: '복도' }
@@ -65,6 +67,7 @@ export default function NeighborContentBlock({
   applyLoadingHouseId = null,
   roomsPerPage = 2,
   emptyLabel,
+  showRoomThumbnails = false,
 }: NeighborContentBlockProps) {
   const [neighborIdx, setNeighborIdx] = useState(0)
   const [roomIdx, setRoomIdx] = useState(0)
@@ -178,6 +181,9 @@ export default function NeighborContentBlock({
             onTouchEnd={handleTouchEnd}
           >
             <div style={styles.col1}>
+              {showRoomThumbnails && roomA && (
+                <div style={styles.activeRoomTitle}>{roomA.roomName}</div>
+              )}
               <div
                 style={{
                   ...styles.cover,
@@ -200,11 +206,13 @@ export default function NeighborContentBlock({
                       )
                     }
                   />
-                  <div style={styles.profileName}>
-                    {tier === 'invite' && roomA?.roomName
-                      ? roomA.roomName
-                      : current?.title}
-                  </div>
+                  {!showRoomThumbnails && (
+                    <div style={styles.profileName}>
+                      {tier === 'invite' && roomA?.roomName
+                        ? roomA.roomName
+                        : current?.title}
+                    </div>
+                  )}
                 </div>
 
                 {mode === 'recommend' && onApplyNeighbor && current && (
@@ -228,6 +236,29 @@ export default function NeighborContentBlock({
                   </button>
                 )}
               </div>
+              {showRoomThumbnails && rooms.length > 0 && (
+                <div style={styles.roomThumbnails} aria-label="방 선택">
+                  {rooms.map((room, index) => {
+                    const image = room.coverUrl || roomCorridorCoverUrl(index)
+                    const selected = index === activeRoomIndex
+                    return (
+                      <button
+                        key={room.roomId}
+                        type="button"
+                        aria-pressed={selected}
+                        aria-label={`${room.roomName} 선택`}
+                        style={{ ...styles.roomThumbnail, ...(selected ? styles.roomThumbnailActive : {}) }}
+                        onClick={() => setRoomIdx(index)}
+                      >
+                        <img src={image} alt="" style={styles.roomThumbnailImage} />
+                        <span style={{ ...styles.roomThumbnailName, ...(selected ? styles.roomThumbnailNameActive : {}) }}>
+                          {room.roomName}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
             </div>
 
             {postA && (
@@ -340,8 +371,63 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     minWidth: 0,
-    height: ALLEY_FRAME_HEIGHT,
+    minHeight: 0,
   },
+  activeRoomTitle: {
+    height: 20,
+    flexShrink: 0,
+    padding: '0 2px 5px',
+    fontSize: 12,
+    fontWeight: 600,
+    color: '#5C4A35',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  roomThumbnails: {
+    display: 'flex',
+    gap: 8,
+    overflowX: 'auto',
+    padding: '10px 2px 2px',
+    WebkitOverflowScrolling: 'touch',
+    scrollbarWidth: 'none',
+    flexShrink: 0,
+  },
+  roomThumbnail: {
+    flex: '0 0 76px',
+    minWidth: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    gap: 4,
+    padding: 3,
+    border: '1px solid transparent',
+    borderRadius: 9,
+    background: 'transparent',
+    cursor: 'pointer',
+    textAlign: 'left',
+  },
+  roomThumbnailActive: {
+    borderColor: '#C17F3C',
+    background: '#FFF9EF',
+  },
+  roomThumbnailImage: {
+    display: 'block',
+    width: '100%',
+    height: 48,
+    objectFit: 'cover',
+    borderRadius: 6,
+  },
+  roomThumbnailName: {
+    display: 'block',
+    width: '100%',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontSize: 10,
+    color: '#9A8470',
+  },
+  roomThumbnailNameActive: { color: '#2C1810', fontWeight: 600 },
   cover: {
     position: 'relative',
     flex: 1,
