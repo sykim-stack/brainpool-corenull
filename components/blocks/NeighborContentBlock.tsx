@@ -76,7 +76,8 @@ export default function NeighborContentBlock({
 
   const current = neighbors[neighborIdx] || null
   const rooms = current?.rooms || []
-  const step = roomsPerPage === 1 ? 1 : 2
+  // 복도(invite): 방 단위 1개씩 — 세로 스택 (방이름 → 이미지 → 글)
+  const step = tier === 'invite' ? 1 : roomsPerPage === 1 ? 1 : 2
 
   useEffect(() => {
     setRoomIdx(0)
@@ -151,6 +152,45 @@ export default function NeighborContentBlock({
       ? `${neighborIdx + 1}/${neighbors.length}`
       : null
 
+  const isCorridor = tier === 'invite'
+
+  const roomThumbs =
+    rooms.length > 1 ? (
+      <div style={isCorridor ? styles.roomThumbsTight : styles.roomThumbs} aria-label="방 목록">
+        {rooms.map((room, i) => {
+          const active = Math.floor(i / step) === roomPage
+          const thumbUrl =
+            room.coverUrl ||
+            (tier === 'invite' ? roomCorridorCoverUrl(i) : current?.coverUrl) ||
+            null
+          return (
+            <button
+              key={room.roomId}
+              type="button"
+              style={styles.roomThumb}
+              onClick={() => setRoomIdx(Math.floor(i / step) * step)}
+              aria-label={room.roomName}
+              aria-pressed={active}
+            >
+              <span
+                style={{
+                  ...styles.roomThumbImg,
+                  borderColor: active ? '#2C1810' : 'transparent',
+                  transform: active ? 'scale(1.04)' : undefined,
+                  background: thumbUrl
+                    ? `center/cover no-repeat url(${thumbUrl})`
+                    : COVER_GRADIENT[tier],
+                }}
+              />
+              <span style={{ ...styles.roomThumbName, ...(active ? styles.roomThumbNameActive : {}) }}>
+                {room.roomName}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+    ) : null
+
   return (
     <section style={styles.section}>
       <div style={styles.header}>
@@ -162,12 +202,77 @@ export default function NeighborContentBlock({
         <div style={styles.empty}>{emptyText}</div>
       ) : neighbors.length === 0 ? (
         <div style={styles.empty}>{emptyText}</div>
-      ) : (
+      ) : isCorridor ? (
+        /* ── 복도(거실): 상단 방이름 → 복도 이미지 → 하단 방 최신글 + 썸네일 ── */
         <div style={styles.stage}>
           {showArrows && (
             <>
-              <button type="button" style={{ ...styles.edgeArrow, left: 0 }} onClick={() => go(-1)} aria-label="이전">‹</button>
-              <button type="button" style={{ ...styles.edgeArrow, right: 0 }} onClick={() => go(1)} aria-label="다음">›</button>
+              <button type="button" style={{ ...styles.edgeArrow, left: 0 }} onClick={() => go(-1)} aria-label="이전">
+                ‹
+              </button>
+              <button type="button" style={{ ...styles.edgeArrow, right: 0 }} onClick={() => go(1)} aria-label="다음">
+                ›
+              </button>
+            </>
+          )}
+
+          <div
+            style={styles.corridorStack}
+            onTouchStart={(event) => setTouchStartX(event.touches[0]?.clientX ?? null)}
+            onTouchEnd={handleTouchEnd}
+          >
+            {/* 1. 상단 방 이름 */}
+            <div style={styles.corridorRoomName}>
+              {roomA?.roomName || current?.title || '방'}
+            </div>
+
+            {/* 2. 복도 이미지 */}
+            <div
+              style={{
+                ...styles.corridorCover,
+                background: resolvedCoverUrl
+                  ? `center/cover no-repeat url(${resolvedCoverUrl})`
+                  : COVER_GRADIENT.invite,
+              }}
+              onClick={() => {
+                if (roomA?.roomId && onPostClick && postA) {
+                  onPostClick(postA.id, roomA.roomId)
+                } else if (current) {
+                  onNeighborClick(current.houseId)
+                }
+              }}
+            >
+              <div style={styles.corridorShade} />
+            </div>
+
+            {/* 3. 하단: 그 방의 최신 글 */}
+            {postA && (
+              <div style={styles.corridorPost}>
+                <PostBlock
+                  post={postA}
+                  variant="gallery"
+                  showViewMeta={false}
+                  showComments={false}
+                  onClick={() => onPostClick?.(postA.id, roomA?.roomId)}
+                />
+              </div>
+            )}
+
+            {/* 방 썸네일 스트립 (이미지 바로 아래 느낌으로 타이트) */}
+            {roomThumbs}
+          </div>
+        </div>
+      ) : (
+        /* ── 골목(public): 기존 1|2|3 가로 레이아웃 ── */
+        <div style={styles.stage}>
+          {showArrows && (
+            <>
+              <button type="button" style={{ ...styles.edgeArrow, left: 0 }} onClick={() => go(-1)} aria-label="이전">
+                ‹
+              </button>
+              <button type="button" style={{ ...styles.edgeArrow, right: 0 }} onClick={() => go(1)} aria-label="다음">
+                ›
+              </button>
             </>
           )}
 
@@ -200,11 +305,7 @@ export default function NeighborContentBlock({
                       )
                     }
                   />
-                  <div style={styles.profileName}>
-                    {tier === 'invite' && roomA?.roomName
-                      ? roomA.roomName
-                      : current?.title}
-                  </div>
+                  <div style={styles.profileName}>{current?.title}</div>
                 </div>
 
                 {mode === 'recommend' && onApplyNeighbor && current && (
@@ -261,41 +362,7 @@ export default function NeighborContentBlock({
             )}
           </div>
 
-          {rooms.length > 1 && (
-            <div style={styles.roomThumbs} aria-label="방 목록">
-              {rooms.map((room, i) => {
-                const active = Math.floor(i / step) === roomPage
-                const thumbUrl =
-                  room.coverUrl ||
-                  (tier === 'invite' ? roomCorridorCoverUrl(i) : current?.coverUrl) ||
-                  null
-                return (
-                  <button
-                    key={room.roomId}
-                    type="button"
-                    style={styles.roomThumb}
-                    onClick={() => setRoomIdx(Math.floor(i / step) * step)}
-                    aria-label={room.roomName}
-                    aria-pressed={active}
-                  >
-                    <span
-                      style={{
-                        ...styles.roomThumbImg,
-                        borderColor: active ? '#2C1810' : 'transparent',
-                        transform: active ? 'scale(1.04)' : undefined,
-                        background: thumbUrl
-                          ? `center/cover no-repeat url(${thumbUrl})`
-                          : COVER_GRADIENT[tier],
-                      }}
-                    />
-                    <span style={{ ...styles.roomThumbName, ...(active ? styles.roomThumbNameActive : {}) }}>
-                      {room.roomName}
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
-          )}
+          {roomThumbs}
 
           {showNeighborSelector && neighbors.length > 1 && (
             <div style={styles.neighborSelector} aria-label="골목 이웃 선택">
@@ -320,7 +387,12 @@ export default function NeighborContentBlock({
                       neighbor.langFlag || '🏡'
                     )}
                   </span>
-                  <span style={{ ...styles.selectorName, ...(index === neighborIdx ? styles.selectorNameActive : {}) }}>
+                  <span
+                    style={{
+                      ...styles.selectorName,
+                      ...(index === neighborIdx ? styles.selectorNameActive : {}),
+                    }}
+                  >
                     {neighbor.title}
                   </span>
                 </button>
@@ -342,27 +414,94 @@ const styles: Record<string, React.CSSProperties> = {
   header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   title: { fontFamily: "'Noto Serif KR', serif", fontSize: 15, fontWeight: 600, color: '#2C1810' },
   count: {
-    fontSize: 11, color: '#C17F3C', background: '#FFF7E8',
-    border: '1px solid rgba(193,127,60,0.16)', borderRadius: 999, padding: '3px 8px',
+    fontSize: 11,
+    color: '#C17F3C',
+    background: '#FFF7E8',
+    border: '1px solid rgba(193,127,60,0.16)',
+    borderRadius: 999,
+    padding: '3px 8px',
   },
   empty: {
-    textAlign: 'center', padding: '24px 16px', fontSize: 13, color: '#9A8470',
-    background: '#FEFCF8', borderRadius: 14, border: '1px dashed rgba(92,61,46,0.15)',
+    textAlign: 'center',
+    padding: '24px 16px',
+    fontSize: 13,
+    color: '#9A8470',
+    background: '#FEFCF8',
+    borderRadius: 14,
+    border: '1px dashed rgba(92,61,46,0.15)',
   },
   stage: { position: 'relative' },
   edgeArrow: {
-    position: 'absolute', top: '50%', transform: 'translateY(-50%)', zIndex: 2,
-    width: 28, height: 36, borderRadius: 10, border: '1px solid rgba(92,61,46,0.12)',
-    background: 'rgba(254,252,248,0.95)', color: '#2C1810', fontSize: 20, lineHeight: '36px',
-    padding: 0, cursor: 'pointer', boxShadow: '0 2px 8px rgba(44,24,16,0.08)',
+    position: 'absolute',
+    top: '50%',
+    transform: 'translateY(-50%)',
+    zIndex: 2,
+    width: 28,
+    height: 36,
+    borderRadius: 10,
+    border: '1px solid rgba(92,61,46,0.12)',
+    background: 'rgba(254,252,248,0.95)',
+    color: '#2C1810',
+    fontSize: 20,
+    lineHeight: '36px',
+    padding: 0,
+    cursor: 'pointer',
+    boxShadow: '0 2px 8px rgba(44,24,16,0.08)',
   },
+
+  /* ── 복도 세로 스택 ── */
+  corridorStack: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 10,
+  },
+  corridorRoomName: {
+    fontFamily: "'Noto Serif KR', serif",
+    fontSize: 16,
+    fontWeight: 600,
+    color: '#2C1810',
+    letterSpacing: '-0.01em',
+    padding: '0 2px 2px',
+  },
+  corridorCover: {
+    position: 'relative',
+    width: '100%',
+    height: ALLEY_FRAME_HEIGHT,
+    minHeight: 180,
+    borderRadius: 14,
+    overflow: 'hidden',
+    cursor: 'pointer',
+    background: '#FEFCF8',
+    border: '1px solid rgba(92,61,46,0.12)',
+    boxShadow: '0 2px 12px rgba(44,24,16,0.06)',
+    boxSizing: 'border-box',
+  },
+  corridorShade: {
+    position: 'absolute',
+    inset: 0,
+    background: 'linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.18) 100%)',
+    pointerEvents: 'none',
+  },
+  corridorPost: {
+    minWidth: 0,
+    width: '100%',
+  },
+  roomThumbsTight: {
+    display: 'flex',
+    gap: 10,
+    overflowX: 'auto',
+    padding: '4px 2px 2px',
+    WebkitOverflowScrolling: 'touch',
+    scrollbarWidth: 'none',
+  },
+
+  /* ── 골목 기존 ── */
   col1: {
     display: 'flex',
     flexDirection: 'column',
     minWidth: 0,
     height: ALLEY_FRAME_HEIGHT,
   },
-  // 게시글(gallery) 카드와 동일 프레임 — 테두리·배경·라운드 맞춤
   cover: {
     position: 'relative',
     flex: 1,
@@ -377,15 +516,22 @@ const styles: Record<string, React.CSSProperties> = {
     boxSizing: 'border-box',
   },
   coverShade: {
-    position: 'absolute', inset: 0,
+    position: 'absolute',
+    inset: 0,
     background: 'linear-gradient(180deg, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.42) 100%)',
     pointerEvents: 'none',
   },
   profileCenter: {
-    position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
-    alignItems: 'center', justifyContent: 'center', gap: 8, zIndex: 1, padding: '8px 8px 40px',
+    position: 'absolute',
+    inset: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    zIndex: 1,
+    padding: '8px 8px 40px',
   },
-  // Ring 중앙 칸을 채움. 고정 px이면 칸보다 커서 타원처럼 보임.
   avatarImg: {
     width: '100%',
     height: '100%',
@@ -394,9 +540,15 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'block',
   },
   profileName: {
-    fontSize: 12, fontWeight: 600, color: '#FEFCF8', textAlign: 'center',
-    textShadow: '0 1px 3px rgba(0,0,0,0.45)', overflow: 'hidden', textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap', maxWidth: '100%',
+    fontSize: 12,
+    fontWeight: 600,
+    color: '#FEFCF8',
+    textAlign: 'center',
+    textShadow: '0 1px 3px rgba(0,0,0,0.45)',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    maxWidth: '100%',
   },
   applyBtnInCover: {
     position: 'absolute',
@@ -422,8 +574,13 @@ const styles: Record<string, React.CSSProperties> = {
     height: ALLEY_FRAME_HEIGHT,
   },
   roomTag: {
-    fontSize: 10, color: '#9A8470', paddingLeft: 2, overflow: 'hidden',
-    textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 0,
+    fontSize: 10,
+    color: '#9A8470',
+    paddingLeft: 2,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    flexShrink: 0,
   },
   postFrame: {
     flex: 1,
@@ -459,7 +616,6 @@ const styles: Record<string, React.CSSProperties> = {
     boxShadow: '0 1px 4px rgba(44,24,16,0.08)',
     display: 'block',
   },
-  roomThumbActive: {},
   roomThumbName: {
     maxWidth: 72,
     fontSize: 10,
@@ -472,20 +628,45 @@ const styles: Record<string, React.CSSProperties> = {
   roomThumbNameActive: { color: '#2C1810', fontWeight: 600 },
 
   neighborSelector: {
-    display: 'flex', gap: 14, overflowX: 'auto', padding: '14px 4px 2px',
-    WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none',
+    display: 'flex',
+    gap: 14,
+    overflowX: 'auto',
+    padding: '14px 4px 2px',
+    WebkitOverflowScrolling: 'touch',
+    scrollbarWidth: 'none',
   },
   selectorItem: {
-    flex: '0 0 58px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
-    border: 0, background: 'none', padding: 0, cursor: 'pointer',
+    flex: '0 0 58px',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 5,
+    border: 0,
+    background: 'none',
+    padding: 0,
+    cursor: 'pointer',
   },
   selectorAvatar: {
-    width: 44, height: 44, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-    overflow: 'hidden', background: 'linear-gradient(135deg, #4A5240, #C17F3C)',
-    border: '2px solid transparent', transition: 'transform 160ms ease, border-color 160ms ease',
+    width: 44,
+    height: 44,
+    borderRadius: '50%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    background: 'linear-gradient(135deg, #4A5240, #C17F3C)',
+    border: '2px solid transparent',
+    transition: 'transform 160ms ease, border-color 160ms ease',
   },
   selectorAvatarActive: { borderColor: '#2C1810', transform: 'scale(1.1)' },
   selectorImage: { width: '100%', height: '100%', objectFit: 'cover' },
-  selectorName: { maxWidth: 58, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 10, color: '#9A8470' },
+  selectorName: {
+    maxWidth: 58,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontSize: 10,
+    color: '#9A8470',
+  },
   selectorNameActive: { color: '#2C1810', fontWeight: 600 },
 }
