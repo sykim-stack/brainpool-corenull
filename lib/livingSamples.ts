@@ -155,6 +155,8 @@ export function createLivingSampleView(ownerKey: string): LivingSampleView {
     const posts = room.posts.map((content, index): PostBlockData => ({
       id: `sample-${sample.id}-${room.id}-${index + 1}`,
       content,
+      // 샘플 게시물은 빈집의 분위기를 보여주는 화면 전용 이미지로 채운다.
+      media: [{ type: 'image', url: `/alley/alley-${String((index % 5) + 1).padStart(2, '0')}.jpg` }],
       // 화면에서는 실제 날짜 대신 '샘플 게시글'로 표시하며, 정렬 용도로만 고정 시각을 쓴다.
       created_at: new Date(Date.UTC(2026, 0, 1, 0, 60 - roomIndex * 20 - index)).toISOString(),
       comment_count: 0,
