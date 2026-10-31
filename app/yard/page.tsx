@@ -20,6 +20,7 @@ import { PostBlockData } from '@/components/blocks/PostBlock'
 import { RingData } from '@/components/blocks/RingBlock'
 import { NeighborChip, NeighborRoomSlot } from '@/components/blocks/NeighborContentBlock'
 import { houseHeroBackground, houseAvatarUrl } from '@/lib/houseImages'
+import { createYardSampleView } from '@/lib/livingSamples'
 
 const LANG_FLAG: Record<string, string> = {
   ko: '🇰🇷', vi: '🇻🇳', en: '🇺🇸', ja: '🇯🇵', zh: '🇨🇳',
@@ -244,6 +245,14 @@ export default function YardPage() {
         }),
       )
       setMyPosts(mineNested.filter(Boolean) as PostBlockData[])
+
+      // 실데이터 없으면 샘플로 골목·이웃공개방·내 방 최신 채움 (클릭·관심 차단은 isSample)
+      {
+        const sample = createYardSampleView(key)
+        setRecommended((prev) => (prev.length > 0 ? prev : sample.recommended))
+        setNeighborFeed((prev) => (prev.length > 0 ? prev : sample.neighborFeed))
+        setMyPosts((prev) => (prev.length > 0 ? prev : sample.myPosts))
+      }
     } finally {
       setLoading(false)
     }
@@ -260,6 +269,7 @@ export default function YardPage() {
   }
 
   const handleApplyNeighbor = async (targetHouseId: string) => {
+    if (String(targetHouseId).startsWith('yard-sample-') || String(targetHouseId).startsWith('living-sample-')) return
     setApplyLoadingHouseId(targetHouseId)
     try {
       await fetch('/api/corenull/houses', {
@@ -365,8 +375,14 @@ export default function YardPage() {
           neighborCount: acceptedCount,
         }}
         recommended={recommended}
-        onRecommendHouseClick={(houseId) => router.push(`/houses/${houseId}/yard`)}
-        onAcceptedNeighborClick={(houseId) => router.push(`/houses/${houseId}/living`)}
+        onRecommendHouseClick={(houseId) => {
+          if (String(houseId).startsWith('yard-sample-') || String(houseId).startsWith('living-sample-')) return
+          router.push(`/houses/${houseId}/yard`)
+        }}
+        onAcceptedNeighborClick={(houseId) => {
+          if (String(houseId).startsWith('yard-sample-') || String(houseId).startsWith('living-sample-')) return
+          router.push(`/houses/${houseId}/living`)
+        }}
         onApplyNeighbor={handleApplyNeighbor}
         applyLoadingHouseId={applyLoadingHouseId}
         relations={relations}
@@ -374,6 +390,7 @@ export default function YardPage() {
         neighborFeed={neighborFeed}
         myPosts={myPosts}
         onPostClick={(postId, roomId) => {
+          if (String(postId).startsWith('sample-') || String(roomId || '').startsWith('sample-')) return
           if (roomId) router.push(`/rooms/${roomId}`)
         }}
         showInterest
