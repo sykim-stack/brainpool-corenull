@@ -261,19 +261,39 @@ export default function NeighborContentBlock({
             )}
           </div>
 
-          {roomPageCount > 1 && (
-            <div className="cn-alley-dots">
-              <div className="cn-alley-dots-inner" style={styles.dots}>
-                {Array.from({ length: roomPageCount }).map((_, i) => (
+          {rooms.length > 1 && (
+            <div style={styles.roomThumbs} aria-label="방 목록">
+              {rooms.map((room, i) => {
+                const active = Math.floor(i / step) === roomPage
+                const thumbUrl =
+                  room.coverUrl ||
+                  (tier === 'invite' ? roomCorridorCoverUrl(i) : current?.coverUrl) ||
+                  null
+                return (
                   <button
-                    key={i}
+                    key={room.roomId}
                     type="button"
-                    style={{ ...styles.dot, background: i === roomPage ? '#2C1810' : 'rgba(92,61,46,0.2)' }}
-                    onClick={() => setRoomIdx(i * step)}
-                    aria-label={`방 페이지 ${i + 1}`}
-                  />
-                ))}
-              </div>
+                    style={styles.roomThumb}
+                    onClick={() => setRoomIdx(Math.floor(i / step) * step)}
+                    aria-label={room.roomName}
+                    aria-pressed={active}
+                  >
+                    <span
+                      style={{
+                        ...styles.roomThumbImg,
+                        borderColor: active ? '#2C1810' : 'transparent',
+                        transform: active ? 'scale(1.04)' : undefined,
+                        background: thumbUrl
+                          ? `center/cover no-repeat url(${thumbUrl})`
+                          : COVER_GRADIENT[tier],
+                      }}
+                    />
+                    <span style={{ ...styles.roomThumbName, ...(active ? styles.roomThumbNameActive : {}) }}>
+                      {room.roomName}
+                    </span>
+                  </button>
+                )
+              })}
             </div>
           )}
 
@@ -342,14 +362,19 @@ const styles: Record<string, React.CSSProperties> = {
     minWidth: 0,
     height: ALLEY_FRAME_HEIGHT,
   },
+  // 게시글(gallery) 카드와 동일 프레임 — 테두리·배경·라운드 맞춤
   cover: {
     position: 'relative',
     flex: 1,
     height: '100%',
-    minHeight: ALLEY_FRAME_HEIGHT,
+    minHeight: 0,
     borderRadius: 14,
     overflow: 'hidden',
     cursor: 'pointer',
+    background: '#FEFCF8',
+    border: '1px solid rgba(92,61,46,0.12)',
+    boxShadow: '0 2px 12px rgba(44,24,16,0.06)',
+    boxSizing: 'border-box',
   },
   coverShade: {
     position: 'absolute', inset: 0,
@@ -406,8 +431,46 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
   },
-  dots: { display: 'flex', justifyContent: 'center', gap: 6 },
-  dot: { width: 7, height: 7, borderRadius: '50%', border: 'none', padding: 0, cursor: 'pointer' },
+  roomThumbs: {
+    display: 'flex',
+    gap: 10,
+    overflowX: 'auto',
+    padding: '12px 2px 2px',
+    WebkitOverflowScrolling: 'touch',
+    scrollbarWidth: 'none',
+  },
+  roomThumb: {
+    flex: '0 0 auto',
+    width: 72,
+    border: 'none',
+    background: 'none',
+    padding: 0,
+    cursor: 'pointer',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 5,
+  },
+  roomThumbImg: {
+    width: 64,
+    height: 48,
+    borderRadius: 10,
+    border: '2px solid transparent',
+    boxShadow: '0 1px 4px rgba(44,24,16,0.08)',
+    display: 'block',
+  },
+  roomThumbActive: {},
+  roomThumbName: {
+    maxWidth: 72,
+    fontSize: 10,
+    color: '#9A8470',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    textAlign: 'center',
+  },
+  roomThumbNameActive: { color: '#2C1810', fontWeight: 600 },
+
   neighborSelector: {
     display: 'flex', gap: 14, overflowX: 'auto', padding: '14px 4px 2px',
     WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none',
