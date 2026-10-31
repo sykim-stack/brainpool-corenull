@@ -187,6 +187,9 @@ export default function NeighborContentBlock({
               <div
                 style={{
                   ...styles.cover,
+                  ...(showRoomThumbnails
+                    ? { height: 'calc(var(--cn-alley-frame) - 18px)', minHeight: 0, flex: '0 0 auto' }
+                    : {}),
                   background: resolvedCoverUrl
                     ? `center/cover no-repeat url(${resolvedCoverUrl})`
                     : COVER_GRADIENT[tier],
@@ -430,11 +433,9 @@ const styles: Record<string, React.CSSProperties> = {
   roomThumbnailNameActive: { color: '#2C1810', fontWeight: 600 },
   cover: {
     position: 'relative',
-    flex: '0 0 auto',
-    // 거실에서는 오른쪽 최신글 카드의 postFrame 높이와 맞춘다.
-    // colPost 전체 높이에서 방 이름 라벨과 간격을 제외한 값.
-    height: showRoomThumbnails ? 'calc(var(--cn-alley-frame) - 18px)' : ALLEY_FRAME_HEIGHT,
-    minHeight: 0,
+    flex: 1,
+    height: '100%',
+    minHeight: ALLEY_FRAME_HEIGHT,
     borderRadius: 14,
     overflow: 'hidden',
     cursor: 'pointer',
