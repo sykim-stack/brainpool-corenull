@@ -175,6 +175,11 @@ export default function NeighborContentBlock({
             </>
           )}
 
+          {/* 거실: 방 이름은 행 위 — 이미지|글 높이만 맞춤 */}
+          {isLivingCorridor && roomA && (
+            <div style={styles.activeRoomTitle}>{roomA.roomName}</div>
+          )}
+
           <div
             className="cn-alley-row"
             data-posts={Number(!!postA) + Number(!!postB)}
@@ -182,90 +187,61 @@ export default function NeighborContentBlock({
             onTouchEnd={handleTouchEnd}
           >
             <div style={styles.col1}>
-              <div style={isLivingCorridor ? styles.roomPanel : undefined}>
-                {isLivingCorridor && roomA && (
-                  <div style={styles.activeRoomTitle}>{roomA.roomName}</div>
+              <div
+                style={{
+                  ...styles.cover,
+                  background: resolvedCoverUrl
+                    ? `center/cover no-repeat url(${resolvedCoverUrl})`
+                    : COVER_GRADIENT[tier],
+                }}
+                onClick={() => {
+                  if (isLivingCorridor && roomA?.roomId && postA && onPostClick) {
+                    onPostClick(postA.id, roomA.roomId)
+                  } else if (current) {
+                    onNeighborClick(current.houseId)
+                  }
+                }}
+              >
+                <div style={isLivingCorridor ? styles.corridorShade : styles.coverShade} />
+                {/* 골목만 Ring. 거실 복도는 이미지만 */}
+                {!isLivingCorridor && (
+                  <div style={styles.profileCenter}>
+                    <RingBlock
+                      data={current?.ring || DEFAULT_RING}
+                      size={128}
+                      centerContent={
+                        current?.avatarUrl ? (
+                          <img src={current.avatarUrl} alt="" style={styles.avatarImg} />
+                        ) : (
+                          <span style={{ fontSize: 28 }}>{current?.langFlag || '🏡'}</span>
+                        )
+                      }
+                    />
+                    <div style={styles.profileName}>{current?.title}</div>
+                  </div>
                 )}
-                <div
-                  style={{
-                    ...styles.cover,
-                    ...(isLivingCorridor ? styles.livingCover : {}),
-                    background: resolvedCoverUrl
-                      ? `center/cover no-repeat url(${resolvedCoverUrl})`
-                      : COVER_GRADIENT[tier],
-                  }}
-                  onClick={() => {
-                    if (isLivingCorridor && roomA?.roomId && postA && onPostClick) {
-                      onPostClick(postA.id, roomA.roomId)
-                    } else if (current) {
-                      onNeighborClick(current.houseId)
-                    }
-                  }}
-                >
-                  <div style={isLivingCorridor ? styles.corridorShade : styles.coverShade} />
-                  {/* 골목만 Ring. 거실 복도는 이미지만 */}
-                  {!isLivingCorridor && (
-                    <div style={styles.profileCenter}>
-                      <RingBlock
-                        data={current?.ring || DEFAULT_RING}
-                        size={128}
-                        centerContent={
-                          current?.avatarUrl ? (
-                            <img src={current.avatarUrl} alt="" style={styles.avatarImg} />
-                          ) : (
-                            <span style={{ fontSize: 28 }}>{current?.langFlag || '🏡'}</span>
-                          )
-                        }
-                      />
-                      <div style={styles.profileName}>{current?.title}</div>
-                    </div>
-                  )}
 
-                  {mode === 'recommend' && onApplyNeighbor && current && (
-                    <button
-                      type="button"
-                      style={{
-                        ...styles.applyBtnInCover,
-                        opacity: current.requestPending || applyLoadingHouseId === current.houseId ? 0.55 : 1,
-                      }}
-                      disabled={!!current.requestPending || applyLoadingHouseId === current.houseId}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onApplyNeighbor(current.houseId)
-                      }}
-                    >
-                      {current.requestPending
-                        ? '신청중'
-                        : applyLoadingHouseId === current.houseId
-                          ? '…'
-                          : '신청'}
-                    </button>
-                  )}
-                </div>
+                {mode === 'recommend' && onApplyNeighbor && current && (
+                  <button
+                    type="button"
+                    style={{
+                      ...styles.applyBtnInCover,
+                      opacity: current.requestPending || applyLoadingHouseId === current.houseId ? 0.55 : 1,
+                    }}
+                    disabled={!!current.requestPending || applyLoadingHouseId === current.houseId}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onApplyNeighbor(current.houseId)
+                    }}
+                  >
+                    {current.requestPending
+                      ? '신청중'
+                      : applyLoadingHouseId === current.houseId
+                        ? '…'
+                        : '신청'}
+                  </button>
+                )}
               </div>
-              {isLivingCorridor && rooms.length > 0 && (
-                <div style={styles.roomThumbnails} aria-label="방 선택">
-                  {rooms.map((room, index) => {
-                    const image = room.coverUrl || roomCorridorCoverUrl(index)
-                    const selected = index === activeRoomIndex
-                    return (
-                      <button
-                        key={room.roomId}
-                        type="button"
-                        aria-pressed={selected}
-                        aria-label={`${room.roomName} 선택`}
-                        style={{ ...styles.roomThumbnail, ...(selected ? styles.roomThumbnailActive : {}) }}
-                        onClick={() => setRoomIdx(index)}
-                      >
-                        <img src={image} alt="" style={styles.roomThumbnailImage} />
-                        <span style={{ ...styles.roomThumbnailName, ...(selected ? styles.roomThumbnailNameActive : {}) }}>
-                          {room.roomName}
-                        </span>
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
             </div>
 
             {postA && (
@@ -302,6 +278,31 @@ export default function NeighborContentBlock({
               </div>
             )}
           </div>
+
+          {/* 거실: 썸네일은 행 아래 — 이미지|글 높이를 깎지 않음 */}
+          {isLivingCorridor && rooms.length > 0 && (
+            <div style={styles.roomThumbnails} aria-label="방 선택">
+              {rooms.map((room, index) => {
+                const image = room.coverUrl || roomCorridorCoverUrl(index)
+                const selected = index === activeRoomIndex
+                return (
+                  <button
+                    key={room.roomId}
+                    type="button"
+                    aria-pressed={selected}
+                    aria-label={`${room.roomName} 선택`}
+                    style={{ ...styles.roomThumbnail, ...(selected ? styles.roomThumbnailActive : {}) }}
+                    onClick={() => setRoomIdx(index)}
+                  >
+                    <img src={image} alt="" style={styles.roomThumbnailImage} />
+                    <span style={{ ...styles.roomThumbnailName, ...(selected ? styles.roomThumbnailNameActive : {}) }}>
+                      {room.roomName}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          )}
 
           {roomPageCount > 1 && !isLivingCorridor && (
             <div className="cn-alley-dots">
@@ -400,10 +401,8 @@ const styles: Record<string, React.CSSProperties> = {
     minHeight: 0,
   },
   activeRoomTitle: {
-    height: 20,
-    flexShrink: 0,
-    padding: '0 2px 5px',
-    fontSize: 12,
+    padding: '0 2px 8px',
+    fontSize: 13,
     fontWeight: 600,
     color: '#5C4A35',
     overflow: 'hidden',
@@ -414,12 +413,9 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     gap: 8,
     overflowX: 'auto',
-    padding: '8px 2px 2px',
+    padding: '10px 2px 2px',
     WebkitOverflowScrolling: 'touch',
     scrollbarWidth: 'none',
-    flex: '0 0 72px',
-    minHeight: 0,
-    maxHeight: 72,
     boxSizing: 'border-box',
   },
   roomThumbnail: {
@@ -523,7 +519,6 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 10, color: '#9A8470', paddingLeft: 2, overflow: 'hidden',
     textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 0,
   },
-  /* 방 이름 오버레이 — 컬럼 높이를 깨지 않음 (마당·광장 골목 높이 맞춤) */
   roomTagOverlay: {
     position: 'absolute',
     top: 8,
