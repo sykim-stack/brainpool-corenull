@@ -270,8 +270,10 @@ export default function NeighborContentBlock({
 
             {postA && (
               <div style={styles.colPost}>
-                {roomA && !isLivingCorridor && <div style={styles.roomTag}>{roomA.roomName}</div>}
                 <div style={styles.postFrame}>
+                  {roomA && !isLivingCorridor && (
+                    <div style={styles.roomTagOverlay}>{roomA.roomName}</div>
+                  )}
                   <PostBlock
                     post={postA}
                     variant="gallery"
@@ -285,8 +287,10 @@ export default function NeighborContentBlock({
 
             {postB && (
               <div style={styles.colPost}>
-                {roomB && <div style={styles.roomTag}>{roomB.roomName}</div>}
                 <div style={styles.postFrame}>
+                  {roomB && (
+                    <div style={styles.roomTagOverlay}>{roomB.roomName}</div>
+                  )}
                   <PostBlock
                     post={postB}
                     variant="gallery"
@@ -457,7 +461,7 @@ const styles: Record<string, React.CSSProperties> = {
     position: 'relative',
     flex: 1,
     height: '100%',
-    minHeight: ALLEY_FRAME_HEIGHT,
+    minHeight: 0,
     borderRadius: 14,
     overflow: 'hidden',
     cursor: 'pointer',
@@ -519,9 +523,30 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 10, color: '#9A8470', paddingLeft: 2, overflow: 'hidden',
     textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 0,
   },
+  /* 방 이름 오버레이 — 컬럼 높이를 깨지 않음 (마당·광장 골목 높이 맞춤) */
+  roomTagOverlay: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    zIndex: 2,
+    maxWidth: 'calc(100% - 16px)',
+    padding: '3px 8px',
+    borderRadius: 999,
+    background: 'rgba(254,252,248,0.92)',
+    border: '1px solid rgba(92,61,46,0.12)',
+    fontSize: 10,
+    fontWeight: 600,
+    color: '#5C4A35',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    pointerEvents: 'none',
+  },
   postFrame: {
+    position: 'relative',
     flex: 1,
     minHeight: 0,
+    height: '100%',
     display: 'flex',
     flexDirection: 'column',
   },
