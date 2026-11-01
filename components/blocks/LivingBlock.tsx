@@ -8,7 +8,7 @@ import { RingData } from './RingBlock'
 
 /**
  * LivingBlock — 거실 (구조 닫음)
- * Hero → 복도(세로 스택: 방이름 → 이미지 → 최신글+썸네일) → 최신글 brick
+ * Hero → 복도(가로: 이미지|글, Ring 없음) → 최신글 brick
  * 문패 CTA = 방 만들기
  */
 
@@ -75,12 +75,13 @@ export default function LivingBlock({
         avatarControls={avatarControls}
       />
 
-      {/* 복도: tier=invite → 세로 스택 (방이름 · 이미지 · 최신글 · 썸네일) */}
+      {/* 복도: PC 가로(이미지|글) · Ring 없음 · 방이름+썸네일 */}
       <NeighborContentBlock
         tier="invite"
         mode="neighbor"
         neighbors={corridor}
         roomsPerPage={1}
+        showRoomThumbnails
         emptyLabel="아직 방이 없어요"
         onNeighborClick={(id) => onCorridorHouseClick?.(id)}
         onPostClick={onPostClick}
