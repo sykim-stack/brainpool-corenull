@@ -33,8 +33,8 @@ export default function OwnerGate() {
 
   function handleGoogle(ownerKey: string, info?: { isNewUser?: boolean }) {
     setOwnerKey(ownerKey)
-    // 신규는 마당 샘플 + 집 만들기, 기존은 루트(마당)
-    router.push(info?.isNewUser ? '/yard' : '/')
+    // 이미 /yard 인 경우 soft push는 OwnerGate가 그대로 남음 → 하드 이동
+    window.location.href = info?.isNewUser ? '/yard' : '/'
   }
 
   const handleRecover = async () => {
@@ -66,7 +66,8 @@ export default function OwnerGate() {
 
   const handleNew = () => {
     createOwnerKey()
-    router.push('/yard')
+    // 이미 /yard 이면 soft push로는 OwnerGate state가 남음 → 하드 이동
+    window.location.href = '/yard'
   }
 
   return (
