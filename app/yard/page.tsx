@@ -313,8 +313,8 @@ export default function YardPage() {
 
   const sampleHeroBg = {
     imageUrl: '/alley/alley-01.jpg',
-    position: '50% 40%',
-  } as const
+    position: { x: 50, y: 40, scale: 1 },
+  }
 
   return (
     <div style={{ position: 'relative' }}>
