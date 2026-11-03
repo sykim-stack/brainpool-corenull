@@ -72,7 +72,7 @@ export default function OwnerGate() {
   return (
     <div style={styles.shell}>
       {/* 뒤: 마당 샘플 (흐림 · 클릭 불가) */}
-      <div style={styles.bg} aria-hidden>
+      <div className="cn-sample-bg" style={styles.bg} aria-hidden>
         <YardBlock
           loading={false}
           background={{
@@ -115,10 +115,10 @@ export default function OwnerGate() {
           {mode === 'choice' && (
             <div style={styles.actions}>
               {isInApp && <InAppBrowserNotice name={name} />}
-              <button style={styles.primary} onClick={() => setMode('recover')}>
+              <button type="button" style={styles.primary} onClick={() => setMode('recover')}>
                 기존 집 연결
               </button>
-              <button style={styles.secondary} onClick={handleNew}>
+              <button type="button" style={styles.secondary} onClick={handleNew}>
                 새로 시작
               </button>
               {available && !error && (
@@ -128,6 +128,7 @@ export default function OwnerGate() {
                 <div style={styles.googleHint}>
                   Google 버튼을 불러오지 못했어요. 브라우저가 google.com을 차단하거나,
                   <button
+                    type="button"
                     style={{ ...styles.link, display: 'block', marginTop: 4 }}
                     onClick={() => window.location.reload()}
                   >
@@ -156,6 +157,7 @@ export default function OwnerGate() {
                 autoFocus
               />
               <button
+                type="button"
                 style={{
                   ...styles.primary,
                   opacity: code.length === 6 && !loading ? 1 : 0.4,
@@ -166,6 +168,7 @@ export default function OwnerGate() {
                 {loading ? '연결 중…' : '연결하기'}
               </button>
               <button
+                type="button"
                 style={styles.link}
                 onClick={() => {
                   setMode('choice')
@@ -195,7 +198,7 @@ const styles: Record<string, React.CSSProperties> = {
     position: 'fixed',
     inset: 0,
     zIndex: 0,
-    overflow: 'auto',
+    overflow: 'hidden',
     filter: 'blur(2.5px)',
     opacity: 0.72,
     pointerEvents: 'none',
@@ -203,7 +206,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   overlay: {
     position: 'relative',
-    zIndex: 1,
+    zIndex: 200,
     minHeight: '100vh',
     display: 'flex',
     alignItems: 'center',
@@ -211,6 +214,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: 24,
     background: 'rgba(28,18,8,0.22)',
     boxSizing: 'border-box',
+    pointerEvents: 'auto',
   },
   card: {
     width: '100%',
