@@ -4,17 +4,18 @@
 // House를 만들기 전에 Owner를 복구하거나 신규임을 명시적으로 확정한다.
 //
 // [기존 집 연결]  → recover 코드 입력 → setOwnerKey → 재진입
-// [새로 시작]    → createOwnerKey → /living (샘플 거실 + 집 만들기 모달)
+// [새로 시작]    → createOwnerKey → /yard (샘플 마당 + 집 만들기 모달)
 // [Google 계정] → GIS → /api/auth/google → google sub ↔ owner_key 매핑
-//                  (기존 owner_key 보존 / 신규면 새 owner_key)
 //
-// 인앱 브라우저(카카오톡 등)에서는 Google 버튼을 감추고 외부 브라우저 안내만 보여준다.
+// 배경: 마당 샘플을 흐리게 깔아 CoreNull이 살아 있는 공간임을 먼저 보여준다.
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { setOwnerKey, createOwnerKey } from '@/lib/ownerKey'
 import { useInAppBrowser, InAppBrowserNotice } from '@/components/corenull/InAppBrowserGate'
 import { useGoogleLogin } from '@/hooks/useGoogleLogin'
+import YardBlock from '@/components/blocks/YardBlock'
+import { createYardSampleView } from '@/lib/livingSamples'
 
 type Mode = 'choice' | 'recover' | 'done'
 
@@ -28,10 +29,12 @@ export default function OwnerGate() {
   const { isInApp, name } = useInAppBrowser()
   const { googleRef, available, error } = useGoogleLogin(handleGoogle)
 
+  const sample = useMemo(() => createYardSampleView('owner-gate-preview'), [])
+
   function handleGoogle(ownerKey: string, info?: { isNewUser?: boolean }) {
     setOwnerKey(ownerKey)
-    // 복구한 owner_key가 있으면 기족 집 재연결, 없으면(신규) 집 만들기 유도
-    router.push(info?.isNewUser ? '/living' : '/')
+    // 신규는 마당 샘플 + 집 만들기, 기존은 루트(마당)
+    router.push(info?.isNewUser ? '/yard' : '/')
   }
 
   const handleRecover = async () => {
@@ -63,88 +66,151 @@ export default function OwnerGate() {
 
   const handleNew = () => {
     createOwnerKey()
-    router.push('/living')
+    router.push('/yard')
   }
 
   return (
-    <div style={styles.wrap}>
-      <div style={styles.card}>
-        <div style={styles.emoji}>🏡</div>
-        <h1 style={styles.title}>CoreNull</h1>
-        <p style={styles.desc}>
-          이 기기에서 아직 집이 연결되어 있지 않아요.
-          <br />
-          기존 집을 연결하거나, 새로 시작하거나 Google 계정으로도 연결할 수 있어요.
-        </p>
+    <div style={styles.shell}>
+      {/* 뒤: 마당 샘플 (흐림 · 클릭 불가) */}
+      <div style={styles.bg} aria-hidden>
+        <YardBlock
+          loading={false}
+          background={{
+            imageUrl: '/alley/alley-01.jpg',
+            position: { x: 50, y: 40, scale: 1 },
+          }}
+          ring={{
+            rings: [
+              { index: 0, weight: 0.55 },
+              { index: 1, weight: 0.35 },
+              { index: 2, weight: 0.22 },
+            ],
+          }}
+          avatar={<span style={{ fontSize: 20 }}>🏡</span>}
+          doorplate={{
+            langFlag: '🏡',
+            title: 'CoreNull',
+            description: '미리보기 마당',
+            roomCount: 3,
+            neighborCount: 2,
+          }}
+          recommended={sample.recommended}
+          onRecommendHouseClick={() => {}}
+          neighborFeed={sample.neighborFeed}
+          myPosts={sample.myPosts}
+        />
+      </div>
 
-        {mode === 'choice' && (
-          <div style={styles.actions}>
-            {isInApp && <InAppBrowserNotice name={name} />}
-            <button style={styles.primary} onClick={() => setMode('recover')}>
-              기존 집 연결
-            </button>
-            <button style={styles.secondary} onClick={handleNew}>
-              새로 시작
-            </button>
-            {available && !error && (
-              <div ref={googleRef} style={styles.googleBtnWrap} />
-            )}
-            {error && !isInApp && (
-              <div style={styles.googleHint}>
-                Google 버튼을 불러오지 못했어요. 브라우저가 google.com을 차단하거나,
-                <button style={{ ...styles.link, display: 'block', marginTop: 4 }} onClick={() => window.location.reload()}>새로고침</button>
-              </div>
-            )}
-            {!available && !isInApp && !error && (
-              <p style={styles.googleHint}>Google 계정 연결은 관리자 설정 중입니다.</p>
-            )}
-          </div>
-        )}
+      {/* 앞: 연결 카드 */}
+      <div style={styles.overlay}>
+        <div style={styles.card}>
+          <div style={styles.emoji}>🏡</div>
+          <h1 style={styles.title}>CoreNull</h1>
+          <p style={styles.desc}>
+            이 기기에서 아직 집이 연결되어 있지 않아요.
+            <br />
+            기존 집을 연결하거나, 새로 시작하거나 Google 계정으로도 연결할 수 있어요.
+          </p>
 
-        {mode === 'recover' && (
-          <div style={styles.recover}>
-            <p style={styles.hint}>
-              다른 기기(나 페이지)에서 발급한 6자리 코드를 입력하세요.
-            </p>
-            <input
-              style={styles.input}
-              placeholder="000000"
-              value={code}
-              onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-              maxLength={6}
-              inputMode="numeric"
-              autoFocus
-            />
-            <button
-              style={{
-                ...styles.primary,
-                opacity: code.length === 6 && !loading ? 1 : 0.4,
-              }}
-              onClick={handleRecover}
-              disabled={code.length !== 6 || loading}
-            >
-              {loading ? '연결 중…' : '연결하기'}
-            </button>
-            <button style={styles.link} onClick={() => { setMode('choice'); setMsg('') }}>
-              ← 뒤로
-            </button>
-            {msg && <p style={styles.msg}>{msg}</p>}
-          </div>
-        )}
+          {mode === 'choice' && (
+            <div style={styles.actions}>
+              {isInApp && <InAppBrowserNotice name={name} />}
+              <button style={styles.primary} onClick={() => setMode('recover')}>
+                기존 집 연결
+              </button>
+              <button style={styles.secondary} onClick={handleNew}>
+                새로 시작
+              </button>
+              {available && !error && (
+                <div ref={googleRef} style={styles.googleBtnWrap} />
+              )}
+              {error && !isInApp && (
+                <div style={styles.googleHint}>
+                  Google 버튼을 불러오지 못했어요. 브라우저가 google.com을 차단하거나,
+                  <button
+                    style={{ ...styles.link, display: 'block', marginTop: 4 }}
+                    onClick={() => window.location.reload()}
+                  >
+                    새로고침
+                  </button>
+                </div>
+              )}
+              {!available && !isInApp && !error && (
+                <p style={styles.googleHint}>Google 계정 연결은 관리자 설정 중입니다.</p>
+              )}
+            </div>
+          )}
 
-        {mode === 'done' && msg && <p style={styles.msg}>{msg}</p>}
+          {mode === 'recover' && (
+            <div style={styles.recover}>
+              <p style={styles.hint}>
+                다른 기기(나 페이지)에서 발급한 6자리 코드를 입력하세요.
+              </p>
+              <input
+                style={styles.input}
+                placeholder="000000"
+                value={code}
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                maxLength={6}
+                inputMode="numeric"
+                autoFocus
+              />
+              <button
+                style={{
+                  ...styles.primary,
+                  opacity: code.length === 6 && !loading ? 1 : 0.4,
+                }}
+                onClick={handleRecover}
+                disabled={code.length !== 6 || loading}
+              >
+                {loading ? '연결 중…' : '연결하기'}
+              </button>
+              <button
+                style={styles.link}
+                onClick={() => {
+                  setMode('choice')
+                  setMsg('')
+                }}
+              >
+                ← 뒤로
+              </button>
+              {msg && <p style={styles.msg}>{msg}</p>}
+            </div>
+          )}
+
+          {mode === 'done' && msg && <p style={styles.msg}>{msg}</p>}
+        </div>
       </div>
     </div>
   )
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  wrap: {
-    minHeight: '70vh',
+  shell: {
+    position: 'relative',
+    minHeight: '100vh',
+    overflow: 'hidden',
+  },
+  bg: {
+    position: 'fixed',
+    inset: 0,
+    zIndex: 0,
+    overflow: 'auto',
+    filter: 'blur(2.5px)',
+    opacity: 0.72,
+    pointerEvents: 'none',
+    userSelect: 'none',
+  },
+  overlay: {
+    position: 'relative',
+    zIndex: 1,
+    minHeight: '100vh',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
+    background: 'rgba(28,18,8,0.22)',
+    boxSizing: 'border-box',
   },
   card: {
     width: '100%',
@@ -154,7 +220,7 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 20,
     padding: '32px 24px',
     textAlign: 'center',
-    boxShadow: '0 2px 20px rgba(44,24,16,0.08)',
+    boxShadow: '0 18px 48px rgba(28,18,8,0.2)',
   },
   emoji: { fontSize: 40, marginBottom: 12 },
   title: {
