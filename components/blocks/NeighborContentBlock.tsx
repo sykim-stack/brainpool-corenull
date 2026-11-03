@@ -152,7 +152,6 @@ export default function NeighborContentBlock({
       ? `${neighborIdx + 1}/${neighbors.length}`
       : null
 
-  // 거실 복도: Ring 없이 이미지만 (가로 1|글 유지 — PC 레이아웃)
   const isLivingCorridor = showRoomThumbnails || tier === 'invite'
 
   return (
@@ -175,7 +174,6 @@ export default function NeighborContentBlock({
             </>
           )}
 
-          {/* 거실: 방 이름은 행 위 — 이미지|글 높이만 맞춤 */}
           {isLivingCorridor && roomA && (
             <div style={styles.activeRoomTitle}>{roomA.roomName}</div>
           )}
@@ -203,7 +201,6 @@ export default function NeighborContentBlock({
                 }}
               >
                 <div style={isLivingCorridor ? styles.corridorShade : styles.coverShade} />
-                {/* 골목만 Ring. 거실 복도는 이미지만 */}
                 {!isLivingCorridor && (
                   <div style={styles.profileCenter}>
                     <RingBlock
@@ -240,6 +237,42 @@ export default function NeighborContentBlock({
                         ? '…'
                         : '신청'}
                   </button>
+                )}
+
+                {isLivingCorridor && rooms.length > 0 && (
+                  <div
+                    style={styles.roomThumbnailsOnCover}
+                    aria-label="방 선택"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {rooms.map((room, index) => {
+                      const image = room.coverUrl || roomCorridorCoverUrl(index)
+                      const selected = index === activeRoomIndex
+                      return (
+                        <button
+                          key={room.roomId}
+                          type="button"
+                          aria-pressed={selected}
+                          aria-label={`${room.roomName} 선택`}
+                          style={{
+                            ...styles.roomThumbnailOnCover,
+                            ...(selected ? styles.roomThumbnailOnCoverActive : {}),
+                          }}
+                          onClick={() => setRoomIdx(index)}
+                        >
+                          <img src={image} alt="" style={styles.roomThumbnailImage} />
+                          <span
+                            style={{
+                              ...styles.roomThumbnailNameOnCover,
+                              ...(selected ? styles.roomThumbnailNameActive : {}),
+                            }}
+                          >
+                            {room.roomName}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
                 )}
               </div>
             </div>
@@ -278,31 +311,6 @@ export default function NeighborContentBlock({
               </div>
             )}
           </div>
-
-          {/* 거실: 썸네일은 행 아래 — 이미지|글 높이를 깎지 않음 */}
-          {isLivingCorridor && rooms.length > 0 && (
-            <div style={styles.roomThumbnails} aria-label="방 선택">
-              {rooms.map((room, index) => {
-                const image = room.coverUrl || roomCorridorCoverUrl(index)
-                const selected = index === activeRoomIndex
-                return (
-                  <button
-                    key={room.roomId}
-                    type="button"
-                    aria-pressed={selected}
-                    aria-label={`${room.roomName} 선택`}
-                    style={{ ...styles.roomThumbnail, ...(selected ? styles.roomThumbnailActive : {}) }}
-                    onClick={() => setRoomIdx(index)}
-                  >
-                    <img src={image} alt="" style={styles.roomThumbnailImage} />
-                    <span style={{ ...styles.roomThumbnailName, ...(selected ? styles.roomThumbnailNameActive : {}) }}>
-                      {room.roomName}
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
-          )}
 
           {roomPageCount > 1 && !isLivingCorridor && (
             <div className="cn-alley-dots">
@@ -387,20 +395,9 @@ const styles: Record<string, React.CSSProperties> = {
     height: ALLEY_FRAME_HEIGHT,
     overflow: 'hidden',
   },
-  roomPanel: {
-    flex: '1 1 0',
-    height: 0,
-    minHeight: 0,
-    display: 'flex',
-    flexDirection: 'column',
-    overflow: 'hidden',
-  },
-  livingCover: {
-    flex: '1 1 auto',
-    height: 'auto',
-    minHeight: 0,
-  },
   activeRoomTitle: {
+    height: 20,
+    flexShrink: 0,
     padding: '0 2px 8px',
     fontSize: 13,
     fontWeight: 600,
@@ -418,6 +415,21 @@ const styles: Record<string, React.CSSProperties> = {
     scrollbarWidth: 'none',
     boxSizing: 'border-box',
   },
+  roomThumbnailsOnCover: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 3,
+    display: 'flex',
+    gap: 8,
+    overflowX: 'auto',
+    padding: '10px 10px 12px',
+    WebkitOverflowScrolling: 'touch',
+    scrollbarWidth: 'none',
+    background: 'linear-gradient(180deg, transparent 0%, rgba(28,18,8,0.5) 100%)',
+    boxSizing: 'border-box',
+  },
   roomThumbnail: {
     flex: '0 0 76px',
     minWidth: 0,
@@ -432,14 +444,34 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     textAlign: 'left',
   },
+  roomThumbnailOnCover: {
+    flex: '0 0 72px',
+    minWidth: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    gap: 3,
+    padding: 3,
+    border: '2px solid transparent',
+    borderRadius: 10,
+    background: 'rgba(254,252,248,0.9)',
+    cursor: 'pointer',
+    textAlign: 'left',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.18)',
+  },
   roomThumbnailActive: {
     borderColor: '#C17F3C',
     background: '#FFF9EF',
   },
+  roomThumbnailOnCoverActive: {
+    borderColor: '#FEFCF8',
+    background: '#FEFCF8',
+    boxShadow: '0 0 0 2px #C17F3C, 0 2px 8px rgba(0,0,0,0.2)',
+  },
   roomThumbnailImage: {
     display: 'block',
     width: '100%',
-    height: 48,
+    height: 44,
     objectFit: 'cover',
     borderRadius: 6,
   },
@@ -451,6 +483,16 @@ const styles: Record<string, React.CSSProperties> = {
     whiteSpace: 'nowrap',
     fontSize: 10,
     color: '#9A8470',
+  },
+  roomThumbnailNameOnCover: {
+    display: 'block',
+    width: '100%',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontSize: 10,
+    color: '#5C4A35',
+    textAlign: 'center',
   },
   roomThumbnailNameActive: { color: '#2C1810', fontWeight: 600 },
   cover: {
