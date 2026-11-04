@@ -65,7 +65,24 @@ export default function OwnerGate() {
   }
 
   const handleNew = () => {
-    createOwnerKey()
+    if (loading) return
+    setLoading(true)
+    setMsg('')
+    try {
+      const key = createOwnerKey()
+      if (!key) {
+        const fallback =
+          typeof crypto !== 'undefined' && 'randomUUID' in crypto
+            ? crypto.randomUUID()
+            : `owner-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+        setOwnerKey(fallback)
+      }
+    } catch (e) {
+      console.error('createOwnerKey failed', e)
+      setMsg('시작에 실패했어요. 다시 시도해 주세요.')
+      setLoading(false)
+      return
+    }
     // 이미 /yard 이면 soft push로는 OwnerGate state가 남음 → 하드 이동
     window.location.href = '/yard'
   }
@@ -119,8 +136,13 @@ export default function OwnerGate() {
               <button type="button" style={styles.primary} onClick={() => setMode('recover')}>
                 기존 집 연결
               </button>
-              <button type="button" style={styles.secondary} onClick={handleNew}>
-                새로 시작
+              <button
+                type="button"
+                style={{ ...styles.secondary, opacity: loading ? 0.6 : 1, position: 'relative', zIndex: 2 }}
+                onClick={handleNew}
+                disabled={loading}
+              >
+                {loading ? '시작 중…' : '새로 시작'}
               </button>
               {available && !error && (
                 <div ref={googleRef} style={styles.googleBtnWrap} />
@@ -140,6 +162,7 @@ export default function OwnerGate() {
               {!available && !isInApp && !error && (
                 <p style={styles.googleHint}>Google 계정 연결은 관리자 설정 중입니다.</p>
               )}
+              {msg && <p style={styles.msg}>{msg}</p>}
             </div>
           )}
 
@@ -245,6 +268,8 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     gap: 10,
+    position: 'relative',
+    zIndex: 2,
   },
   primary: {
     width: '100%',
@@ -273,6 +298,11 @@ const styles: Record<string, React.CSSProperties> = {
     width: '100%',
     display: 'flex',
     justifyContent: 'center',
+    position: 'relative',
+    zIndex: 0,
+    overflow: 'hidden',
+    minHeight: 44,
+    maxHeight: 48,
   },
   googleHint: {
     fontSize: 12,
