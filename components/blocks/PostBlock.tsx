@@ -190,13 +190,9 @@ export default function PostBlock({
     >
       {(status || stage) && (
         <div style={styles.badgeRow}>
-          {isSample && <span style={styles.sampleBadge}>샘플</span>}
           {status && <span style={styles.statusBadge}>{status}</span>}
           {stage && <span style={styles.stageDot}>{stage}</span>}
         </div>
-      )}
-      {isSample && !status && !stage && (
-        <div style={styles.badgeRow}><span style={styles.sampleBadge}>샘플</span></div>
       )}
 
       {hasMedia ? (
@@ -216,6 +212,7 @@ export default function PostBlock({
 
       <div style={styles.footerRow}>
         <div style={styles.footerLeft}>
+          {isSample && <span style={styles.sampleBadge}>샘플</span>}
           <span style={styles.date}>{isSample ? '샘플 게시글' : formatDate(post.created_at)}</span>
           {showComments && !isSample && (
             <button type="button" style={styles.commentBtn} onClick={handleCommentBtn}>
@@ -355,8 +352,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'linear-gradient(145deg, rgba(92,61,46,0.06), rgba(74,82,64,0.08))',
     border: '1px dashed rgba(92,61,46,0.12)',
     display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: 'center', justifyContent: 'center',
     flex: '1 1 auto',
     minHeight: 0,
   },
@@ -413,7 +409,7 @@ const styles: Record<string, React.CSSProperties> = {
     flexShrink: 0,
   },
   footerRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 },
-  footerLeft: { display: 'flex', alignItems: 'center', gap: 12 },
+  footerLeft: { display: 'flex', alignItems: 'center', gap: 8 },
   date: { fontSize: 11, color: '#9A8470' },
   commentBtn: {
     display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#9A8470',

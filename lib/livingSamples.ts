@@ -79,21 +79,20 @@ const SAMPLE_SETS: SampleSet[] = [
         name: '부엌의 메모',
         coverUrl: '/alley/corridor-05.jpg',
         posts: [
-          '다음에는 간을 조금 덜 하고 마지막에 맞춰보기.',
-          '냉장고에 남은 채소부터 쓰면 좋겠다.',
-          '오늘의 작은 성공: 설거지를 미루지 않았다.',
-          '레시피는 조금 달라도 우리 입맛에 맞으면 그만.',
+          '장보기 목록을 적어두니 덜 헤매고 필요한 것만 사게 된다.',
+          '남은 재료로 만든 점심이 의외로 괜찮았다.',
+          '설거지를 마치면 부엌이 다시 고요해진다.',
+          '향신료 자리를 정리하니 요리할 마음이 난다.',
         ],
       },
       {
-        id: 'weekend-market',
-        name: '주말 장보기',
+        id: 'shared-meal',
+        name: '같이 먹는 시간',
         coverUrl: '/alley/corridor-01.jpg',
         posts: [
-          '장을 보기 전에 냉장고부터 확인했다. 이번에는 꼭 필요한 것만.',
-          '시장에 갔다가 제철 과일을 한 봉지 담아왔다.',
-          '함께 고른 재료로 다음 주 식탁을 채워보자.',
-          '오늘 산 작은 꽃이 식탁을 환하게 만들어준다.',
+          '오늘 식탁에는 이야기가 더 많았다.',
+          '간단한 음식이어도 함께면 충분하다.',
+          '다음엔 당신이 좋아하는 메뉴로 준비해볼게.',
         ],
       },
     ],
@@ -107,10 +106,9 @@ const SAMPLE_SETS: SampleSet[] = [
         coverUrl: '/alley/corridor-02.jpg',
         posts: [
           '오늘은 익숙한 길을 조금 천천히 걸었다.',
-          '돌아오는 길에 바람이 좋아서 잠깐 더 걷기로 했다.',
-          '매일 보던 나무에 새순이 돋아 있었다.',
-          '산책을 마치고 마신 물이 유난히 시원했다.',
-          '다음에는 해가 지기 전에 한 바퀴 더 돌아야겠다.',
+          '바람이 불 때마다 나뭇잎 소리가 달라진다.',
+          '걸음을 늦추니 보이는 것들이 늘어난다.',
+          '같은 골목도 시간에 따라 표정이 바뀐다.',
         ],
       },
       {
@@ -119,9 +117,8 @@ const SAMPLE_SETS: SampleSet[] = [
         coverUrl: '/alley/corridor-03.jpg',
         posts: [
           '책상 위를 정리하고 오늘 할 일을 하나만 남겨두었다.',
-          '읽던 페이지에 작은 표시를 해두고 잠시 쉬었다.',
-          '손에 잡히는 일부터 하나씩 끝내는 날.',
-          '오늘의 생각은 짧게 적고 오래 두기로 했다.',
+          '열린 페이지에 적은 표시를 해두고 잠시 쉬었다.',
+          '창밖의 빛이 노트 위를 천천히 지나간다.',
         ],
       },
       {
@@ -129,20 +126,19 @@ const SAMPLE_SETS: SampleSet[] = [
         name: '작은 것들',
         coverUrl: '/alley/corridor-04.jpg',
         posts: [
-          '별일 없던 하루에서 마음에 남은 장면 하나.',
-          '창문 너머 구름이 천천히 모양을 바꿨다.',
-          '좋아하는 찻잔을 꺼내 차를 마셨다.',
-          '나중에 다시 떠올리고 싶은 순간을 적어둔다.',
+          '사소해 보이는 순간도 기록해 두면 다시 만난다.',
+          '오늘의 작은 행복을 한 줄로 적었다.',
+          '손에 잡히는 일부터 하나씩 끝내는 날.',
         ],
       },
     ],
   },
 ]
 
-function stableIndex(ownerKey: string, count: number): number {
+function stableIndex(seed: string, count: number): number {
   let hash = 2166136261
-  for (let i = 0; i < ownerKey.length; i += 1) {
-    hash ^= ownerKey.charCodeAt(i)
+  for (let i = 0; i < seed.length; i++) {
+    hash ^= seed.charCodeAt(i)
     hash = Math.imul(hash, 16777619)
   }
   return (hash >>> 0) % count
@@ -192,4 +188,64 @@ export function createLivingSampleView(ownerKey: string): LivingSampleView {
     ],
     posts: allPosts,
   }
+}
+
+export interface YardSampleView {
+  recommended: NeighborChip[]
+  neighborFeed: PostBlockData[]
+  myPosts: PostBlockData[]
+}
+
+/** 마당 빈집(첫 접속)용 화면 전용 샘플. DB에 쓰지 않는다. */
+export function createYardSampleView(ownerKey: string): YardSampleView {
+  const living = createLivingSampleView(ownerKey)
+  const samplePosts = living.posts
+
+  const recommended: NeighborChip[] = living.corridor.map((chip, i) => ({
+    ...chip,
+    neighborId: `yard-sample-nb-${i}`,
+    houseId: `yard-sample-house-${i}`,
+    title: i === 0 ? '옆집의 오후' : chip.title,
+    langFlag: i === 0 ? '🏡' : chip.langFlag || '🏡',
+    coverUrl: chip.coverUrl || `/alley/alley-0${(i % 5) + 1}.jpg`,
+  }))
+
+  if (recommended.length === 1) {
+    const extraRooms = living.corridor[0]?.rooms?.slice().reverse() || []
+    recommended.push({
+      neighborId: 'yard-sample-nb-1',
+      houseId: 'yard-sample-house-1',
+      title: '골목 끝 집',
+      langFlag: '🌿',
+      coverUrl: '/alley/alley-02.jpg',
+      rooms: extraRooms.map((r, idx) => ({
+        ...r,
+        roomId: `yard-sample-room-extra-${idx}`,
+      })),
+    })
+  }
+
+  const neighborFeed = samplePosts.slice(0, 8).map((p, i) => ({
+    ...p,
+    id: `yard-sample-nb-feed-${i}`,
+    isSample: true,
+    view_meta: {
+      ...(p.view_meta || {}),
+      house_name: p.view_meta?.house_name || '이웃 샘플',
+      relation: '이웃',
+    },
+  }))
+
+  const myPosts = samplePosts.slice(0, 6).map((p, i) => ({
+    ...p,
+    id: `yard-sample-my-${i}`,
+    isSample: true,
+    view_meta: {
+      ...(p.view_meta || {}),
+      house_name: '나의 샘플 집',
+      relation: '나',
+    },
+  }))
+
+  return { recommended, neighborFeed, myPosts }
 }

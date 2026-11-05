@@ -20,6 +20,8 @@ import { PostBlockData } from '@/components/blocks/PostBlock'
 import { RingData } from '@/components/blocks/RingBlock'
 import { NeighborChip, NeighborRoomSlot } from '@/components/blocks/NeighborContentBlock'
 import { houseHeroBackground, houseAvatarUrl } from '@/lib/houseImages'
+import { createYardSampleView } from '@/lib/livingSamples'
+import HouseCreateForm from '@/components/corenull/HouseCreateForm'
 
 const LANG_FLAG: Record<string, string> = {
   ko: '🇰🇷', vi: '🇻🇳', en: '🇺🇸', ja: '🇯🇵', zh: '🇨🇳',
@@ -103,6 +105,7 @@ export default function YardPage() {
   const [applyLoadingHouseId, setApplyLoadingHouseId] = useState<string | null>(null)
   const [showDoorplateEdit, setShowDoorplateEdit] = useState(false)
   const [showShare, setShowShare] = useState(false)
+  const [needsHouseCreate, setNeedsHouseCreate] = useState(false)
 
   useEffect(() => {
     const key = getOwnerKey()
@@ -128,11 +131,19 @@ export default function YardPage() {
         ? list.find((h: any) => h.id === preferredHouseId) || pickActiveHouse(list)
         : pickActiveHouse(list)
       if (!active) {
+        // 첫 접속·빈집: 마당 샘플을 배경으로 깔고 집 만들기 모달
+        const sample = createYardSampleView(key)
         setHouse(null)
+        setRooms([])
+        setRelations([])
+        setRecommended(sample.recommended)
+        setNeighborFeed(sample.neighborFeed)
+        setMyPosts(sample.myPosts)
+        setNeedsHouseCreate(true)
         setLoading(false)
-        router.replace('/living')
         return
       }
+      setNeedsHouseCreate(false)
       setActiveHouseId(active.id)
       setHouse(active)
 
@@ -300,12 +311,30 @@ export default function YardPage() {
   const acceptedCount = relations.filter((r) => r.status === 'accepted').length
   const langFlag = LANG_FLAG[house?.primary_language] || '🏡'
 
+  const sampleHeroBg = {
+    imageUrl: '/alley/alley-01.jpg',
+    position: { x: 50, y: 40, scale: 1 },
+  }
+
   return (
-    <div>
+    <div style={{ position: 'relative' }}>
       <TopBar logo={<CoreNullLogo size="sm" />} title="마당" />
+      <div
+        style={
+          needsHouseCreate
+            ? {
+                filter: 'blur(2.5px)',
+                opacity: 0.72,
+                pointerEvents: 'none',
+                userSelect: 'none',
+              }
+            : undefined
+        }
+        aria-hidden={needsHouseCreate || undefined}
+      >
       <YardBlock
         loading={loading}
-        background={houseHeroBackground(house, 'yard')}
+        background={house ? houseHeroBackground(house, 'yard') : sampleHeroBg}
         heroControls={
           house && ownerKey ? (
             <InlineHeroImageControls
@@ -358,8 +387,10 @@ export default function YardPage() {
         }
         doorplate={{
           langFlag,
-          title: house?.title || '',
-          description: house?.description,
+          title: house?.title || (needsHouseCreate ? '당신의 집' : ''),
+          description: needsHouseCreate
+            ? '집 이름을 정하면 마당이 열립니다'
+            : house?.description,
           since: house?.created_at ? formatSince(house.created_at) : undefined,
           roomCount: rooms.length,
           neighborCount: acceptedCount,
@@ -386,6 +417,10 @@ export default function YardPage() {
         ownerKey={ownerKey}
         onInterestGoLibrary={() => router.push('/me/library')}
       />
+      </div>
+      {needsHouseCreate && ownerKey && (
+        <HouseCreateForm variant="modal" ownerKey={ownerKey} />
+      )}
       {showDoorplateEdit && house && (
         <DoorplateEditModal
           houseId={house.id}

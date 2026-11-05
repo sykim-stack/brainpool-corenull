@@ -8,7 +8,7 @@ import { RingData } from './RingBlock'
 
 /**
  * LivingBlock — 거실 (구조 닫음)
- * Hero → 복도(골목 블록 · 방 1개) → 최신글 brick 3-2-3-2-3
+ * Hero → 복도(가로: 이미지|글, Ring 없음) → 최신글 brick
  * 문패 CTA = 방 만들기
  */
 
@@ -75,6 +75,7 @@ export default function LivingBlock({
         avatarControls={avatarControls}
       />
 
+      {/* 복도: PC 가로(이미지|글) · Ring 없음 · 방이름+썸네일 */}
       <NeighborContentBlock
         tier="invite"
         mode="neighbor"

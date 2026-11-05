@@ -188,8 +188,17 @@ export default function HouseCreateForm({
   if (!ready) return <div style={styles.loading}>🏡</div>
 
   if (isModal) {
+    const required = !onClose
     return (
-      <div style={styles.backdrop} onClick={onClose} role="presentation">
+      <div
+        style={{
+          ...styles.backdrop,
+          // 첫 접속(필수 생성): 뒤 마당 샘플이 비치도록 더 옅게
+          background: required ? 'rgba(28,18,8,0.28)' : styles.backdrop.background,
+        }}
+        onClick={onClose}
+        role="presentation"
+      >
         <section
           style={styles.dialog}
           role="dialog"
@@ -203,6 +212,11 @@ export default function HouseCreateForm({
               <button type="button" style={styles.close} onClick={onClose} aria-label="닫기">✕</button>
             )}
           </header>
+          {required && (
+            <p style={styles.onboardHint}>
+              뒤의 마당은 미리보기예요. 집을 만들면 당신의 마당이 됩니다.
+            </p>
+          )}
           {content}
         </section>
       </div>
@@ -253,4 +267,5 @@ const styles: Record<string, React.CSSProperties> = {
   langLabel: { fontSize: 10, color: '#1C1208', whiteSpace: 'nowrap' },
   notice: { marginTop: 14, padding: '10px 12px', background: 'rgba(74,82,64,0.08)', borderRadius: 12, fontSize: 12, color: '#5C4A35', lineHeight: 1.5 },
   submitBtn: { width: '100%', padding: '12px 16px', background: '#2C1810', color: 'white', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer', marginTop: 14 },
+  onboardHint: { margin: '0 0 8px', fontSize: 13, lineHeight: 1.5, color: '#5C4A35' },
 }
