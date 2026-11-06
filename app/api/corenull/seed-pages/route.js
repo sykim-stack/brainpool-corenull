@@ -54,8 +54,41 @@ const handleGet = async (req, traceId) => {
       }
     }
 
-    const { listSeedPosts } = await import('@/lib/seedPeriod')
-    const posts = await listSeedPosts(supabase, page.room_id, page.run_id)
+    const { listSeedPosts, tagPostsFromStart } = await import('@/lib/seedPeriod')
+    let posts = await listSeedPosts(supabase, page.room_id, page.run_id, {
+      startAt: page.start_at || null,
+      startPostId: page.start_post_id || null,
+    })
+    // open 인데 태그된 글이 0이면 start 기준으로 재태깅 후 재조회
+    if (
+      page.status === 'open' &&
+      posts.length === 0 &&
+      page.start_post_id &&
+      page.run_id
+    ) {
+      let startAt = page.start_at || null
+      if (!startAt) {
+        const { data: sp } = await supabase
+          .from('messages')
+          .select('created_at')
+          .eq('id', page.start_post_id)
+          .maybeSingle()
+        startAt = sp?.created_at || null
+      }
+      if (startAt) {
+        await tagPostsFromStart(supabase, {
+          roomId: page.room_id,
+          runId: page.run_id,
+          startPostId: page.start_post_id,
+          startAt,
+          endDate: page.end_date || null,
+        })
+        posts = await listSeedPosts(supabase, page.room_id, page.run_id, {
+          startAt,
+          startPostId: page.start_post_id,
+        })
+      }
+    }
 
     let room_name = null
     let house_title = null
