@@ -1,6 +1,6 @@
 // components/corenull/CoreNullLogo.tsx
-// CORENULL 워드마크 + N 모스 (− ·)
-// CoreRing이 R 모스(· − ·)를 쓰는 것과 같은 규칙
+// CORENULL 워드마크 — N 모스 (− ·) 는 NULL의 N 바로 아래
+// CoreRing R 모스(· − ·) 규칙과 동일
 
 export type CoreNullLogoVariant = 'onLight' | 'onDark'
 
@@ -13,21 +13,19 @@ export default function CoreNullLogo({
   variant?: CoreNullLogoVariant
 }) {
   const fontSize = size === 'sm' ? 13 : 17
-  const dashW = size === 'sm' ? 9 : 12
-  const dot = size === 'sm' ? 3 : 4
-  const gap = size === 'sm' ? 3 : 4
+  const dashW = size === 'sm' ? 8 : 11
+  const dot = size === 'sm' ? 2.5 : 3.5
+  const gap = size === 'sm' ? 2.5 : 3.5
+  const morseTop = size === 'sm' ? 2 : 3
 
   const word = variant === 'onDark' ? '#F5F0E8' : '#2C1810'
-  // Ring 액센트에 맞춘 포인트 (모스)
   const accent = '#F5C518'
 
   return (
     <span
       style={{
         display: 'inline-flex',
-        flexDirection: 'column',
-        alignItems: 'flex-start',
-        gap: size === 'sm' ? 3 : 4,
+        alignItems: 'baseline',
         lineHeight: 1,
         fontFamily:
           "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif",
@@ -43,37 +41,55 @@ export default function CoreNullLogo({
           textTransform: 'uppercase' as const,
         }}
       >
-        CORENULL
+        CORE
       </span>
-      {/* N = − · */}
       <span
         style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap,
-          height: dot,
-          paddingLeft: 1,
+          position: 'relative',
+          display: 'inline-block',
+          fontSize,
+          fontWeight: 700,
+          letterSpacing: '0.14em',
+          color: word,
+          textTransform: 'uppercase' as const,
         }}
-        aria-hidden
       >
-        <span
-          style={{
-            width: dashW,
-            height: Math.max(2, Math.round(dot * 0.55)),
-            borderRadius: 1,
-            background: accent,
-            display: 'inline-block',
-          }}
-        />
-        <span
-          style={{
-            width: dot,
-            height: dot,
-            borderRadius: '50%',
-            background: accent,
-            display: 'inline-block',
-          }}
-        />
+        {/* N + 모스 (− ·) */}
+        <span style={{ position: 'relative', display: 'inline-block' }}>
+          N
+          <span
+            style={{
+              position: 'absolute',
+              left: '50%',
+              top: `calc(100% + ${morseTop}px)`,
+              transform: 'translateX(-50%)',
+              display: 'flex',
+              alignItems: 'center',
+              gap,
+            }}
+            aria-hidden
+          >
+            <span
+              style={{
+                width: dashW,
+                height: Math.max(2, Math.round(dot * 0.55)),
+                borderRadius: 1,
+                background: accent,
+                display: 'inline-block',
+              }}
+            />
+            <span
+              style={{
+                width: dot,
+                height: dot,
+                borderRadius: '50%',
+                background: accent,
+                display: 'inline-block',
+              }}
+            />
+          </span>
+        </span>
+        ULL
       </span>
     </span>
   )
