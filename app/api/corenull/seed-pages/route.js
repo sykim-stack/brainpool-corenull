@@ -1,9 +1,9 @@
 // app/api/corenull/seed-pages/route.js
 // 씨드 배포 페이지 (초대장)
-// GET  ?slug=   → 공개 조회 (인증 불필요)
-// GET  ?room_id= → 방의 open/최근 페이지
-// POST body: { room_id, owner_key, memo?, title?, end_date? } → 초대장 생성
-// PATCH body: { slug|id, memo, title, owner_key } → owner만 메모 수정
+// GET  ?slug=   → 공개 조회
+// GET  ?room_id= → 방의 페이지 목록
+// POST body: { room_id, owner_key, start_post_id, end_date, memo?, title? } → run 시작 + 초대장
+// PATCH body: { slug|id, memo, title, owner_key }
 
 export const dynamic = 'force-dynamic'
 
@@ -104,9 +104,15 @@ const handleGet = async (req, traceId) => {
 
 const handlePost = async (req, traceId) => {
   const body = JSON.parse(await req.text())
-  const { room_id, owner_key, memo, title, end_date } = body
+  const { room_id, owner_key, memo, title, end_date, start_post_id } = body
   if (!room_id || !owner_key) {
     return Response.json({ _error: 'room_id_owner_key_required', traceId }, { status: 400 })
+  }
+  if (!start_post_id) {
+    return Response.json({ _error: 'start_post_id_required', traceId }, { status: 400 })
+  }
+  if (!end_date) {
+    return Response.json({ _error: 'end_date_required', traceId }, { status: 400 })
   }
 
   const { getSupabase } = await import('@/lib/supabase')
@@ -119,9 +125,6 @@ const handlePost = async (req, traceId) => {
     .eq('id', room_id)
     .maybeSingle()
   if (!room) return Response.json({ _error: 'room_not_found', traceId }, { status: 404 })
-  if (!room.seed_mode) {
-    return Response.json({ _error: 'room_not_in_seed_mode', traceId }, { status: 400 })
-  }
 
   const { data: house } = await supabase
     .from('corenull_houses')
@@ -132,22 +135,29 @@ const handlePost = async (req, traceId) => {
     return Response.json({ _error: 'not_authorized', traceId }, { status: 403 })
   }
 
-  const { getOpenSeedPage, createSeedPage, newRunId } = await import('@/lib/seedPeriod')
-  const existing = await getOpenSeedPage(supabase, room_id)
-  if (existing) return Response.json({ data: existing, share_path: `/s/${existing.slug}`, traceId })
-
-  const runId = newRunId()
-  const { error, page } = await createSeedPage(supabase, {
+  const { startSeedRun } = await import('@/lib/seedPeriod')
+  const started = await startSeedRun(supabase, {
     roomId: room_id,
     houseId: room.house_id,
     ownerKey: owner_key,
-    runId,
-    endDate: end_date || room.bloom_date || null,
+    startPostId: start_post_id,
+    endDate: end_date,
     title: title || room.room_name || null,
     memo: memo || '',
   })
-  if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
-  return Response.json({ data: page, share_path: `/s/${page.slug}`, traceId })
+  if (started.error) {
+    return Response.json(
+      { _error: started.error.message || String(started.error), traceId },
+      { status: 400 }
+    )
+  }
+
+  return Response.json({
+    data: started.page,
+    share_path: `/s/${started.page.slug}`,
+    already_open: !!started.alreadyOpen,
+    traceId,
+  })
 }
 
 const handlePatch = async (req, traceId) => {
