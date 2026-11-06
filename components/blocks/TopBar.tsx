@@ -2,6 +2,19 @@
 
 import { usePathname, useRouter } from 'next/navigation'
 import { NAV_TABS, getTabHref, isTabActive } from '@/lib/navTabs'
+import CoreNullLogo from '@/components/corenull/CoreNullLogo'
+
+/** CoreRing 정렬 다크 크롬 토큰 */
+export const TOPBAR_TOKENS = {
+  bg: '#0B1220',
+  bgMuted: '#121A28',
+  border: 'rgba(255,255,255,0.08)',
+  text: '#E8E4DC',
+  textMuted: 'rgba(232,228,220,0.55)',
+  accent: '#F5C518',
+  iconBtnBg: 'rgba(255,255,255,0.06)',
+  iconBtnBorder: 'rgba(255,255,255,0.12)',
+} as const
 
 export interface TopBarAction {
   key: string
@@ -48,6 +61,7 @@ export default function TopBar({ logo, title, shareUrl }: TopBarProps) {
   const router = useRouter()
   const onYard = isYardPath(pathname)
   const titleIcon = titleToIcon(title)
+  const T = TOPBAR_TOKENS
 
   const handleShare = async () => {
     const url = shareUrl || (typeof window !== 'undefined' ? window.location.href : '')
@@ -76,16 +90,26 @@ export default function TopBar({ logo, title, shareUrl }: TopBarProps) {
   ]
 
   return (
-    <header style={styles.outer}>
+    <header
+      style={{
+        ...styles.outer,
+        background: T.bg,
+        borderBottom: `1px solid ${T.border}`,
+      }}
+    >
       <div className="app-shell-content" style={styles.inner}>
         <div style={styles.left}>
-          {logo}
+          {logo ?? <CoreNullLogo size="sm" variant="onDark" />}
           {titleIcon ? (
-            <span style={styles.titleIcon} aria-label={title} title={title}>
+            <span
+              style={{ ...styles.titleIcon, opacity: 0.92 }}
+              aria-label={title}
+              title={title}
+            >
               {titleIcon}
             </span>
           ) : title ? (
-            <span style={styles.title}>{title}</span>
+            <span style={{ ...styles.title, color: T.textMuted }}>{title}</span>
           ) : null}
         </div>
 
@@ -100,7 +124,7 @@ export default function TopBar({ logo, title, shareUrl }: TopBarProps) {
                 aria-label={tab.label}
                 style={{
                   ...styles.topNavItem,
-                  color: active ? '#C17F3C' : '#5C4A35',
+                  color: active ? T.accent : T.textMuted,
                   fontWeight: active ? 600 : 400,
                 }}
               >
@@ -115,7 +139,12 @@ export default function TopBar({ logo, title, shareUrl }: TopBarProps) {
           {rightActions.map((action) => (
             <button
               key={action.key}
-              style={styles.actionBtn}
+              style={{
+                ...styles.actionBtn,
+                background: T.iconBtnBg,
+                border: `1px solid ${T.iconBtnBorder}`,
+                color: T.text,
+              }}
               onClick={action.onClick}
               aria-label={action.label}
               title={action.label}
@@ -132,31 +161,29 @@ export default function TopBar({ logo, title, shareUrl }: TopBarProps) {
 const styles: Record<string, React.CSSProperties> = {
   outer: {
     position: 'fixed', top: 0, left: 0, right: 0, width: '100%', height: '56px',
-    background: 'rgba(254, 252, 248, 0.95)',
-    borderBottom: '1px solid rgba(92, 61, 46, 0.12)',
     zIndex: 100, backdropFilter: 'blur(12px)',
   },
   inner: {
     height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
     padding: '0 16px', boxSizing: 'border-box',
   },
-  left: { display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 },
+  left: { display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 },
   title: {
-    fontFamily: "'Noto Serif KR', serif", fontSize: '16px', fontWeight: 600,
-    color: '#2C1810', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+    fontFamily: "'Noto Serif KR', serif", fontSize: '14px', fontWeight: 500,
+    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
   },
   titleIcon: {
-    fontSize: 20, lineHeight: 1, display: 'flex', alignItems: 'center',
+    fontSize: 18, lineHeight: 1, display: 'flex', alignItems: 'center',
   },
   topNav: { display: 'flex', alignItems: 'center', gap: '28px' },
   topNavItem: {
     display: 'flex', alignItems: 'center', gap: '6px',
-    background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px', padding: '6px 4px',
+    background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', padding: '6px 4px',
   },
   right: { display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 },
   actionBtn: {
-    width: '36px', height: '36px', borderRadius: '50%', background: '#F5F0E8',
-    border: 'none', fontSize: '16px', cursor: 'pointer', display: 'flex',
+    width: '36px', height: '36px', borderRadius: '50%',
+    fontSize: '15px', cursor: 'pointer', display: 'flex',
     alignItems: 'center', justifyContent: 'center', WebkitTapHighlightColor: 'transparent',
   },
 }
