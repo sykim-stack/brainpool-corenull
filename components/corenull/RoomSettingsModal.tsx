@@ -57,6 +57,9 @@ export default function RoomSettingsModal({
   const [memoSaving, setMemoSaving] = useState(false)
   const [copied, setCopied] = useState(false)
   const [creatingPage, setCreatingPage] = useState(false)
+  const [roomPosts, setRoomPosts] = useState<any[]>([])
+  const [loadingPosts, setLoadingPosts] = useState(false)
+  const [startPostId, setStartPostId] = useState('')
 
   useEffect(() => {
     fetch(`/api/corenull/members?house_id=${houseId}&room_id=${roomId}`)
@@ -119,29 +122,6 @@ export default function RoomSettingsModal({
     } catch {}
   }
 
-  const handleCreateSeedPage = async () => {
-    setCreatingPage(true)
-    setError('')
-    try {
-      const res = await fetch('/api/corenull/seed-pages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ room_id: roomId, owner_key: ownerKey }),
-      })
-      const data = await res.json()
-      if (data.data?.slug) {
-        setSeedSlug(data.data.slug)
-        setSeedEndDate(data.data.end_date || null)
-        setSeedMemo(data.data.memo || '')
-      } else {
-        setError(data._error || '초대장 만들기에 실패했어요')
-      }
-    } catch {
-      setError('초대장 만들기에 실패했어요')
-    }
-    setCreatingPage(false)
-  }
-
   const handleSave = async () => {
     if (!name.trim()) return
     setSaving(true)
@@ -200,24 +180,33 @@ export default function RoomSettingsModal({
   }
 
   const handleSeedOn = async () => {
+    if (!startPostId || !bloomDate) {
+      setError('시작 글과 종료일을 선택해 주세요')
+      return
+    }
     setSeedOn(true)
-    const res = await fetch('/api/corenull/rooms', {
-      method: 'PATCH',
+    setError('')
+    const res = await fetch('/api/corenull/seed-pages', {
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         room_id: roomId,
         owner_key: ownerKey,
-        seed_mode: true,
-        bloom_date: bloomDate || null,
+        start_post_id: startPostId,
+        end_date: bloomDate,
       }),
     })
     const data = await res.json()
-    if (data.data) {
-      onUpdate({ room_name: data.data.room_name, visibility: data.data.visibility, seed_mode: true })
+    if (data.data?.slug) {
+      setSeedSlug(data.data.slug)
+      setSeedEndDate(data.data.end_date || bloomDate)
+      setSeedMemo(data.data.memo || '')
+      onUpdate({ room_name: roomName, visibility: vis, seed_mode: true })
       setSeedOnMode(false)
       setBloomDate('')
+      setStartPostId('')
     } else {
-      setError(data._error || '씨드 켜기에 실패했어요')
+      setError(data._error || '씨드 시작에 실패했어요')
     }
     setSeedOn(false)
   }
@@ -232,8 +221,11 @@ export default function RoomSettingsModal({
     const data = await res.json()
     if (data.data) {
       onUpdate({ room_name: data.data.room_name, visibility: data.data.visibility, seed_mode: false })
+      setSeedSlug(null)
+      setSeedEndDate(null)
+      setSeedMemo('')
     } else {
-      setError(data._error || '씨드 끄기에 실패했어요')
+      setError(data._error || '씨드 해제에 실패했어요')
     }
     setSeedOff(false)
   }
@@ -320,16 +312,58 @@ export default function RoomSettingsModal({
         {isOwner && !seedMode && (
           <>
             {!seedOnMode ? (
-              <button style={styles.seedOnBtn} onClick={() => setSeedOnMode(true)}>🌱 씨드 켜기</button>
+              <button
+                style={styles.seedOnBtn}
+                onClick={() => {
+                  setSeedOnMode(true)
+                  setLoadingPosts(true)
+                  setStartPostId('')
+                  setBloomDate('')
+                  fetch(`/api/corenull/posts?room_id=${encodeURIComponent(roomId)}`)
+                    .then(r => r.json())
+                    .then(d => {
+                      const list = (d.data || []).filter((p: any) => !p.meta?.deleted)
+                      setRoomPosts(list)
+                      if (list[0]?.id) setStartPostId(list[0].id)
+                    })
+                    .catch(() => setRoomPosts([]))
+                    .finally(() => setLoadingPosts(false))
+                }}
+              >
+                🌱 기존 글로 씨드 시작
+              </button>
             ) : (
               <div style={styles.seedOnBox}>
-                <div style={styles.seedOffDesc}>🌸 꽃 피는 날 (선택)</div>
+                <div style={styles.seedOffDesc}>시작 게시글 (필수)</div>
+                {loadingPosts ? (
+                  <div style={styles.hint}>글 불러오는 중...</div>
+                ) : roomPosts.length === 0 ? (
+                  <div style={styles.hint}>이 방에 글이 없어요. write에서 «이 글로 씨드 시작»을 쓰세요.</div>
+                ) : (
+                  <select
+                    style={styles.dateInput}
+                    value={startPostId}
+                    onChange={e => setStartPostId(e.target.value)}
+                  >
+                    {roomPosts.map((p: any) => (
+                      <option key={p.id} value={p.id}>
+                        {(p.content || '').slice(0, 40) || p.id.slice(0, 8)}
+                        {p.created_at ? ` · ${new Date(p.created_at).toLocaleDateString('ko-KR')}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                <div style={styles.seedOffDesc}>종료일 (필수)</div>
                 <input type="date" style={styles.dateInput} value={bloomDate} min={today} onChange={e => setBloomDate(e.target.value)} />
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <button style={{ ...styles.seedOffBtn, flex: 1, opacity: seedOn ? 0.5 : 1 }} onClick={handleSeedOn} disabled={seedOn}>
-                    {seedOn ? '켜는 중...' : '씨드 켜기'}
+                  <button
+                    style={{ ...styles.seedOffBtn, flex: 1, opacity: seedOn ? 0.5 : 1 }}
+                    onClick={handleSeedOn}
+                    disabled={seedOn || !startPostId || !bloomDate || roomPosts.length === 0}
+                  >
+                    {seedOn ? '시작하는 중...' : '씨드 시작'}
                   </button>
-                  <button style={styles.cancelBtn} onClick={() => { setSeedOnMode(false); setBloomDate('') }}>취소</button>
+                  <button style={styles.cancelBtn} onClick={() => { setSeedOnMode(false); setBloomDate(''); setStartPostId('') }}>취소</button>
                 </div>
               </div>
             )}
@@ -381,16 +415,9 @@ export default function RoomSettingsModal({
                 </button>
               </>
             ) : (
-              <>
-                <div style={styles.seedOffDesc}>아직 초대장이 없어요.</div>
-                <button
-                  style={{ ...styles.copyBtn, width: '100%', marginTop: 8, background: '#4A7C3F', opacity: creatingPage ? 0.5 : 1 }}
-                  onClick={handleCreateSeedPage}
-                  disabled={creatingPage}
-                >
-                  {creatingPage ? '만드는 중...' : '초대장 만들기'}
-                </button>
-              </>
+              <div style={styles.seedOffDesc}>
+                초대장을 불러오는 중이거나 아직 없어요. 잠시 후 다시 열어 보세요.
+              </div>
             )}
             <div style={{ ...styles.seedOffRow, marginTop: 12 }}>
               <div>
@@ -515,20 +542,18 @@ const styles: Record<string, React.CSSProperties> = {
   seedOffTitle: { fontSize: 13, fontWeight: 500, color: '#1C1208' },
   seedOffDesc: { fontSize: 11, color: '#9A8470', marginTop: 2 },
   seedOffBtn: {
-    padding: '8px 14px', background: '#4A7C3F', color: 'white',
-    border: 'none', borderRadius: 10, fontSize: 12, fontWeight: 500, cursor: 'pointer',
-    flexShrink: 0,
-  },
-  memoInput: {
-    width: '100%', background: '#FEFCF8',
-    border: '1px solid rgba(92,61,46,0.12)', borderRadius: 8, padding: 10,
-    fontSize: 13, lineHeight: 1.5, color: '#1C1208', outline: 'none',
-    boxSizing: 'border-box', resize: 'vertical' as const,
-    fontFamily: "'Noto Sans KR', sans-serif",
+    padding: '8px 14px', background: '#2C1810', color: 'white',
+    border: 'none', borderRadius: 8, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap',
   },
   cancelBtn: {
-    width: '100%', padding: '12px',
-    background: 'none', color: '#9A8470',
-    border: 'none', fontSize: 14, cursor: 'pointer',
+    width: '100%', padding: '12px', marginTop: 4,
+    background: 'transparent', border: '1px solid rgba(92,61,46,0.15)',
+    borderRadius: 12, fontSize: 14, color: '#9A8470', cursor: 'pointer',
+  },
+  memoInput: {
+    width: '100%', minHeight: 72, resize: 'vertical',
+    background: '#FEFCF8', border: '1px solid rgba(92,61,46,0.12)',
+    borderRadius: 8, padding: 10, fontSize: 13, color: '#1C1208',
+    outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit',
   },
 }

@@ -95,7 +95,7 @@ const handleGet = async (req, traceId) => {
         ownIdSet.add(rm.id)
       }
     }
-    return Response.json({ data: [...ownRooms, ...partRooms], own: ownRooms, member: partRooms, traceId })
+    return Response.json({ data: [...ownRooms, ...partRooms], traceId })
   }
 
   if (!house_id) return Response.json({ _error: 'house_id_or_room_id_or_scope_required', traceId }, { status: 500 })
@@ -146,6 +146,20 @@ const handlePatch = async (req, traceId) => {
   if (visibility) updatePayload.visibility = visibility
   if (seed_mode !== undefined) updatePayload.seed_mode = seed_mode
   if (bloom_date !== undefined) updatePayload.bloom_date = bloom_date
+
+  // 씨드 해제: seed_mode false로 끄면 releaseSeed (열매 없이 닫기)
+  if (seed_mode === false) {
+    const { data: current } = await supabase
+      .from('corenull_rooms')
+      .select('id, seed_mode')
+      .eq('id', room_id)
+      .maybeSingle()
+    if (current?.seed_mode) {
+      const { releaseSeed } = await import('@/lib/seedPeriod')
+      await releaseSeed(supabase, room_id)
+    }
+  }
+
   const { data, error } = await supabase.from('corenull_rooms').update(updatePayload).eq('id', room_id).select().single()
   if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
   return Response.json({ data, traceId })
