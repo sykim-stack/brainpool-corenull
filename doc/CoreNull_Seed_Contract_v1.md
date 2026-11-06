@@ -1,0 +1,51 @@
+# CoreNull Seed Contract v1
+
+확정: 2026-11-06
+
+## 한 줄
+
+글을 쓰거나 기존 글을 선택해 시작하고, 종료 시 열매로 닫혀 마당·거실·서재로 이동·보관한다.
+
+## 범위
+
+- **시작 게시글** (`start_post_id`) 필수
+- **종료일** (`end_date`) 필수
+- 구간에 들어가는 글 = 같은 방 + `created_at >= start_at` + (종료 확정 전 / end_date까지)
+- 시작글 **이전** 글은 방에 남되 **이번 run 밖**
+
+## 시작 경로
+
+1. **write**: 이 글로 씨드 시작 (새 글 = start) + 종료일
+2. **방 설정**: 기존 글 하나 선택 + 종료일 → 씨드 시작
+
+시작 시 서버가 한 번에:
+- `run_id` 발급
+- `corenull_seed_pages` 생성 (`status=open`, `start_post_id`, `start_at`, `end_date`)
+- 방 `seed_mode=true`, `bloom_date=end_date`
+- 범위 글에 `meta.seed` 태깅 (시작글 `role=start`, 나머지 `role=member`)
+- 이후 새 글(종료 전) 자동 동일 run 태깅
+
+## 진행
+
+- 초대장 `/s/[slug]` = 메모 + 해당 run 구간 글만
+- 방 설정 = 링크 · 메모 · **해제만** (미시작 시 기존글 선택 시작은 방 설정)
+
+## 종료 → 열매
+
+- end_date 경과 시 `status=fruit`
+- 구간 글 `phase=fruit`
+- 방 `seed_mode=false` (방은 유지)
+- 열매는 **마당 / 거실 / 서재**에서 보이·보관 가능
+
+## 해제
+
+- `status=released` · 열매 없음 · phase=released
+
+## UI 위치
+
+| 동작 | 위치 |
+|------|------|
+| 새 글로 시작 | write |
+| 기존 글로 시작 | 방 설정 |
+| 초대장·메모·해제 | 방 설정 (진행 중) |
+| 열매 열람 | 마당·거실·서재·`/s` |
