@@ -9,8 +9,8 @@ export const TOPBAR_TOKENS = {
   bg: '#0B1220',
   bgMuted: '#121A28',
   border: 'rgba(255,255,255,0.08)',
-  text: '#E8E4DC',
-  textMuted: 'rgba(232,228,220,0.55)',
+  text: '#F5F0E8',
+  textMuted: 'rgba(245,240,232,0.78)',
   accent: '#F5C518',
   iconBtnBg: 'rgba(255,255,255,0.06)',
   iconBtnBorder: 'rgba(255,255,255,0.12)',
@@ -161,7 +161,7 @@ export default function TopBar({ logo, title, shareUrl }: TopBarProps) {
 const styles: Record<string, React.CSSProperties> = {
   outer: {
     position: 'fixed', top: 0, left: 0, right: 0, width: '100%', height: '56px',
-    zIndex: 100, backdropFilter: 'blur(12px)',
+    zIndex: 100, backdropFilter: 'blur(12px)', overflow: 'visible',
   },
   inner: {
     height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
