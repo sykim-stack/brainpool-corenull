@@ -68,7 +68,7 @@ const handleGet = async (req, traceId) => {
 const canWriteRoom = async (supabase, room_id, owner_key) => {
   const { data: room, error: roomError } = await supabase
     .from('corenull_rooms')
-    .select('id, house_id')
+    .select('id, house_id, seed_mode, bloom_date, room_name')
     .eq('id', room_id)
     .single()
   if (roomError || !room) return { ok: false, error: 'room_not_found' }
@@ -95,12 +95,14 @@ const canWriteRoom = async (supabase, room_id, owner_key) => {
     ok: true,
     house_id: room.house_id,
     primary_language: house?.primary_language || 'ko',
+    room,
+    isOwner,
   }
 }
 
 const handlePost = async (req, traceId) => {
   const body = JSON.parse(await req.text())
-  const { room_id, owner_key, content, meta, type, relations } = body
+  const { room_id, owner_key, content, meta, type, relations, seed_start, seed_end_date } = body
 
   if (!room_id || !owner_key || !content) {
     return Response.json({ _error: 'room_id_owner_key_content_required', traceId }, { status: 500 })
@@ -111,35 +113,122 @@ const handlePost = async (req, traceId) => {
   if (!supabase) return Response.json({ _error: 'supabase_init_failed', traceId }, { status: 500 })
 
   const messageType = type || 'post'
+  let insertMeta = meta || {}
+
+  if (messageType === 'comment') {
+    const insertPayload = {
+      room_id,
+      owner_key,
+      type: messageType,
+      content,
+      meta: insertMeta,
+      relations: relations || {},
+    }
+    const { data, error } = await supabase.from('messages').insert(insertPayload).select().single()
+    if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
+    return Response.json({ data, traceId })
+  }
+
+  const auth = await canWriteRoom(supabase, room_id, owner_key)
+  if (!auth.ok) return Response.json({ _error: auth.error, traceId }, { status: 500 })
+
+  if (seed_start) {
+    if (!auth.isOwner) {
+      return Response.json({ _error: 'not_authorized', traceId }, { status: 403 })
+    }
+    if (!seed_end_date) {
+      return Response.json({ _error: 'seed_end_date_required', traceId }, { status: 400 })
+    }
+  }
+
+  if (!seed_start && auth.room?.seed_mode) {
+    const {
+      getOpenSeedPage,
+      buildSeedMeta,
+      isSeedEndPassed,
+      finalizeSeedIfDue,
+    } = await import('@/lib/seedPeriod')
+    const page = await getOpenSeedPage(supabase, room_id)
+    if (page?.end_date && isSeedEndPassed(page.end_date)) {
+      await finalizeSeedIfDue(supabase, {
+        ...auth.room,
+        bloom_date: page.end_date || auth.room.bloom_date,
+      })
+    } else if (page?.run_id) {
+      insertMeta = {
+        ...insertMeta,
+        seed: buildSeedMeta({
+          role: 'member',
+          endDate: page.end_date || auth.room.bloom_date,
+          runId: page.run_id,
+        }),
+      }
+    }
+  }
+
+  const sourceLang = auth.primary_language || 'ko'
   const insertPayload = {
     room_id,
     owner_key,
     type: messageType,
     content,
-    meta: meta || {},
+    meta: insertMeta,
     relations: relations || {},
-  }
-
-  if (messageType !== 'comment') {
-    const auth = await canWriteRoom(supabase, room_id, owner_key)
-    if (!auth.ok) return Response.json({ _error: auth.error, traceId }, { status: 500 })
-
-    const sourceLang = auth.primary_language || 'ko'
-    insertPayload.house_id = auth.house_id
-    insertPayload.language = sourceLang
-    insertPayload.translated_ko = null
-    insertPayload.translation_status = sourceLang === 'ko' ? 'completed' : 'pending'
+    house_id: auth.house_id,
+    language: sourceLang,
+    translated_ko: null,
+    translation_status: sourceLang === 'ko' ? 'completed' : 'pending',
   }
 
   const { data, error } = await supabase.from('messages').insert(insertPayload).select().single()
   if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
+
+  let seedPage = null
+  if (seed_start) {
+    const { startSeedRun } = await import('@/lib/seedPeriod')
+    const started = await startSeedRun(supabase, {
+      roomId: room_id,
+      houseId: auth.house_id,
+      ownerKey: owner_key,
+      startPostId: data.id,
+      endDate: seed_end_date,
+      title: auth.room?.room_name || null,
+      memo: '',
+    })
+    if (started.error) {
+      return Response.json(
+        {
+          data,
+          seed_error: started.error.message || String(started.error),
+          traceId,
+        },
+        { status: 200 }
+      )
+    }
+    seedPage = started.page
+    await supabase
+      .from('messages')
+      .update({
+        meta: {
+          ...(data.meta || {}),
+          seed: {
+            role: 'start',
+            run_id: seedPage.run_id,
+            end_date: seedPage.end_date,
+            phase: 'growing',
+            started_at: data.created_at,
+          },
+        },
+      })
+      .eq('id', data.id)
+  }
 
   if (messageType === 'fruit') {
     await pushFact({
       source: 'CoreNull',
       fact_type: 'space.fruit.created',
       owner_key,
-      house_id: insertPayload.house_id || null,
+      house_id: auth.house_id || null,
       payload: {
         post_id: data.id,
         room_id,
@@ -148,7 +237,29 @@ const handlePost = async (req, traceId) => {
     })
   }
 
-  return Response.json({ data, traceId })
+  if (seed_start && seedPage) {
+    await pushFact({
+      source: 'CoreNull',
+      fact_type: 'space.seed.created',
+      owner_key,
+      house_id: auth.house_id || null,
+      payload: {
+        room_id,
+        run_id: seedPage.run_id,
+        start_post_id: data.id,
+        end_date: seedPage.end_date,
+        slug: seedPage.slug,
+      },
+    })
+  }
+
+  return Response.json({
+    data,
+    seed_page: seedPage
+      ? { slug: seedPage.slug, share_path: `/s/${seedPage.slug}`, end_date: seedPage.end_date }
+      : null,
+    traceId,
+  })
 }
 
 const handlePatch = async (req, traceId) => {
@@ -186,7 +297,6 @@ const handlePatch = async (req, traceId) => {
       meta: meta ? { ...(original.meta || {}), ...meta } : original.meta,
     }
 
-    // 잘못된 방에 올린 글 → 다른 방으로 이동
     if (room_id && room_id !== original.room_id) {
       const auth = await canWriteRoom(supabase, room_id, owner_key)
       if (!auth.ok) return Response.json({ _error: auth.error, traceId }, { status: 500 })
