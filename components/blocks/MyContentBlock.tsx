@@ -171,6 +171,35 @@ export default function MyContentBlock({
             ))}
           </div>
 
+          {needsSwipe && (
+            <div style={styles.pagerBar}>
+              <button
+                type="button"
+                style={styles.pagerBtn}
+                onClick={() => setPage((p) => (p - 1 + pageCount) % pageCount)}
+                aria-label="이전 기록"
+              >
+                ‹ 이전
+              </button>
+              <div style={styles.pagerCenter}>
+                <span style={styles.pagerPage}>
+                  {safePage + 1} / {pageCount}
+                </span>
+                <span style={styles.pagerHint}>아래로 더 있어요 · 스와이프도 가능</span>
+              </div>
+              <button
+                type="button"
+                style={{
+                  ...styles.pagerBtn,
+                  ...styles.pagerBtnPrimary,
+                }}
+                onClick={() => setPage((p) => (p + 1) % pageCount)}
+                aria-label="다음 기록"
+              >
+                다음 ›
+              </button>
+            </div>
+          )}
         </div>
       ) : !wide ? (
         /* 모바일 density도 2+1 팩 — 마지막 1개 빈칸 방지 */
@@ -218,18 +247,66 @@ const styles: Record<string, React.CSSProperties> = {
   headerActions: { display: 'flex', alignItems: 'center', gap: 8 },
   headerArrows: { display: 'flex', alignItems: 'center', gap: 4 },
   headerArrow: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    border: '1px solid rgba(92,61,46,0.16)',
-    background: '#FEFCF8',
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    border: '1.5px solid rgba(92,61,46,0.28)',
+    background: '#F5F0E8',
     color: '#2C1810',
-    fontSize: 20,
-    lineHeight: '24px',
+    fontSize: 22,
+    lineHeight: '28px',
     padding: 0,
     cursor: 'pointer',
+    fontWeight: 600,
   },
-  hint: { fontSize: 11, color: '#9A8470' },
+  hint: { fontSize: 12, color: '#5C4A35', fontWeight: 500 },
+  pagerBar: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    marginTop: 16,
+    padding: '12px 10px',
+    background: 'rgba(74,124,63,0.08)',
+    border: '1px solid rgba(74,124,63,0.22)',
+    borderRadius: 14,
+  },
+  pagerBtn: {
+    flexShrink: 0,
+    minWidth: 72,
+    height: 40,
+    padding: '0 12px',
+    borderRadius: 10,
+    border: '1.5px solid rgba(92,61,46,0.2)',
+    background: '#FEFCF8',
+    color: '#2C1810',
+    fontSize: 14,
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
+  pagerBtnPrimary: {
+    background: '#2C1810',
+    color: '#FEFCF8',
+    border: '1.5px solid #2C1810',
+  },
+  pagerCenter: {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 2,
+    minWidth: 0,
+  },
+  pagerPage: {
+    fontSize: 14,
+    fontWeight: 700,
+    color: '#2C1810',
+  },
+  pagerHint: {
+    fontSize: 11,
+    color: '#4A7C3F',
+    textAlign: 'center',
+  },
   empty: {
     textAlign: 'center',
     padding: '28px 16px',
