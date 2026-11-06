@@ -68,9 +68,18 @@ export default function SeedSharePage() {
       .finally(() => setLoading(false))
   }, [slug])
 
+  // 기록 순서: 씨드 시작글 → 시간 오름차순 (시작일부터 최근으로)
   const blockPosts = useMemo(() => {
     if (!data) return []
-    return data.posts.map((p) => ({
+    const ordered = [...data.posts].sort((a, b) => {
+      const ta = new Date(a.created_at).getTime()
+      const tb = new Date(b.created_at).getTime()
+      if (ta !== tb) return ta - tb
+      const ra = a.meta?.seed?.role === 'start' ? 0 : 1
+      const rb = b.meta?.seed?.role === 'start' ? 0 : 1
+      return ra - rb
+    })
+    return ordered.map((p) => ({
       id: p.id,
       content: p.content || '',
       media: (p.meta?.media as any) || undefined,
