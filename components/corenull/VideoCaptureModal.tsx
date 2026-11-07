@@ -2,13 +2,15 @@
 
 import { useEffect, useRef, useState } from 'react'
 
-/** 짧은 순간 — 틱톡/페북처럼 인앱에서 바로 찍기 */
+/** 짧은 순간 — 인앱에서 사진 또는 영상 바로 찍기 */
 const MAX_SECONDS = 15
 
 export interface VideoCaptureModalProps {
   onClose: () => void
-  /** 촬영 완료 파일 (webm 또는 mp4) */
+  /** 촬영 완료 파일 (image/jpeg 또는 video webm/mp4) */
   onCapture: (file: File) => void
+  /** 기본 모드 */
+  initialMode?: 'photo' | 'video'
 }
 
 function pickMimeType(): string | undefined {
@@ -25,19 +27,25 @@ function pickMimeType(): string | undefined {
   return undefined
 }
 
-export default function VideoCaptureModal({ onClose, onCapture }: VideoCaptureModalProps) {
+export default function VideoCaptureModal({
+  onClose,
+  onCapture,
+  initialMode = 'photo',
+}: VideoCaptureModalProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const recorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
+  const [mode, setMode] = useState<'photo' | 'video'>(initialMode)
   const [ready, setReady] = useState(false)
   const [recording, setRecording] = useState(false)
   const [seconds, setSeconds] = useState(0)
   const [error, setError] = useState('')
   const [facing, setFacing] = useState<'user' | 'environment'>('environment')
   const [mimeType, setMimeType] = useState<string | undefined>(undefined)
+  const [snapping, setSnapping] = useState(false)
 
   const stopStream = () => {
     streamRef.current?.getTracks().forEach((t) => t.stop())
@@ -51,16 +59,16 @@ export default function VideoCaptureModal({ onClose, onCapture }: VideoCaptureMo
     }
   }
 
-  const startCamera = async (face: 'user' | 'environment') => {
+  const startCamera = async (face: 'user' | 'environment', forMode: 'photo' | 'video') => {
     setError('')
     setReady(false)
     stopStream()
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
+        audio: forMode === 'video',
         video: {
           facingMode: { ideal: face },
-          width: { ideal: 720 },
+          width: { ideal: 1280 },
           height: { ideal: 1280 },
         },
       })
@@ -73,7 +81,11 @@ export default function VideoCaptureModal({ onClose, onCapture }: VideoCaptureMo
     } catch (e: any) {
       const name = e?.name || ''
       if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
-        setError('카메라·마이크 권한을 허용해 주세요.')
+        setError(
+          forMode === 'video'
+            ? '카메라·마이크 권한을 허용해 주세요.'
+            : '카메라 권한을 허용해 주세요.',
+        )
       } else if (name === 'NotFoundError') {
         setError('카메라를 찾을 수 없어요.')
       } else {
@@ -91,11 +103,7 @@ export default function VideoCaptureModal({ onClose, onCapture }: VideoCaptureMo
       setError('이 브라우저는 카메라 촬영을 지원하지 않아요.')
       return
     }
-    if (typeof MediaRecorder === 'undefined') {
-      setError('이 브라우저는 영상 녹화를 지원하지 않아요.')
-      return
-    }
-    startCamera(facing)
+    startCamera(facing, mode)
     return () => {
       clearTimer()
       try {
@@ -108,11 +116,57 @@ export default function VideoCaptureModal({ onClose, onCapture }: VideoCaptureMo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  const switchMode = async (next: 'photo' | 'video') => {
+    if (recording || next === mode) return
+    if (next === 'video' && typeof MediaRecorder === 'undefined') {
+      setError('이 브라우저는 영상 녹화를 지원하지 않아요.')
+      return
+    }
+    setMode(next)
+    setError('')
+    await startCamera(facing, next)
+  }
+
   const flipCamera = async () => {
     if (recording) return
     const next = facing === 'environment' ? 'user' : 'environment'
     setFacing(next)
-    await startCamera(next)
+    await startCamera(next, mode)
+  }
+
+  const takePhoto = async () => {
+    if (!ready || snapping || recording) return
+    const video = videoRef.current
+    if (!video || video.videoWidth === 0) {
+      setError('카메라가 아직 준비되지 않았어요.')
+      return
+    }
+    setSnapping(true)
+    setError('')
+    try {
+      const w = video.videoWidth
+      const h = video.videoHeight
+      const canvas = document.createElement('canvas')
+      canvas.width = w
+      canvas.height = h
+      const ctx = canvas.getContext('2d')
+      if (!ctx) throw new Error('canvas')
+      ctx.drawImage(video, 0, 0, w, h)
+      const blob = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob((b) => resolve(b), 'image/jpeg', 0.92),
+      )
+      if (!blob || blob.size < 500) {
+        setError('사진을 저장하지 못했어요. 다시 찍어 주세요.')
+        return
+      }
+      const file = new File([blob], `photo-${Date.now()}.jpg`, { type: 'image/jpeg' })
+      stopStream()
+      onCapture(file)
+    } catch {
+      setError('사진 촬영에 실패했어요.')
+    } finally {
+      setSnapping(false)
+    }
   }
 
   const finishRecording = () => {
@@ -145,6 +199,10 @@ export default function VideoCaptureModal({ onClose, onCapture }: VideoCaptureMo
 
   const startRecording = () => {
     if (!streamRef.current || recording) return
+    if (typeof MediaRecorder === 'undefined') {
+      setError('이 브라우저는 영상 녹화를 지원하지 않아요.')
+      return
+    }
     setError('')
     chunksRef.current = []
     setSeconds(0)
@@ -195,16 +253,45 @@ export default function VideoCaptureModal({ onClose, onCapture }: VideoCaptureMo
   const remain = Math.max(0, MAX_SECONDS - seconds)
 
   return (
-    <div style={styles.backdrop} role="dialog" aria-label="영상 촬영">
+    <div style={styles.backdrop} role="dialog" aria-modal="true">
       <div style={styles.sheet}>
         <div style={styles.head}>
-          <span style={styles.headTitle}>짧은 영상</span>
+          <span style={styles.headTitle}>{mode === 'photo' ? '사진 촬영' : '짧은 영상'}</span>
           <button type="button" style={styles.close} onClick={handleClose} aria-label="닫기">
             ✕
           </button>
         </div>
 
-        <p style={styles.hint}>최대 {MAX_SECONDS}초 · 바로 찍어서 올려요</p>
+        <div style={styles.modeRow}>
+          <button
+            type="button"
+            style={{
+              ...styles.modeBtn,
+              ...(mode === 'photo' ? styles.modeBtnOn : {}),
+            }}
+            disabled={recording}
+            onClick={() => switchMode('photo')}
+          >
+            사진
+          </button>
+          <button
+            type="button"
+            style={{
+              ...styles.modeBtn,
+              ...(mode === 'video' ? styles.modeBtnOn : {}),
+            }}
+            disabled={recording}
+            onClick={() => switchMode('video')}
+          >
+            영상
+          </button>
+        </div>
+
+        <p style={styles.hint}>
+          {mode === 'photo'
+            ? '셔터를 누르면 바로 첨부돼요'
+            : `최대 ${MAX_SECONDS}초 · 바로 찍어서 올려요`}
+        </p>
 
         <div style={styles.stage}>
           <video
@@ -236,7 +323,20 @@ export default function VideoCaptureModal({ onClose, onCapture }: VideoCaptureMo
             🔄
           </button>
 
-          {!recording ? (
+          {mode === 'photo' ? (
+            <button
+              type="button"
+              style={{
+                ...styles.shutter,
+                opacity: ready && !snapping ? 1 : 0.4,
+              }}
+              disabled={!ready || snapping}
+              onClick={takePhoto}
+              aria-label="사진 촬영"
+            >
+              <span style={styles.shutterPhotoInner} />
+            </button>
+          ) : !recording ? (
             <button
               type="button"
               style={{
@@ -272,7 +372,7 @@ const styles: Record<string, React.CSSProperties> = {
     position: 'fixed',
     inset: 0,
     background: 'rgba(28,18,8,0.55)',
-    zIndex: 90,
+    zIndex: 200,
     display: 'flex',
     alignItems: 'flex-end',
     justifyContent: 'center',
@@ -282,8 +382,10 @@ const styles: Record<string, React.CSSProperties> = {
     maxWidth: 480,
     background: '#1C1208',
     borderRadius: '16px 16px 0 0',
-    padding: '14px 14px 28px',
+    padding: '14px 14px calc(28px + env(safe-area-inset-bottom, 0px))',
     color: '#FEFCF8',
+    maxHeight: '92vh',
+    overflowY: 'auto',
   },
   head: {
     display: 'flex',
@@ -304,6 +406,28 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     padding: 4,
   },
+  modeRow: {
+    display: 'flex',
+    gap: 8,
+    marginBottom: 8,
+  },
+  modeBtn: {
+    flex: 1,
+    height: 36,
+    borderRadius: 10,
+    border: '1px solid rgba(254,252,248,0.18)',
+    background: 'transparent',
+    color: 'rgba(254,252,248,0.65)',
+    fontSize: 13,
+    fontWeight: 500,
+    cursor: 'pointer',
+  },
+  modeBtnOn: {
+    background: 'rgba(245,197,24,0.18)',
+    border: '1px solid rgba(245,197,24,0.55)',
+    color: '#F5C518',
+    fontWeight: 600,
+  },
   hint: {
     margin: '0 0 10px',
     fontSize: 12,
@@ -316,6 +440,7 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 14,
     overflow: 'hidden',
     background: '#000',
+    maxHeight: '48vh',
   },
   video: {
     width: '100%',
@@ -367,7 +492,7 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'space-between',
     marginTop: 18,
-    padding: '0 12px',
+    padding: '0 12px 8px',
   },
   sideBtn: {
     width: 44,
@@ -396,6 +521,12 @@ const styles: Record<string, React.CSSProperties> = {
     height: 56,
     borderRadius: '50%',
     background: '#E24',
+  },
+  shutterPhotoInner: {
+    width: 56,
+    height: 56,
+    borderRadius: '50%',
+    background: '#FEFCF8',
   },
   shutterStop: {
     width: 72,
