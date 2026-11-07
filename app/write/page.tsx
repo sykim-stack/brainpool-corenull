@@ -173,7 +173,7 @@ export default function WritePage() {
     setShowCapture(false)
     setSubmitError('')
     setUploading(true)
-    setUploadLabel('영상 준비 중…')
+    setUploadLabel('미디어 준비 중…')
     try {
       const prepared = await prepareUploadFile(file)
       if (!prepared.ok) {
@@ -355,9 +355,9 @@ export default function WritePage() {
 
         <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
           <button type="button" style={{ flex: 1, height: 48, background: '#FEFCF8', border: '1px dashed rgba(92,61,46,0.2)', borderRadius: 12, fontSize: 14, color: '#9A8470', cursor: 'pointer' }} onClick={() => fileInputRef.current?.click()} disabled={uploading}>
-            {uploading ? '⏳' : '📷'} {uploading ? uploadLabel || '업로드 중...' : '사진/영상'}
+            {uploading ? '⏳' : '🖼'} {uploading ? uploadLabel || '업로드 중...' : '갤러리'}
           </button>
-          <button type="button" style={{ flex: 1, height: 48, background: '#2C1810', border: 'none', borderRadius: 12, fontSize: 14, color: '#FEFCF8', cursor: 'pointer', fontWeight: 500 }} onClick={() => setShowCapture(true)} disabled={uploading}>🎥 촬영</button>
+          <button type="button" style={{ flex: 1, height: 48, background: '#2C1810', border: 'none', borderRadius: 12, fontSize: 14, color: '#FEFCF8', cursor: 'pointer', fontWeight: 500 }} onClick={() => setShowCapture(true)} disabled={uploading}>📷 촬영</button>
         </div>
 
         <button
