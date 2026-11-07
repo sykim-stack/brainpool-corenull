@@ -1,6 +1,6 @@
 // components/corenull/CoreNullLogo.tsx
 // CORENULL 워드마크 — N 모스 (− ·) 는 NULL의 N 바로 아래
-// CoreRing R 모스(· − ·) 규칙과 동일
+// CORE는 흐리게, NULL은 또렷하게. CoreRing R 모스 규칙과 동일
 
 export type CoreNullLogoVariant = 'onLight' | 'onDark'
 
@@ -12,13 +12,16 @@ export default function CoreNullLogo({
   /** onDark = 다크 탑바용 (기본). onLight = 크림 배경용 */
   variant?: CoreNullLogoVariant
 }) {
-  const fontSize = size === 'sm' ? 13 : 17
-  const dashW = size === 'sm' ? 8 : 11
-  const dot = size === 'sm' ? 2.5 : 3.5
-  const gap = size === 'sm' ? 2.5 : 3.5
+  // 기본(sm) 16px — 탑바 기준
+  const fontSize = size === 'sm' ? 16 : 20
+  const dashW = size === 'sm' ? 9 : 12
+  const dot = size === 'sm' ? 3 : 4
+  const gap = size === 'sm' ? 3 : 4
   const morseTop = size === 'sm' ? 2 : 3
 
-  const word = variant === 'onDark' ? '#F5F0E8' : '#2C1810'
+  const coreColor =
+    variant === 'onDark' ? 'rgba(245,240,232,0.42)' : 'rgba(44,24,16,0.4)'
+  const nullColor = variant === 'onDark' ? '#F5F0E8' : '#2C1810'
   const accent = '#F5C518'
 
   return (
@@ -37,7 +40,7 @@ export default function CoreNullLogo({
           fontSize,
           fontWeight: 700,
           letterSpacing: '0.14em',
-          color: word,
+          color: coreColor,
           textTransform: 'uppercase' as const,
         }}
       >
@@ -50,7 +53,7 @@ export default function CoreNullLogo({
           fontSize,
           fontWeight: 700,
           letterSpacing: '0.14em',
-          color: word,
+          color: nullColor,
           textTransform: 'uppercase' as const,
         }}
       >
