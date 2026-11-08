@@ -1,1 +1,399 @@
-see_file
+'use client'
+
+import { useState, useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
+import { getOwnerKey } from '@/lib/ownerKey'
+import { getDeviceId } from '@/lib/deviceId'
+import { prepareUploadFile } from '@/lib/compressMedia'
+import { uploadOneFile } from '@/lib/uploadClient'
+import TopBar from '@/components/blocks/TopBar'
+import CoreNullLogo from '@/components/corenull/CoreNullLogo'
+import OwnerGate from '@/components/corenull/OwnerGate'
+import VideoCaptureModal from '@/components/corenull/VideoCaptureModal'
+
+const LANG_FLAG: Record<string, string> = {
+  ko: '🇰🇷', vi: '🇻🇳', en: '🇺🇸', ja: '🇯🇵', zh: '🇨🇳',
+}
+
+export default function WritePage() {
+  const [content, setContent] = useState('')
+  const [houses, setHouses] = useState<any[]>([])
+  const [selectedHouse, setSelectedHouse] = useState<any>(null)
+  const [rooms, setRooms] = useState<any[]>([])
+  const [selectedRoom, setSelectedRoom] = useState<any>(null)
+  const [mediaFiles, setMediaFiles] = useState<any[]>([])
+  const [uploading, setUploading] = useState(false)
+  const [uploadLabel, setUploadLabel] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [ownerKey, setOwnerKey] = useState('')
+  const [ownerReady, setOwnerReady] = useState(false)
+  const [submitError, setSubmitError] = useState('')
+  const [showCapture, setShowCapture] = useState(false)
+  const [showNewRoom, setShowNewRoom] = useState(false)
+  const [newRoomName, setNewRoomName] = useState('')
+  const [isSeed, setIsSeed] = useState(false)
+  const [bloomDate, setBloomDate] = useState('')
+  const [startSeedWithPost, setStartSeedWithPost] = useState(false)
+  const [seedEndDate, setSeedEndDate] = useState('')
+  const [creatingRoom, setCreatingRoom] = useState(false)
+  const [roomError, setRoomError] = useState('')
+  const [pinNotice, setPinNotice] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const router = useRouter()
+  const today = new Date().toISOString().split('T')[0]
+
+  useEffect(() => {
+    const key = getOwnerKey()
+    setOwnerKey(key)
+    setOwnerReady(true)
+    if (!key) return
+
+    const params = new URLSearchParams(window.location.search)
+    const preselectedRoomId = params.get('room_id')
+    const shouldOpenNewRoom = params.get('new_room') === '1'
+
+    Promise.all([
+      fetch(`/api/corenull/houses?owner_key=${key}`).then((r) => r.json()),
+      fetch(`/api/corenull/rooms?scope=writable&owner_key=${encodeURIComponent(key)}&device_id=${encodeURIComponent(getDeviceId())}`).then((r) => r.json()),
+    ]).then(([hData, rData]) => {
+      const houseList = hData.data || []
+      setHouses(houseList)
+      const roomList = rData.data || []
+      setRooms(roomList)
+      if (preselectedRoomId) {
+        const found = roomList.find((rm: any) => rm.id === preselectedRoomId)
+        if (found) {
+          setSelectedRoom(found)
+          setSelectedHouse(houseList.find((h: any) => h.id === found.house_id) || houseList[0] || null)
+          return
+        }
+      }
+      if (houseList.length > 0) setSelectedHouse(houseList[0])
+      setSelectedRoom(roomList.length > 0 ? roomList[0] : null)
+      if (shouldOpenNewRoom) setShowNewRoom(true)
+    })
+  }, [])
+
+  const loadRoomsForHouse = async (houseId: string) => {
+    const key = ownerKey || getOwnerKey()
+    const r = await fetch(`/api/corenull/rooms?scope=writable&owner_key=${encodeURIComponent(key)}&device_id=${encodeURIComponent(getDeviceId())}`)
+    const rd = await r.json()
+    const all = rd.data || []
+    const filtered = all.filter((rm: any) => rm._source === 'member' || rm.house_id === houseId)
+    setRooms(filtered)
+    setSelectedRoom(filtered.length > 0 ? filtered[0] : null)
+  }
+
+  const handleHouseChange = async (houseId: string) => {
+    const house = houses.find((h: any) => h.id === houseId)
+    if (!house) return
+    setSelectedHouse(house)
+    setShowNewRoom(false)
+    await loadRoomsForHouse(house.id)
+  }
+
+  const handleCreateRoom = async () => {
+    if (!newRoomName.trim() || !selectedHouse) return
+    setCreatingRoom(true)
+    setRoomError('')
+    const res = await fetch('/api/corenull/rooms', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        house_id: selectedHouse.id,
+        owner_key: ownerKey,
+        room_name: newRoomName.trim(),
+        room_type: 'normal',
+        visibility: 'public',
+        seed_mode: false,
+        bloom_date: null,
+      }),
+    })
+    const data = await res.json()
+    if (data.data) {
+      const created = { ...data.data, _source: 'own', _house_title: selectedHouse?.title || null }
+      setRooms((prev) => [...prev, created])
+      setSelectedRoom(created)
+      setShowNewRoom(false)
+      setNewRoomName('')
+      setIsSeed(false)
+      setBloomDate('')
+    } else {
+      setRoomError(data._error || '방 만들기에 실패했어요')
+    }
+    setCreatingRoom(false)
+  }
+
+  const uploadOne = async (file: File, label?: string): Promise<{ ok: boolean; item?: any; error?: string }> => {
+    if (label) setUploadLabel(label)
+    return uploadOneFile(file)
+  }
+
+  const handleFileSelect = async (e: any) => {
+    const files = Array.from(e.target.files || []) as File[]
+    e.target.value = ''
+    if (files.length === 0) return
+    setUploading(true)
+    setSubmitError('')
+    const failures: string[] = []
+    let uploadedCount = 0
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i]
+        setUploadLabel(`압축 중 ${i + 1}/${files.length}`)
+        const prepared = await prepareUploadFile(file)
+        if (!prepared.ok) {
+          failures.push(`${file.name}: ${prepared.error}`)
+          continue
+        }
+        setUploadLabel(`업로드 중 ${i + 1}/${files.length}`)
+        const result = await uploadOne(prepared.file)
+        if (!result.ok) {
+          failures.push(`${file.name}: ${result.error}`)
+          continue
+        }
+        setMediaFiles((prev) => [...prev, result.item])
+        uploadedCount++
+      }
+      if (failures.length) {
+        setSubmitError(
+          failures.length === files.length
+            ? failures[0]
+            : `${uploadedCount}장 성공 · ${failures.length}장 실패: ${failures[0]}`
+        )
+      }
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : '업로드 중 오류가 발생했어요.')
+    } finally {
+      setUploading(false)
+      setUploadLabel('')
+    }
+  }
+
+  const handleCapture = async (file: File) => {
+    setShowCapture(false)
+    setSubmitError('')
+    setUploading(true)
+    setUploadLabel('미디어 준비 중…')
+    try {
+      const prepared = await prepareUploadFile(file)
+      if (!prepared.ok) {
+        setSubmitError(prepared.error)
+        return
+      }
+      setUploadLabel('업로드 중…')
+      const result = await uploadOne(prepared.file)
+      if (!result.ok) {
+        setSubmitError(result.error || '업로드 실패')
+        return
+      }
+      setMediaFiles((prev) => [...prev, result.item])
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : '업로드 중 오류가 발생했어요.')
+    } finally {
+      setUploading(false)
+      setUploadLabel('')
+    }
+  }
+
+  const handleSubmit = async () => {
+    if (!content.trim() || !selectedRoom) return
+    setSubmitting(true)
+    setSubmitError('')
+    const wantSeed =
+      startSeedWithPost &&
+      !selectedRoom.seed_mode &&
+      !!seedEndDate
+    if (startSeedWithPost && !selectedRoom.seed_mode && !seedEndDate) {
+      setSubmitError('씨드 종료일을 선택해 주세요')
+      setSubmitting(false)
+      return
+    }
+    const res = await fetch('/api/corenull/posts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        room_id: selectedRoom.id,
+        owner_key: ownerKey,
+        content: content.trim(),
+        meta: { media: mediaFiles },
+        type: 'post',
+        ...(wantSeed
+          ? { seed_start: true, seed_end_date: seedEndDate }
+          : {}),
+        ...(pinNotice ? { pin: true } : {}),
+      }),
+    })
+    const data = await res.json()
+    if (data.data) {
+      router.refresh()
+      if (data.seed_page?.slug) {
+        router.replace(`/s/${data.seed_page.slug}`)
+      } else {
+        router.replace(`/rooms/${selectedRoom.id}`)
+      }
+    } else {
+      setSubmitError(data._error || '올리기에 실패했어요')
+    }
+    setSubmitting(false)
+  }
+
+  const removeMedia = (index: number) => {
+    setMediaFiles((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  if (ownerReady && !ownerKey) return <OwnerGate />
+
+  return (
+    <div>
+      <TopBar logo={<CoreNullLogo size="sm" />} title="새 이야기" />
+      <div style={{ padding: 16 }}>
+        {submitError && (
+          <div style={{ background: 'rgba(200,60,40,0.08)', border: '1px solid rgba(200,60,40,0.25)', borderRadius: 10, padding: '10px 12px', marginBottom: 12, fontSize: 13, color: '#A33' }}>
+            ⚠️ {submitError}
+          </div>
+        )}
+
+        {houses.length > 1 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#FEFCF8', border: '1px solid rgba(92,61,46,0.12)', borderRadius: 12, padding: '10px 14px', marginBottom: 10 }}>
+            <span style={{ fontSize: 13, color: '#9A8470' }}>어느 집에?</span>
+            <select style={{ flex: 1, border: 'none', background: 'none', fontSize: 14, outline: 'none' }} value={selectedHouse?.id || ''} onChange={(e) => handleHouseChange(e.target.value)}>
+              {houses.map((h: any) => (
+                <option key={h.id} value={h.id}>{LANG_FLAG[h.primary_language] || '🏡'} {h.title}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {!showNewRoom ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#FEFCF8', border: '1px solid rgba(92,61,46,0.12)', borderRadius: 12, padding: '10px 14px', marginBottom: 12 }}>
+            <span style={{ fontSize: 13, color: '#9A8470' }}>어느 방에?</span>
+            <select
+              style={{ flex: 1, border: 'none', background: 'none', fontSize: 14, outline: 'none' }}
+              value={selectedRoom?.id || ''}
+              onChange={(e) => {
+                if (e.target.value === '__new__') {
+                  setShowNewRoom(true)
+                  return
+                }
+                setSelectedRoom(rooms.find((r: any) => r.id === e.target.value))
+              }}
+            >
+              {rooms.map((r: any) => (
+                <option key={r.id} value={r.id}>
+                  {r._source === 'member' ? `참여 · ${r._house_title ? r._house_title + ' · ' : ''}${r.room_name}` : r.room_name}
+                  {r.seed_mode ? ' 🌱' : ''}
+                </option>
+              ))}
+              <option value="__new__">+ 새 방 만들기</option>
+            </select>
+          </div>
+        ) : (
+          <div style={{ background: '#FEFCF8', border: '1px solid rgba(92,61,46,0.12)', borderRadius: 12, padding: 14, marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 13, color: '#9A8470' }}>새 방 만들기</span>
+              <button type="button" style={{ fontSize: 13, color: '#9A8470', background: 'none', border: 'none', cursor: 'pointer' }} onClick={() => { setShowNewRoom(false); setNewRoomName(''); setIsSeed(false); setBloomDate(''); setRoomError('') }}>취소</button>
+            </div>
+            {roomError && <div style={{ color: '#A33', fontSize: 13 }}>⚠️ {roomError}</div>}
+            <input style={{ height: 44, background: '#F5F0E8', border: '1px solid rgba(92,61,46,0.12)', borderRadius: 10, padding: '0 12px', fontSize: 14 }} placeholder="방 이름" value={newRoomName} onChange={(e) => setNewRoomName(e.target.value)} maxLength={20} autoFocus />
+            <div style={{ fontSize: 12, color: '#9A8470', lineHeight: 1.5 }}>
+              씨드는 방 만들기 후, 글을 올리며 «이 글로 씨드 시작»으로 걸 수 있어요.
+            </div>
+            <button type="button" style={{ padding: 12, background: '#2C1810', color: 'white', border: 'none', borderRadius: 10, opacity: !newRoomName.trim() || creatingRoom ? 0.4 : 1 }} onClick={handleCreateRoom} disabled={!newRoomName.trim() || creatingRoom}>
+              {creatingRoom ? '만드는 중...' : '방 만들기'}
+            </button>
+          </div>
+        )}
+
+        {selectedRoom?.seed_mode ? (
+          <div style={{ background: 'rgba(74,124,63,0.08)', border: '1px solid rgba(74,124,63,0.2)', borderRadius: 12, padding: '10px 14px', marginBottom: 12 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#2C1810' }}>🌱 씨드 진행 중</div>
+            <div style={{ fontSize: 12, color: '#5C4A35', marginTop: 4 }}>이 글은 시작글부터 종료일까지의 씨드 구간에 포함됩니다.</div>
+          </div>
+        ) : selectedRoom ? (
+          <div style={{ background: '#FEFCF8', border: '1px solid rgba(92,61,46,0.12)', borderRadius: 12, padding: 12, marginBottom: 12 }}>
+            <div
+              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+              onClick={() => setStartSeedWithPost((v) => !v)}
+            >
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 500 }}>🌱 이 글로 씨드 시작</div>
+                <div style={{ fontSize: 11, color: '#9A8470', marginTop: 2 }}>시작 게시글 ~ 종료일까지가 초대장 범위가 됩니다</div>
+              </div>
+              <div style={{ width: 44, height: 24, borderRadius: 12, background: startSeedWithPost ? '#2C1810' : '#e0d8d0', position: 'relative' }}>
+                <div style={{ position: 'absolute', top: 2, width: 20, height: 20, borderRadius: '50%', background: 'white', transform: startSeedWithPost ? 'translateX(20px)' : 'translateX(2px)' }} />
+              </div>
+            </div>
+            {startSeedWithPost && (
+              <input
+                type="date"
+                style={{ marginTop: 10, width: '100%', height: 40, background: '#F5F0E8', border: '1px solid rgba(92,61,46,0.12)', borderRadius: 8, padding: '0 12px', boxSizing: 'border-box' }}
+                value={seedEndDate}
+                min={today}
+                onChange={(e) => setSeedEndDate(e.target.value)}
+              />
+            )}
+          </div>
+        ) : null}
+
+        <textarea
+          style={{ width: '100%', minHeight: 200, background: '#FEFCF8', border: '1px solid rgba(92,61,46,0.12)', borderRadius: 12, padding: 14, fontSize: 15, lineHeight: 1.7, resize: 'none', outline: 'none', marginBottom: 12, boxSizing: 'border-box' }}
+          placeholder="오늘 어떤 순간을 남기고 싶으세요?"
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          autoFocus={!showNewRoom}
+        />
+
+        {mediaFiles.length > 0 && (
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+            {mediaFiles.map((m, i) => (
+              <div key={i} style={{ position: 'relative' }}>
+                {m.type === 'image' ? <img src={m.url} alt="" style={{ width: 80, height: 80, borderRadius: 10, objectFit: 'cover' }} /> : <div style={{ width: 80, height: 80, borderRadius: 10, background: '#2d4a3e', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28 }}>🎬</div>}
+                <button type="button" style={{ position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: '50%', background: '#2C1810', color: 'white', border: 'none', fontSize: 10, cursor: 'pointer' }} onClick={() => removeMedia(i)}>✕</button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {selectedHouse && selectedHouse.owner_key === ownerKey && (
+          <div
+            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#FEFCF8', border: '1px solid rgba(92,61,46,0.12)', borderRadius: 12, padding: '10px 14px', marginBottom: 12, cursor: 'pointer' }}
+            onClick={() => setPinNotice((v) => !v)}
+          >
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 500 }}>📌 공지로 고정</div>
+              <div style={{ fontSize: 11, color: '#9A8470', marginTop: 2 }}>방 맨 위에 고정 · 지도·안내 안내에 적합</div>
+            </div>
+            <div style={{ width: 44, height: 24, borderRadius: 12, background: pinNotice ? '#2C1810' : '#e0d8d0', position: 'relative' }}>
+              <div style={{ position: 'absolute', top: 2, width: 20, height: 20, borderRadius: '50%', background: 'white', transform: pinNotice ? 'translateX(20px)' : 'translateX(2px)' }} />
+            </div>
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+          <button type="button" style={{ flex: 1, height: 48, background: '#FEFCF8', border: '1px dashed rgba(92,61,46,0.2)', borderRadius: 12, fontSize: 14, color: '#9A8470', cursor: 'pointer' }} onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+            {uploading ? '⏳' : '🖼'} {uploading ? uploadLabel || '업로드 중...' : '갤러리'}
+          </button>
+          <button type="button" style={{ flex: 1, height: 48, background: '#2C1810', border: 'none', borderRadius: 12, fontSize: 14, color: '#FEFCF8', cursor: 'pointer', fontWeight: 500 }} onClick={() => setShowCapture(true)} disabled={uploading}>📷 촬영</button>
+        </div>
+
+        <button
+          type="button"
+          style={{ width: '100%', padding: '12px 16px', background: '#2C1810', color: 'white', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 500, cursor: 'pointer', opacity: !content.trim() || !selectedRoom || submitting ? 0.4 : 1 }}
+          onClick={handleSubmit}
+          disabled={!content.trim() || !selectedRoom || submitting}
+        >
+          {submitting
+            ? '올리는 중...'
+            : startSeedWithPost && !selectedRoom?.seed_mode
+              ? '씨드 시작하고 올리기'
+              : '올리기'}
+        </button>
+
+        <input ref={fileInputRef} type="file" accept="image/*,video/mp4,video/webm,video/quicktime,.mov" multiple style={{ display: 'none' }} onChange={handleFileSelect} />
+      </div>
+
+      {showCapture && <VideoCaptureModal onClose={() => setShowCapture(false)} onCapture={handleCapture} />}
+    </div>
+  )
+}
