@@ -36,7 +36,7 @@ type Post = {
   type: string
   created_at: string
   owner_key: string
-  meta?: { media?: any; archived?: boolean; deleted?: boolean }
+  meta?: { media?: any; archived?: boolean; deleted?: boolean; pinned?: boolean }
   comment_count?: number
 }
 
@@ -246,6 +246,7 @@ export default function RoomClient() {
               created_at: post.created_at,
               comment_count: (post as any).comment_count ?? 0,
               room_id: roomId,
+              pinned: !!post.meta?.pinned,
               view_meta: {
                 house_name: house?.title,
                 room_name: room.room_name,
@@ -267,6 +268,7 @@ export default function RoomClient() {
                   created_at: post.created_at,
                   comment_count: (post as any).comment_count ?? 0,
                   room_id: roomId,
+                  pinned: !!post.meta?.pinned,
                 }}
                 onClick={() => router.push(`/posts/${post.id}`)}
                 onCommentClick={() => router.push(`/posts/${post.id}`)}
