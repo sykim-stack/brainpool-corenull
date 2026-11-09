@@ -166,7 +166,7 @@ const styles: Record<string, React.CSSProperties> = {
     position: 'relative',
     zIndex: 1,
     paddingTop: RING_SIZE / 2 + 16,
-    paddingBottom: 20,
+    paddingBottom: 22,
     paddingLeft: 20,
     paddingRight: 20,
     textAlign: 'center',
@@ -174,7 +174,9 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: 'column',
     alignItems: 'center',
     gap: 6,
-    background: '#FEFCF8',
+    // 문패 영역 경계: 옅은 황동 (기존 brass 토큰 #C17F3C 계열)
+    background: 'linear-gradient(180deg, rgba(193,127,60,0.06) 0%, rgba(254,252,248,0.92) 72%)',
+    borderBottom: '1px solid rgba(193,127,60,0.2)',
   },
   flag: { fontSize: 12, color: '#9A8470' },
   title: {
