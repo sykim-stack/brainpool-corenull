@@ -152,16 +152,19 @@ export default function PostBlock({
 
   return (
     <div
+      data-comment-open={enableInlineComment && commentOpen ? 'true' : 'false'}
       style={{
         ...styles.card,
         ...(isGallery ? styles.cardGallery : {}),
         cursor: onClick && !isSample ? 'pointer' : 'default',
+        height: '100%',
+        minHeight: 0,
       }}
       onClick={isSample ? undefined : onClick}
     >
       {hasMedia && (
         <div style={styles.mediaWrap} onClick={(e) => e.stopPropagation()}>
-          <MediaRenderer media={post.media!} />
+          <MediaRenderer media={post.media!} aspect="fill" />
         </div>
       )}
 
@@ -283,13 +286,20 @@ const styles: Record<string, React.CSSProperties> = {
     background: '#FEFCF8',
     borderRadius: 16,
     border: '1px solid rgba(92,61,46,0.12)',
-    padding: 14,
+    padding: 12,
     display: 'flex',
     flexDirection: 'column',
-    gap: 10,
+    gap: 8,
   },
-  cardGallery: { padding: 10 },
-  mediaWrap: { borderRadius: 12, overflow: 'hidden' },
+  cardGallery: { padding: 8 },
+  mediaWrap: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    flex: 1,
+    minHeight: 100,
+    display: 'flex',
+    flexDirection: 'column',
+  },
   pinBadge: {
     display: 'inline-flex',
     alignItems: 'center',
@@ -316,7 +326,7 @@ const styles: Record<string, React.CSSProperties> = {
     WebkitBoxOrient: 'vertical',
     overflow: 'hidden',
   } as React.CSSProperties,
-  footer: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 },
+  footer: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, marginTop: 'auto' },
   footerLeft: { display: 'flex', alignItems: 'center', gap: 8 },
   date: { fontSize: 11, color: '#9A8470' },
   commentBtn: {
