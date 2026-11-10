@@ -59,7 +59,6 @@ const handleGet = async (req, traceId) => {
       startAt: page.start_at || null,
       startPostId: page.start_post_id || null,
     })
-    // open 인데 태그된 글이 0이면 start 기준으로 재태깅 후 재조회
     if (
       page.status === 'open' &&
       posts.length === 0 &&
@@ -92,13 +91,17 @@ const handleGet = async (req, traceId) => {
 
     let room_name = null
     let house_title = null
+    let cover_image_url = null
+    let cover_image_position = null
     const { data: room } = await supabase
       .from('corenull_rooms')
-      .select('room_name, house_id')
+      .select('room_name, house_id, cover_image_url, cover_image_position')
       .eq('id', page.room_id)
       .maybeSingle()
     if (room) {
       room_name = room.room_name
+      cover_image_url = room.cover_image_url || null
+      cover_image_position = room.cover_image_position || null
       if (room.house_id) {
         const { data: house } = await supabase
           .from('corenull_houses')
@@ -115,6 +118,8 @@ const handleGet = async (req, traceId) => {
         posts,
         room_name,
         house_title,
+        cover_image_url,
+        cover_image_position,
         share_path: `/s/${page.slug}`,
       },
       traceId,
@@ -152,86 +157,68 @@ const handlePost = async (req, traceId) => {
   const supabase = getSupabase()
   if (!supabase) return Response.json({ _error: 'supabase_init_failed', traceId }, { status: 500 })
 
-  const { data: room } = await supabase
+  const { data: room, error: roomErr } = await supabase
     .from('corenull_rooms')
-    .select('id, house_id, room_name, seed_mode, bloom_date')
+    .select('*, corenull_houses(owner_key)')
     .eq('id', room_id)
     .maybeSingle()
-  if (!room) return Response.json({ _error: 'room_not_found', traceId }, { status: 404 })
-
-  const { data: house } = await supabase
-    .from('corenull_houses')
-    .select('owner_key')
-    .eq('id', room.house_id)
-    .maybeSingle()
-  if (!house || house.owner_key !== owner_key) {
-    return Response.json({ _error: 'not_authorized', traceId }, { status: 403 })
+  if (roomErr || !room) return Response.json({ _error: 'room_not_found', traceId }, { status: 404 })
+  const houseOwner = room.corenull_houses?.owner_key
+  if (houseOwner !== owner_key) {
+    return Response.json({ _error: 'not_house_owner', traceId }, { status: 403 })
   }
 
   const { startSeedRun } = await import('@/lib/seedPeriod')
-  const started = await startSeedRun(supabase, {
+  const result = await startSeedRun(supabase, {
     roomId: room_id,
-    houseId: room.house_id,
     ownerKey: owner_key,
     startPostId: start_post_id,
     endDate: end_date,
-    title: title || room.room_name || null,
     memo: memo || '',
+    title: title || room.room_name || null,
   })
-  if (started.error) {
-    return Response.json(
-      { _error: started.error.message || String(started.error), traceId },
-      { status: 400 }
-    )
-  }
-
-  return Response.json({
-    data: started.page,
-    share_path: `/s/${started.page.slug}`,
-    already_open: !!started.alreadyOpen,
-    traceId,
-  })
+  if (result.error) return Response.json({ _error: result.error, traceId }, { status: 400 })
+  return Response.json({ data: result.page, traceId })
 }
 
 const handlePatch = async (req, traceId) => {
-  const body = await req.json().catch(() => ({}))
+  const body = JSON.parse(await req.text())
   const { slug, id, memo, title, owner_key } = body
-  if (!owner_key) {
-    return Response.json({ _error: 'owner_key_required', traceId }, { status: 400 })
-  }
-  if (!slug && !id) {
-    return Response.json({ _error: 'slug_or_id_required', traceId }, { status: 400 })
-  }
+  if (!owner_key) return Response.json({ _error: 'owner_key_required', traceId }, { status: 400 })
+  if (!slug && !id) return Response.json({ _error: 'slug_or_id_required', traceId }, { status: 400 })
 
   const { getSupabase } = await import('@/lib/supabase')
   const supabase = getSupabase()
   if (!supabase) return Response.json({ _error: 'supabase_init_failed', traceId }, { status: 500 })
 
   let q = supabase.from('corenull_seed_pages').select('*')
-  if (id) q = q.eq('id', id)
-  else q = q.eq('slug', slug)
-  const { data: page, error: findErr } = await q.maybeSingle()
-  if (findErr) return Response.json({ _error: findErr.message, traceId }, { status: 500 })
-  if (!page) return Response.json({ _error: 'not_found', traceId }, { status: 404 })
-  if (page.owner_key !== owner_key) {
-    return Response.json({ _error: 'not_authorized', traceId }, { status: 403 })
+  if (slug) q = q.eq('slug', slug)
+  else q = q.eq('id', id)
+  const { data: page, error } = await q.maybeSingle()
+  if (error || !page) return Response.json({ _error: 'not_found', traceId }, { status: 404 })
+
+  const { data: room } = await supabase
+    .from('corenull_rooms')
+    .select('house_id, corenull_houses(owner_key)')
+    .eq('id', page.room_id)
+    .maybeSingle()
+  if (room?.corenull_houses?.owner_key !== owner_key) {
+    return Response.json({ _error: 'not_house_owner', traceId }, { status: 403 })
   }
 
   const update = {}
-  if (memo !== undefined) update.memo = String(memo)
+  if (memo !== undefined) update.memo = memo
   if (title !== undefined) update.title = title
-  if (Object.keys(update).length === 0) {
-    return Response.json({ data: page, traceId })
-  }
-
-  const { data, error } = await supabase
+  const { data, error: uErr } = await supabase
     .from('corenull_seed_pages')
     .update(update)
     .eq('id', page.id)
-    .select('*')
+    .select()
     .single()
-  if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
+  if (uErr) return Response.json({ _error: uErr.message, traceId }, { status: 500 })
   return Response.json({ data, traceId })
 }
 
-export { handler as GET, handler as POST, handler as PATCH }
+export const GET = handler
+export const POST = handler
+export const PATCH = handler
