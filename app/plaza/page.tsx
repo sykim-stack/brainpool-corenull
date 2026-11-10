@@ -162,12 +162,14 @@ export default function PlazaPage() {
   }
 
   const sample = createYardSampleView(ownerKey || 'plaza-visitor')
-  const publicPosts: PostBlockData[] = publicRooms.map((rm: any) => ({
+  const publicPosts: PostBlockData[] = publicRooms.map((rm: any, index: number) => {
+    const thumbnail = rm.latest_message?.image_url
+      || rm.cover_image_url
+      || `/alley/corridor-${String((index % 5) + 1).padStart(2, '0')}.jpg`
+    return {
     id: `plaza-room-${rm.id}`,
     content: rm.latest_message?.text || `${rm.room_name || '공개방'}을 둘러보세요.`,
-    media: rm.latest_message?.image_url
-      ? [{ type: 'image', url: rm.latest_message.image_url }]
-      : undefined,
+    media: [{ type: 'image', url: thumbnail }],
     created_at: rm.latest_message?.created_at || rm.created_at,
     comment_count: 0,
     room_id: rm.id,
@@ -176,7 +178,8 @@ export default function PlazaPage() {
       room_name: rm.room_name,
       status: roomStatusLabel(rm),
     },
-  }))
+  }
+  })
   const samplePosts = sample.myPosts.map((post) => ({ ...post, room_id: undefined }))
   const hasPublicImages = publicPosts.some((post) => (post.media?.length || 0) > 0)
   // 공개 글에 사진이 없으면 텍스트 공개 글은 유지하고 마당의 이미지 샘플을 함께 보여준다.
