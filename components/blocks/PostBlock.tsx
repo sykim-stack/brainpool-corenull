@@ -163,7 +163,14 @@ export default function PostBlock({
       onClick={isSample ? undefined : onClick}
     >
       {hasMedia && (
-        <div style={styles.mediaWrap} onClick={(e) => e.stopPropagation()}>
+        <div
+          className="cn-post-media"
+          style={{
+            ...styles.mediaWrap,
+            ...(isGallery ? styles.mediaWrapGallery : {}),
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
           <MediaRenderer media={post.media!} aspect="fill" />
         </div>
       )}
@@ -260,7 +267,7 @@ export default function PostBlock({
         </div>
       )}
 
-      {showViewMeta && post.view_meta && (
+      {showViewMeta && post.view_meta && !isGallery && (
         <div style={styles.viewMeta}>
           {showHouseName && post.view_meta.house_name && <span>{post.view_meta.house_name}</span>}
           {post.view_meta.room_name && <span>{post.view_meta.room_name}</span>}
@@ -284,21 +291,30 @@ export function PostBlockGrid({
 const styles: Record<string, React.CSSProperties> = {
   card: {
     background: '#FEFCF8',
-    borderRadius: 16,
+    borderRadius: 14,
     border: '1px solid rgba(92,61,46,0.12)',
-    padding: 12,
+    padding: 10,
     display: 'flex',
     flexDirection: 'column',
-    gap: 8,
+    gap: 6,
   },
-  cardGallery: { padding: 8 },
-  mediaWrap: {
+  cardGallery: {
+    padding: 6,
+    gap: 4,
     borderRadius: 12,
+  },
+  mediaWrap: {
+    borderRadius: 10,
     overflow: 'hidden',
     flex: 1,
     minHeight: 100,
     display: 'flex',
     flexDirection: 'column',
+  },
+  mediaWrapGallery: {
+    minHeight: 140,
+    borderRadius: 8,
+    flex: '1 1 auto',
   },
   pinBadge: {
     display: 'inline-flex',
@@ -320,11 +336,13 @@ const styles: Record<string, React.CSSProperties> = {
     wordBreak: 'break-word',
   },
   contentGallery: {
-    fontSize: 13,
+    fontSize: 12,
+    lineHeight: 1.4,
     display: '-webkit-box',
-    WebkitLineClamp: 2,
+    WebkitLineClamp: 1,
     WebkitBoxOrient: 'vertical',
     overflow: 'hidden',
+    flexShrink: 0,
   } as React.CSSProperties,
   footer: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, marginTop: 'auto' },
   footerLeft: { display: 'flex', alignItems: 'center', gap: 8 },
