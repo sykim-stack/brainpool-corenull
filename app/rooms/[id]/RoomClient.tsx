@@ -105,7 +105,15 @@ export default function RoomClient() {
         return
       }
       setRoom(rData.room)
-      setHouse(rData.house || null)
+      let houseData = rData.house || null
+      // house.owner_key 없으면 별도 조회 (설정 버튼 isOwner 판별용)
+      if (!houseData?.owner_key && rData.room.house_id) {
+        try {
+          const hRes = await fetch(`/api/corenull/houses?house_id=${rData.room.house_id}`).then((r) => r.json())
+          houseData = hRes.house || hRes.data || houseData
+        } catch { /* ignore */ }
+      }
+      setHouse(houseData)
 
       if (rData.room.house_id) {
         const deviceId = getDeviceId()
