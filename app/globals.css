@@ -2,16 +2,15 @@
   --shell-mobile: 100%;
   --shell-tablet: 720px;
   --shell-desktop: 960px;
-  /* 모바일 카드/골목 높이 — 한 곳에서만 조정 */
-  --cn-alley-frame: 300px;
-  --cn-post-card-h: 300px;
+  /* 모바일: 2열에서도 사진이 보이도록 카드 높이 확보 */
+  --cn-alley-frame: 320px;
+  --cn-post-card-h: 340px;
 }
 
 @media (min-width: 768px) {
   :root {
-    /* PC 카드/골목 높이 (여백 과다 완화) */
-    --cn-alley-frame: 360px;
-    --cn-post-card-h: 360px;
+    --cn-alley-frame: 380px;
+    --cn-post-card-h: 380px;
   }
 }
 
@@ -151,13 +150,13 @@ body {
 .cn-brick {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 .cn-brick-row {
   display: grid;
   width: 100%;
   min-width: 0;
-  gap: 8px;
+  gap: 6px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: stretch;
 }
@@ -211,6 +210,22 @@ body {
 .cn-post-card[data-large="true"] {
   grid-column: 1 / -1;
 }
+/* 모바일 2열: 사진 비중 확대 (갤러리) */
+@media (max-width: 767px) {
+  .cn-brick-row[data-cols="2"] .cn-post-card {
+    height: 300px;
+    max-height: 300px;
+  }
+  .cn-brick-row[data-cols="large"] .cn-post-card {
+    height: 360px;
+    max-height: 360px;
+  }
+  .cn-brick-row .cn-post-card .cn-post-media {
+    min-height: 0;
+    flex: 1 1 auto;
+  }
+}
+
 
 .cn-relation-grid {
   display: grid;
