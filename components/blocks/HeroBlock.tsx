@@ -87,25 +87,27 @@ export default function HeroBlock({
         </div>
       </div>
 
-      <div style={styles.doorplate}>
-        {doorplate.langFlag && <div style={styles.flag}>{doorplate.langFlag}</div>}
-        <div style={styles.title}>{doorplate.title}</div>
-        {doorplate.description && <div style={styles.description}>{doorplate.description}</div>}
-        {stats && <div style={styles.stats}>{stats}</div>}
-        {doorplate.cta && (
-          <button
-            type="button"
-            style={{
-              ...styles.cta,
-              ...(doorplate.cta.disabled ? { opacity: 0.5, cursor: 'default' } : {}),
-            }}
-            onClick={doorplate.cta.onClick}
-            disabled={doorplate.cta.disabled}
-          >
-            {doorplate.cta.label}
-          </button>
-        )}
-        {doorplateHandles}
+      <div className="bleed-full" style={styles.doorplate}>
+        <div style={styles.doorplateInner}>
+          {doorplate.langFlag && <div style={styles.flag}>{doorplate.langFlag}</div>}
+          <div style={styles.title}>{doorplate.title}</div>
+          {doorplate.description && <div style={styles.description}>{doorplate.description}</div>}
+          {stats && <div style={styles.stats}>{stats}</div>}
+          {doorplate.cta && (
+            <button
+              type="button"
+              style={{
+                ...styles.cta,
+                ...(doorplate.cta.disabled ? { opacity: 0.5, cursor: 'default' } : {}),
+              }}
+              onClick={doorplate.cta.onClick}
+              disabled={doorplate.cta.disabled}
+            >
+              {doorplate.cta.label}
+            </button>
+          )}
+          {doorplateHandles}
+        </div>
       </div>
     </div>
   )
@@ -169,19 +171,26 @@ const styles: Record<string, React.CSSProperties> = {
   doorplate: {
     position: 'relative',
     zIndex: 1,
+    width: '100vw',
+    left: '50%',
+    marginLeft: '-50vw',
     paddingTop: RING_SIZE / 2 + 16,
-    paddingBottom: 20,
+    paddingBottom: 24,
+    textAlign: 'center',
+    /* 히어로와 같은 전체 폭 · 연한 황금 톤 */
+    background: 'linear-gradient(180deg, #FEF9F0 0%, #F8EFD8 55%, #F3E6C8 100%)',
+    borderBottom: '1px solid rgba(193,127,60,0.18)',
+    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.55)',
+  },
+  doorplateInner: {
+    maxWidth: 960,
+    margin: '0 auto',
     paddingLeft: 20,
     paddingRight: 20,
-    textAlign: 'center',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
     gap: 6,
-    /* 연한 황금(황동) 톤 — 문패 구역 식별 */
-    background: 'linear-gradient(180deg, #FEF9F0 0%, #F8EFD8 55%, #F3E6C8 100%)',
-    borderBottom: '1px solid rgba(193,127,60,0.18)',
-    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.55)',
   },
   flag: { fontSize: 12, color: '#9A8470' },
   title: {
