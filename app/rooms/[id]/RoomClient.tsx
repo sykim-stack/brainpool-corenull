@@ -249,7 +249,7 @@ export default function RoomClient() {
         </div>
       </div>
 
-      {isMember && !isOwner && (
+      {house && !isOwner && (
         <div style={exploreBanner}>
           <div style={exploreCopy}>
             <strong style={exploreTitle}>CoreNull 거실 둘러보기</strong>

@@ -7,6 +7,7 @@
 
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { useParams } from 'next/navigation'
+import Link from 'next/link'
 import { getOwnerKey } from '@/lib/ownerKey'
 import MyContentBlock from '@/components/blocks/MyContentBlock'
 import PostBlock from '@/components/blocks/PostBlock'
@@ -144,6 +145,9 @@ export default function SeedSharePage() {
           ...styles.header,
           ...(cover_image_url ? styles.headerWithCover : {}),
         }}>
+          <Link href="/living" style={styles.serviceLink}>
+            CoreNull 둘러보기 <span aria-hidden="true">→</span>
+          </Link>
           <div style={styles.badge}>
             {page.status === 'fruit' ? '🍎' : page.status === 'open' ? '🌱' : '·'}{' '}
             {STATUS_LABEL[page.status] || page.status}
@@ -269,6 +273,12 @@ const styles: Record<string, CSSProperties> = {
     padding: '28px 24px 22px',
     marginBottom: 16,
     boxShadow: '0 2px 16px rgba(44,24,16,0.05)',
+  },
+  serviceLink: {
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+    marginBottom: 16, padding: '10px 14px', borderRadius: 12,
+    background: '#0B1220', color: '#F5F0E8', textDecoration: 'none',
+    fontSize: 13, fontWeight: 600,
   },
   badge: {
     fontSize: 12,
