@@ -17,6 +17,8 @@ type SeedPost = {
   meta?: {
     media?: { type?: string; url?: string }[]
     seed?: { role?: string; phase?: string }
+    pinned?: boolean
+    pinned_at?: string
   }
 }
 
@@ -68,10 +70,13 @@ export default function SeedSharePage() {
       .finally(() => setLoading(false))
   }, [slug])
 
-  // 기록 순서: 최근 위 → 시작(태어난 날) 아래
+  // 기록 순서: 공지 최상단 → 최근 위 → 시작(태어난 날) 아래
   const blockPosts = useMemo(() => {
     if (!data) return []
     const ordered = [...data.posts].sort((a, b) => {
+      const pa = a.meta?.pinned ? 1 : 0
+      const pb = b.meta?.pinned ? 1 : 0
+      if (pa !== pb) return pb - pa
       const ta = new Date(a.created_at).getTime()
       const tb = new Date(b.created_at).getTime()
       if (ta !== tb) return tb - ta
@@ -86,6 +91,7 @@ export default function SeedSharePage() {
       created_at: p.created_at,
       comment_count: 0,
       room_id: undefined,
+      pinned: !!p.meta?.pinned,
       view_meta: {
         house_name: data.house_title || undefined,
         room_name: data.room_name || data.page.title || undefined,
