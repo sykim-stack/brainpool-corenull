@@ -1,18 +1,16 @@
 'use client'
 
 // 광장 = 비이웃 발견·신청 + 공개방 둘러보기 (관계 관리는 마당)
-
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { getOwnerKey } from '@/lib/ownerKey'
-import { useMediaQuery } from '@/hooks/useMediaQuery'
 import TopBar from '@/components/blocks/TopBar'
+import HeroBlock from '@/components/blocks/HeroBlock'
+import MyContentBlock from '@/components/blocks/MyContentBlock'
 import NeighborContentBlock, { NeighborChip, NeighborRoomSlot } from '@/components/blocks/NeighborContentBlock'
-import PlazaHeroBlock from '@/components/blocks/PlazaHeroBlock'
-import RoomCard from '@/components/corenull/RoomCard'
 import CoreNullLogo from '@/components/corenull/CoreNullLogo'
 import { PostBlockData } from '@/components/blocks/PostBlock'
-import { BRICK_LAYOUT, partitionBrick } from '@/lib/brickLayout'
+import { createYardSampleView } from '@/lib/livingSamples'
 
 const LANG_FLAG: Record<string, string> = {
   ko: '🇰🇷', vi: '🇻🇳', en: '🇺🇸', ja: '🇯🇵', zh: '🇨🇳',
@@ -38,7 +36,7 @@ async function loadHouseRoomSlots(h: any): Promise<NeighborRoomSlot[]> {
     return Promise.all(
       list.map(async (rm: any) => {
         const pd = await fetch(`/api/corenull/posts?room_id=${rm.id}`).then((r) => r.json())
-        const latest = (pd.data || [])[0]
+        const latest = (pd.data || []).find((post: any) => post.type !== 'comment') || (pd.data || [])[0]
         return {
           roomId: rm.id,
           roomName: rm.room_name,
@@ -59,7 +57,7 @@ async function loadHouseRoomSlots(h: any): Promise<NeighborRoomSlot[]> {
               } as PostBlockData)
             : null,
         }
-      })
+      }),
     )
   } catch {
     return []
@@ -68,245 +66,181 @@ async function loadHouseRoomSlots(h: any): Promise<NeighborRoomSlot[]> {
 
 export default function PlazaPage() {
   const router = useRouter()
-
   const [ownerKey, setOwnerKey] = useState('')
   const [house, setHouse] = useState<any>(null)
   const [loading, setLoading] = useState(true)
-
   const [recommended, setRecommended] = useState<NeighborChip[]>([])
   const [applyLoadingHouseId, setApplyLoadingHouseId] = useState<string | null>(null)
-
   const [publicRooms, setPublicRooms] = useState<any[]>([])
-  const [publicPage, setPublicPage] = useState(0)
-  const isMobile = useMediaQuery('(max-width: 767px)')
 
   const loadAll = useCallback(async (key: string) => {
     setLoading(true)
     try {
-      const d = await fetch(`/api/corenull/houses?owner_key=${key}`).then((r) => r.json())
-      const myHouse = d.data?.[0]
+      const [houseResult, plazaResult] = await Promise.all([
+        key
+          ? fetch(`/api/corenull/houses?owner_key=${encodeURIComponent(key)}`).then((r) => r.json())
+          : Promise.resolve({ data: [] }),
+        fetch('/api/corenull/rooms?scope=plaza&limit=60').then((r) => r.json()),
+      ])
+      const myHouse = houseResult.data?.[0] || null
+      setHouse(myHouse)
+      const sample = createYardSampleView(key || 'plaza-visitor')
+
       if (!myHouse) {
+        setPublicRooms(plazaResult.data || [])
+        setRecommended(sample.recommended)
         setLoading(false)
         return
       }
-      setHouse(myHouse)
 
-      const [nb, disc, plaza] = await Promise.all([
-        fetch(`/api/corenull/houses?action=neighbors&house_id=${myHouse.id}`).then((res) => res.json()),
-        fetch(`/api/corenull/houses?action=discover&house_id=${myHouse.id}`).then((res) => res.json()),
-        fetch('/api/corenull/rooms?scope=plaza&limit=60').then((res) => res.json()),
+      const [nb, disc] = await Promise.all([
+        fetch(`/api/corenull/houses?action=neighbors&house_id=${myHouse.id}`).then((r) => r.json()),
+        fetch(`/api/corenull/houses?action=discover&house_id=${myHouse.id}`).then((r) => r.json()),
       ])
-
       const nbRows = nb.data || []
       const pendingTargetIds = new Set(
-        nbRows.filter((n: any) => n.status === 'pending' && n.house).map((n: any) => n.house.id)
+        nbRows.filter((n: any) => n.status === 'pending' && n.house).map((n: any) => n.house.id),
       )
       const acceptedHouseIds = new Set(
-        nbRows.filter((n: any) => n.status === 'accepted' && n.house).map((n: any) => n.house.id)
+        nbRows.filter((n: any) => n.status === 'accepted' && n.house).map((n: any) => n.house.id),
       )
-
-      // 공개방 그리드 먼저 표시
-      const list = plaza.data || []
-      const sorted = [...list]
-        .filter((rm: any) => {
-          const hid = rm.house_id
-          if (!hid) return false
-          if (hid === myHouse.id) return false
-          if (acceptedHouseIds.has(hid)) return false
-          return true
-        })
+      const visibleRooms = [...(plazaResult.data || [])]
+        .filter((rm: any) => rm.house_id && rm.house_id !== myHouse.id && !acceptedHouseIds.has(rm.house_id))
         .sort((a: any, b: any) => {
-          const at = a.latest_message?.created_at
-            ? new Date(a.latest_message.created_at).getTime()
-            : 0
-          const bt = b.latest_message?.created_at
-            ? new Date(b.latest_message.created_at).getTime()
-            : 0
+          const at = a.latest_message?.created_at ? new Date(a.latest_message.created_at).getTime() : 0
+          const bt = b.latest_message?.created_at ? new Date(b.latest_message.created_at).getTime() : 0
           return bt - at
         })
+      setPublicRooms(visibleRooms)
 
-      setPublicRooms(sorted)
-      setPublicPage(0)
-      setLoading(false)
-
-      // 골목 칩은 백그라운드
       const discHouses = (disc.data || []).slice(0, 8)
       const rec: NeighborChip[] = await Promise.all(
-        discHouses.map(async (h: any, index: number) => {
-          const roomSlots = await loadHouseRoomSlots(h)
-          return {
-            neighborId: `plaza-${h.id}`,
-            houseId: h.id,
-            title: h.title,
-            langFlag: LANG_FLAG[h.primary_language] || '🌐',
-            avatarUrl: h.avatar_url || null,
-            coverUrl: `/alley/alley-${String((index % 5) + 1).padStart(2, '0')}.jpg`,
-            rooms: roomSlots,
-            requestPending: pendingTargetIds.has(h.id),
-          }
-        })
+        discHouses.map(async (h: any, index: number) => ({
+          neighborId: `plaza-${h.id}`,
+          houseId: h.id,
+          title: h.title,
+          langFlag: LANG_FLAG[h.primary_language] || '🌐',
+          avatarUrl: h.avatar_url || null,
+          coverUrl: `/alley/alley-${String((index % 5) + 1).padStart(2, '0')}.jpg`,
+          rooms: await loadHouseRoomSlots(h),
+          requestPending: pendingTargetIds.has(h.id),
+        })),
       )
-      setRecommended(rec)
+      setRecommended(rec.length > 0 ? rec : sample.recommended)
     } catch {
+      setLoading(false)
+    } finally {
       setLoading(false)
     }
   }, [])
 
   useEffect(() => {
-    const key = getOwnerKey()
+    const key = getOwnerKey() || ''
     setOwnerKey(key)
-    if (!key) {
-      setLoading(false)
-      return
-    }
     loadAll(key)
   }, [loadAll])
 
   const handleApplyNeighbor = async (targetHouseId: string) => {
     if (!house || !ownerKey || applyLoadingHouseId) return
     setApplyLoadingHouseId(targetHouseId)
-    const res = await fetch('/api/corenull/houses?action=neighbor-request', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ house_a_id: house.id, owner_key: ownerKey, house_b_id: targetHouseId }),
-    })
-    const data = await res.json()
-    if (data.data) {
-      setRecommended((prev) =>
-        prev.map((x) => (x.houseId === targetHouseId ? { ...x, requestPending: true } : x))
-      )
-      await loadAll(ownerKey)
+    try {
+      const res = await fetch('/api/corenull/houses?action=neighbor-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ house_a_id: house.id, owner_key: ownerKey, house_b_id: targetHouseId }),
+      })
+      const data = await res.json()
+      if (data.data) {
+        setRecommended((prev) => prev.map((item) =>
+          item.houseId === targetHouseId ? { ...item, requestPending: true } : item,
+        ))
+        await loadAll(ownerKey)
+      }
+    } finally {
+      setApplyLoadingHouseId(null)
     }
-    setApplyLoadingHouseId(null)
   }
 
-  const handlePostClick = (postId: string, roomId?: string) => {
-    if (roomId) router.push(`/rooms/${roomId}`)
-    else router.push(`/posts/${postId}`)
-  }
-
-  const publicRoomsPageSize = isMobile ? BRICK_LAYOUT.mobile.pageSize : BRICK_LAYOUT.desktop.pageSize
-  const needsSwipe = publicRooms.length > publicRoomsPageSize
-  const pageCount = needsSwipe ? Math.ceil(publicRooms.length / publicRoomsPageSize) : 1
-  const safePage = Math.min(publicPage, Math.max(0, pageCount - 1))
-  const visibleRooms = needsSwipe
-    ? publicRooms.slice(safePage * publicRoomsPageSize, safePage * publicRoomsPageSize + publicRoomsPageSize)
-    : publicRooms
-
-  useEffect(() => {
-    if (publicPage >= pageCount) setPublicPage(Math.max(0, pageCount - 1))
-  }, [pageCount, publicPage])
-
-  const brickRows = partitionBrick(visibleRooms, isMobile ? 'mobile' : 'desktop')
+  const sample = createYardSampleView(ownerKey || 'plaza-visitor')
+  const publicPosts: PostBlockData[] = publicRooms.map((rm: any) => ({
+    id: `plaza-room-${rm.id}`,
+    content: rm.latest_message?.text || `${rm.room_name || '공개방'}을 둘러보세요.`,
+    media: rm.latest_message?.image_url
+      ? [{ type: 'image', url: rm.latest_message.image_url }]
+      : undefined,
+    created_at: rm.latest_message?.created_at || rm.created_at,
+    comment_count: 0,
+    room_id: rm.id,
+    view_meta: {
+      house_name: rm.corenull_houses?.title,
+      room_name: rm.room_name,
+      status: roomStatusLabel(rm),
+    },
+  }))
+  const displayPosts = publicPosts.length > 0
+    ? publicPosts
+    : sample.myPosts.map((post) => ({ ...post, room_id: undefined }))
+  const displayNeighbors = recommended.length > 0 ? recommended : sample.recommended
 
   return (
     <div>
       <TopBar logo={<CoreNullLogo size="sm" />} title="광장" />
-
       {loading ? (
         <div style={styles.loading}>🏛️</div>
       ) : (
         <>
-          <PlazaHeroBlock
-            onRandomVisit={() => {
-              if (recommended.length === 0) return
-              const target = recommended[Math.floor(Math.random() * recommended.length)]
-              router.push(`/houses/${target.houseId}/yard`)
+          <HeroBlock
+            background={{
+              imageUrl: '/alley/alley-05.jpeg',
+              gradient: 'linear-gradient(135deg, #6D5A47 0%, #A7835E 52%, #D8C4A8 100%)',
             }}
+            ring={{ rings: [
+              { index: 0, weight: 0.55 },
+              { index: 1, weight: 0.38 },
+              { index: 2, weight: 0.22 },
+            ] }}
+            avatar={<span style={{ fontSize: 42 }}>🏛️</span>}
+            doorplate={{ title: '광장', description: '열려 있는 방과 이웃의 이야기를 둘러보세요' }}
+            heroControls={displayNeighbors.length > 0 ? (
+              <button
+                type="button"
+                title="무작위로 둘러보기"
+                aria-label="무작위로 둘러보기"
+                onClick={() => {
+                  const target = displayNeighbors[Math.floor(Math.random() * displayNeighbors.length)]
+                  if (target.houseId?.startsWith('yard-sample-house-')) router.push('/living')
+                  else if (target.houseId) router.push(`/houses/${target.houseId}/yard`)
+                }}
+                style={styles.randomDoor}
+              >🚪</button>
+            ) : undefined}
           />
           <NeighborContentBlock
             tier="public"
             mode="recommend"
-            neighbors={recommended}
+            neighbors={displayNeighbors}
             showNeighborSelector
-            onNeighborClick={(houseId) => router.push(`/houses/${houseId}/yard`)}
-            onPostClick={handlePostClick}
-            onApplyNeighbor={handleApplyNeighbor}
+            onNeighborClick={(houseId) => houseId.startsWith('yard-sample-house-')
+              ? router.push('/living')
+              : router.push(`/houses/${houseId}/yard`)}
+            onPostClick={(postId, roomId) => {
+              if (roomId) router.push(`/rooms/${roomId}`)
+              else router.push(`/posts/${postId}`)
+            }}
+            onApplyNeighbor={house ? handleApplyNeighbor : undefined}
             applyLoadingHouseId={applyLoadingHouseId}
           />
-
-          <section style={styles.publicSection}>
-            <div style={styles.publicHeader}>
-              <span style={styles.relationTitle}>비이웃 공개방 최신</span>
-              {publicRooms.length > 0 && (
-                <span style={styles.publicHint}>
-                  {needsSwipe
-                    ? `${safePage + 1}/${pageCount} · ${publicRooms.length}개`
-                    : `${publicRooms.length}개`}
-                </span>
-              )}
-            </div>
-            {publicRooms.length === 0 ? (
-              <div style={{ ...styles.relationEmpty, margin: '0 16px' }}>아직 둘러볼 공개 방이 없어요</div>
-            ) : (
-              <div style={styles.setStage}>
-                {needsSwipe && (
-                  <>
-                    <button
-                      type="button"
-                      style={{ ...styles.setArrow, left: 4 }}
-                      onClick={() => setPublicPage((p) => (p - 1 + pageCount) % pageCount)}
-                      aria-label="이전"
-                    >
-                      ‹
-                    </button>
-                    <button
-                      type="button"
-                      style={{ ...styles.setArrow, right: 4 }}
-                      onClick={() => setPublicPage((p) => (p + 1) % pageCount)}
-                      aria-label="다음"
-                    >
-                      ›
-                    </button>
-                  </>
-                )}
-
-                <div className="cn-brick">
-                  {brickRows.map((row, ri) => (
-                    <div
-                      key={ri}
-                      className="cn-brick-row"
-                      data-cols={row.cols}
-                      data-offset={row.offset ? 'true' : 'false'}
-                    >
-                      {row.cards.map((room: any) => (
-                        <div
-                          key={room.id}
-                          className="cn-post-card"
-                          data-large={row.cols === 'large' ? 'true' : 'false'}
-                          style={styles.setCard}
-                        >
-                          <RoomCard
-                            room={room}
-                            houseName={room.corenull_houses?.title || null}
-                            large={row.cols === 'large'}
-                            onClick={() => router.push(`/houses/${room.house_id}/yard`)}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  ))}
-                </div>
-
-                {needsSwipe && (
-                  <div style={styles.setDots}>
-                    {Array.from({ length: pageCount }).map((_, i) => (
-                      <button
-                        key={i}
-                        type="button"
-                        style={{
-                          ...styles.setDot,
-                          background: i === safePage ? '#2C1810' : 'rgba(92,61,46,0.2)',
-                        }}
-                        onClick={() => setPublicPage(i)}
-                        aria-label={`페이지 ${i + 1}`}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </section>
+          <MyContentBlock
+            title="비이웃 공개방 최신"
+            layout="brick"
+            posts={displayPosts}
+            onPostClick={(postId, roomId) => {
+              if (roomId) router.push(`/rooms/${roomId}`)
+              else if (postId.startsWith('sample-') || postId.startsWith('yard-sample-')) router.push('/living')
+              else router.push(`/posts/${postId}`)
+            }}
+            emptyLabel="아직 둘러볼 공개방이 없어요"
+          />
         </>
       )}
     </div>
@@ -314,30 +248,10 @@ export default function PlazaPage() {
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  loading: {
-    display: 'flex', alignItems: 'center', justifyContent: 'center', height: '50vh', fontSize: 40,
+  loading: { display: 'flex', alignItems: 'center', justifyContent: 'center', height: '50vh', fontSize: 40 },
+  randomDoor: {
+    width: 38, height: 38, borderRadius: '50%', border: '1px solid rgba(254,252,248,0.65)',
+    background: 'rgba(28,18,8,0.42)', color: '#FEFCF8', fontSize: 18, cursor: 'pointer',
+    backdropFilter: 'blur(6px)',
   },
-  relationEmpty: {
-    fontSize: 13, color: '#9A8470', padding: '16px', textAlign: 'center',
-    background: '#FEFCF8', borderRadius: 12, border: '1px dashed rgba(92,61,46,0.12)',
-  },
-  relationTitle: {
-    fontFamily: "'Noto Serif KR', serif", fontSize: 15, fontWeight: 600, color: '#2C1810',
-  },
-  publicSection: { padding: '16px 0 28px', borderTop: '1px solid rgba(92,61,46,0.08)' },
-  publicHeader: {
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '0 16px', marginBottom: 12,
-  },
-  publicHint: { fontSize: 11, color: '#9A8470' },
-  setStage: { position: 'relative', padding: '0 16px' },
-  setArrow: {
-    position: 'absolute', top: '40%', transform: 'translateY(-50%)', zIndex: 2,
-    width: 28, height: 36, borderRadius: 10, border: '1px solid rgba(92,61,46,0.12)',
-    background: 'rgba(254,252,248,0.95)', color: '#2C1810', fontSize: 20, lineHeight: '36px',
-    padding: 0, cursor: 'pointer', boxShadow: '0 2px 8px rgba(44,24,16,0.08)',
-  },
-  setCard: { display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 },
-  setDots: { display: 'flex', justifyContent: 'center', gap: 6, marginTop: 14 },
-  setDot: { width: 7, height: 7, borderRadius: '50%', border: 'none', padding: 0, cursor: 'pointer' },
 }
