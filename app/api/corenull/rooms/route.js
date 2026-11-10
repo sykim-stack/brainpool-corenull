@@ -144,6 +144,17 @@ const handlePost = async (req, traceId) => {
 
   const { data: house, error: houseError } = await supabase.from('corenull_houses').select('id').eq('id', house_id).eq('owner_key', owner_key).single()
   if (houseError || !house) return Response.json({ _error: 'not_house_owner', traceId }, { status: 500 })
+
+  // 방 생성 시 임시 배경 (복도 샘플 순환) — 이후 방 화면에서 바로 교체
+  const DEFAULT_COVERS = [
+    '/alley/corridor-01.jpg',
+    '/alley/corridor-02.jpg',
+    '/alley/corridor-03.jpg',
+    '/alley/corridor-04.jpg',
+    '/alley/corridor-05.jpg',
+  ]
+  const coverPick = DEFAULT_COVERS[Math.floor(Math.random() * DEFAULT_COVERS.length)]
+
   const { data, error } = await supabase.from('corenull_rooms').insert({
     house_id, room_name,
     room_type: room_type || 'general',
@@ -151,6 +162,7 @@ const handlePost = async (req, traceId) => {
     seed_mode: !!seed_mode,
     bloom_date: bloom_date || null,
     slug: slug || null,
+    cover_image_url: coverPick,
   }).select().single()
   if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
   if (data?.seed_mode) {
