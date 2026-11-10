@@ -91,6 +91,7 @@ export default function MyContentBlock({
       enableInlineComment={enableInlineComment}
       ownerKey={ownerKey}
       showHouseName={showHouseName}
+      variant={isBrick ? 'gallery' : 'default'}
     />
   )
 
@@ -112,7 +113,7 @@ export default function MyContentBlock({
                 type="button"
                 style={styles.headerArrow}
                 onClick={() => setPage((p) => (p - 1 + pageCount) % pageCount)}
-                aria-label="이전 게시물 묶음"
+                aria-label="이전"
               >
                 ‹
               </button>
@@ -120,7 +121,7 @@ export default function MyContentBlock({
                 type="button"
                 style={styles.headerArrow}
                 onClick={() => setPage((p) => (p + 1) % pageCount)}
-                aria-label="다음 게시물 묶음"
+                aria-label="다음"
               >
                 ›
               </button>
@@ -129,23 +130,17 @@ export default function MyContentBlock({
         </div>
       </div>
 
-      {posts.length === 0 ? (
+      {source.length === 0 ? (
         <div style={styles.empty}>{emptyLabel}</div>
       ) : isBrick ? (
         <div
           style={styles.brickStage}
-          onTouchStart={(event) => setTouchStartX(event.touches[0]?.clientX ?? null)}
-          onTouchEnd={(event) => {
-            if (!needsSwipe || touchStartX === null) return
-            const deltaX = event.changedTouches[0]?.clientX
-            if (deltaX === undefined) return
-            const distance = deltaX - touchStartX
-            if (Math.abs(distance) >= 45) {
-              setPage((current) =>
-                distance < 0
-                  ? (current + 1) % pageCount
-                  : (current - 1 + pageCount) % pageCount
-              )
+          onTouchStart={(e) => setTouchStartX(e.touches[0]?.clientX ?? null)}
+          onTouchEnd={(e) => {
+            if (touchStartX == null || !needsSwipe) return
+            const dx = (e.changedTouches[0]?.clientX ?? touchStartX) - touchStartX
+            if (Math.abs(dx) > 40) {
+              setPage((p) => (dx < 0 ? (p + 1) % pageCount : (p - 1 + pageCount) % pageCount))
             }
             setTouchStartX(null)
           }}
