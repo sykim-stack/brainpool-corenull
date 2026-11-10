@@ -152,11 +152,7 @@ export default function RoomClient() {
       <TopBar
         logo={<CoreNullLogo size="sm" />}
         title={room.room_name}
-        right={
-          canWrite ? (
-            <Link href={`/write?room_id=${roomId}`} style={writeBtnStyle}>글쓰기</Link>
-          ) : undefined
-        }
+        shareUrl={typeof window !== 'undefined' ? window.location.href : undefined}
       />
 
       <div style={metaStrip}>
@@ -171,6 +167,9 @@ export default function RoomClient() {
           )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {canWrite && (
+            <Link href={`/write?room_id=${roomId}`} style={writeBtnStyle}>글쓰기</Link>
+          )}
           <button type="button" style={iconBtn} onClick={() => setShowShare(true)} aria-label="공유">🔗</button>
           {isOwner && (
             <button type="button" style={iconBtn} onClick={() => setShowSettings(true)} aria-label="설정">⚙️</button>
@@ -267,7 +266,6 @@ export default function RoomClient() {
 
       {showShare && (
         <ShareModal
-          open={showShare}
           onClose={() => setShowShare(false)}
           url={typeof window !== 'undefined' ? window.location.href : ''}
           title={room.room_name}
@@ -282,6 +280,7 @@ export default function RoomClient() {
           visibility={room.visibility}
           seedMode={!!room.seed_mode}
           ownerKey={ownerKey}
+          isOwner={isOwner}
           onClose={() => setShowSettings(false)}
           onUpdate={(u) => {
             setRoom((r) => r ? { ...r, room_name: u.room_name, visibility: u.visibility, seed_mode: u.seed_mode ?? r.seed_mode } : r)
