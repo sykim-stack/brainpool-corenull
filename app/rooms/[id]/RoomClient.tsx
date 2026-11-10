@@ -249,6 +249,15 @@ export default function RoomClient() {
         </div>
       </div>
 
+      {isMember && !isOwner && (
+        <div style={exploreBanner}>
+          <div style={exploreCopy}>
+            <strong style={exploreTitle}>CoreNull 거실 둘러보기</strong>
+            <span style={exploreHint}>초대방 밖의 공간과 샘플 이야기도 경험해 보세요.</span>
+          </div>
+          <Link href="/living" style={exploreLink}>둘러보기 <span aria-hidden="true">→</span></Link>
+        </div>
+      )}
       {/* 그 밑: 씨드 날짜 */}
       {countdown && (
         <div style={{
@@ -383,6 +392,27 @@ function EmptyState({ isOwner, roomId }: { isOwner: boolean; roomId: string }) {
   )
 }
 
+const exploreBanner: React.CSSProperties = {
+  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+  flexWrap: 'wrap', margin: '12px 16px 4px', padding: '12px 14px',
+  border: '1px solid rgba(193,127,60,0.2)', borderRadius: 14,
+  background: 'linear-gradient(110deg, #FFF9EF, #FEFCF8)',
+}
+const exploreCopy: React.CSSProperties = {
+  display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0,
+}
+const exploreTitle: React.CSSProperties = {
+  color: '#2C1810', fontSize: 13, fontWeight: 600,
+}
+const exploreHint: React.CSSProperties = {
+  color: '#9A8470', fontSize: 11, lineHeight: 1.4,
+}
+const exploreLink: React.CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+  flexShrink: 0, padding: '8px 12px', borderRadius: 10,
+  background: '#2C1810', color: '#FEFCF8', textDecoration: 'none',
+  fontSize: 12, fontWeight: 600,
+}
 const metaStrip: React.CSSProperties = {
   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
   padding: '12px 16px', gap: 10,
