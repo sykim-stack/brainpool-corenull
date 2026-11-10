@@ -410,7 +410,6 @@ export default function PostDetailPage() {
 
       {showShare && (
         <ShareModal
-          open={showShare}
           onClose={() => setShowShare(false)}
           url={typeof window !== 'undefined' ? window.location.href : ''}
           title={post.content?.slice(0, 40) || '이야기'}
