@@ -3,15 +3,15 @@
   --shell-tablet: 720px;
   --shell-desktop: 960px;
   /* 모바일 카드/골목 높이 — 한 곳에서만 조정 */
-  --cn-alley-frame: 340px;
-  --cn-post-card-h: 340px;
+  --cn-alley-frame: 300px;
+  --cn-post-card-h: 300px;
 }
 
 @media (min-width: 768px) {
   :root {
-    /* PC 카드/골목 높이 */
-    --cn-alley-frame: 440px;
-    --cn-post-card-h: 440px;
+    /* PC 카드/골목 높이 (여백 과다 완화) */
+    --cn-alley-frame: 360px;
+    --cn-post-card-h: 360px;
   }
 }
 
@@ -79,11 +79,12 @@ body {
   margin-right: calc(50% - 50vw);
 }
 
-/* 골목 1|2|3 — PC에서 3열, 모바일에서 1열(커버)+포스트 스택 */
+/* 골목 1|2|3 — 모바일 세로 스택 / PC 가로 */
 .cn-alley-row {
   display: grid;
   gap: 10px;
-  align-items: stretch;
+  width: 100%;
+  min-width: 0;
 }
 .cn-alley-row[data-posts="0"] {
   grid-template-columns: 1fr;
@@ -99,39 +100,37 @@ body {
     grid-template-columns: 1fr;
   }
   .cn-alley-row[data-posts="1"] {
-    grid-template-columns: 1.1fr 0.9fr;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
   }
   .cn-alley-row[data-posts="2"] {
-    grid-template-columns: 1.2fr 0.9fr 0.9fr;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 1fr);
   }
 }
-
 .cn-alley-dots {
   display: flex;
   justify-content: center;
-  margin-top: 10px;
+  padding: 6px 0 2px;
 }
 .cn-alley-dots-inner {
   display: flex;
   gap: 6px;
+  align-items: center;
 }
 
-/* 포스트 그리드 — 카드 높이 통일 */
 .cn-post-grid {
   display: grid;
-  gap: 12px;
-  grid-template-columns: 1fr;
+  gap: 10px;
+  width: 100%;
 }
 .cn-post-grid > * {
+  min-width: 0;
   height: var(--cn-post-card-h);
   max-height: var(--cn-post-card-h);
-  min-height: 0;
-  overflow: hidden;
 }
+.cn-post-grid[data-count="1"] { grid-template-columns: 1fr; }
 .cn-post-grid[data-count="2"] { grid-template-columns: 1fr 1fr; }
 .cn-post-grid[data-count="3"] { grid-template-columns: 1fr 1fr; }
 .cn-post-grid[data-count="many"] { grid-template-columns: 1fr 1fr; }
-/* density/grid: 모바일 3개 → 2+1 (마지막 가로 풀) */
 @media (max-width: 767px) {
   .cn-post-grid[data-count="3"] > *:last-child {
     grid-column: 1 / -1;
@@ -145,20 +144,20 @@ body {
   .cn-post-grid[data-count="2"] { grid-template-columns: 1fr 1fr; }
   .cn-post-grid[data-count="3"] { grid-template-columns: 1fr 1fr 1fr; }
   .cn-post-grid[data-count="many"] {
-    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-columns: repeat(3, 1fr);
   }
 }
 
 .cn-brick {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
 }
 .cn-brick-row {
   display: grid;
   width: 100%;
   min-width: 0;
-  gap: 12px;
+  gap: 8px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: stretch;
 }
@@ -178,6 +177,16 @@ body {
   height: 100%;
   min-height: 0;
   overflow: hidden;
+}
+/* 인라인 댓글 열림: 카드가 내용만큼 늘어나고 잘리지 않음 */
+.cn-brick-row .cn-post-card:has([data-comment-open="true"]) {
+  height: auto;
+  max-height: none;
+  min-height: var(--cn-post-card-h);
+}
+.cn-brick-row .cn-post-card:has([data-comment-open="true"]) > * {
+  height: auto;
+  overflow: visible;
 }
 .cn-brick-row[data-cols="large"] {
   grid-template-columns: minmax(0, 1fr);
