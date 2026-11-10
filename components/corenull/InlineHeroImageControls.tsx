@@ -4,15 +4,18 @@ import { useRef, useState } from 'react'
 import { prepareUploadFile } from '@/lib/compressMedia'
 import HeroImageEditor, { HeroImagePosition } from './HeroImageEditor'
 
-type View = 'yard' | 'living' | 'avatar'
+type View = 'yard' | 'living' | 'avatar' | 'room'
 
 type Props = {
   houseId: string
   ownerKey: string
   view: View
+  /** view=room 일 때 필수 */
+  roomId?: string
   imageUrl?: string | null
   position?: Partial<HeroImagePosition> | null
-  onSaved: (house: Record<string, unknown>) => void
+  /** house 또는 room 저장 결과 */
+  onSaved: (entity: Record<string, unknown>) => void
   variant?: 'overlay' | 'compact'
 }
 
@@ -20,12 +23,14 @@ const VIEW_META: Record<View, { imageKey: string; positionKey: string | null; la
   yard: { imageKey: 'yard_image_url', positionKey: 'yard_image_position', label: '마당' },
   living: { imageKey: 'living_image_url', positionKey: 'living_image_position', label: '거실' },
   avatar: { imageKey: 'avatar_url', positionKey: null, label: '프로필' },
+  room: { imageKey: 'cover_image_url', positionKey: 'cover_image_position', label: '방 배경' },
 }
 
 export default function InlineHeroImageControls({
   houseId,
   ownerKey,
   view,
+  roomId,
   imageUrl,
   position,
   onSaved,
@@ -64,7 +69,7 @@ export default function InlineHeroImageControls({
       const item = uploadData.data?.[0]
       if (!item?.url || item._error) throw new Error(item?._error || '업로드 실패')
 
-      await patchHouse({ [meta.imageKey]: item.url })
+      await patchEntity({ [meta.imageKey]: item.url })
       setMessage('저장됐어요')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '업로드에 실패했어요')
@@ -73,7 +78,19 @@ export default function InlineHeroImageControls({
     }
   }
 
-  const patchHouse = async (patch: Record<string, unknown>) => {
+  const patchEntity = async (patch: Record<string, unknown>) => {
+    if (view === 'room') {
+      if (!roomId) throw new Error('room_id_required')
+      const response = await fetch('/api/corenull/rooms', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ room_id: roomId, owner_key: ownerKey, ...patch }),
+      })
+      const data = await response.json()
+      if (!data.data) throw new Error(data._error || '저장 실패')
+      onSaved(data.data)
+      return data.data
+    }
     const response = await fetch('/api/corenull/houses', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -87,7 +104,7 @@ export default function InlineHeroImageControls({
 
   const savePosition = async (next: HeroImagePosition) => {
     if (!meta.positionKey) return
-    await patchHouse({ [meta.positionKey]: next })
+    await patchEntity({ [meta.positionKey]: next })
     setMessage('위치가 저장됐어요')
   }
 
@@ -172,17 +189,22 @@ export default function InlineHeroImageControls({
         .cn-hero-edit-zone:focus-within .cn-hero-edit-btn {
           opacity: 1;
         }
-        /* 프로필: 링 호버/포커스 시에만 표시 (항상 노출 금지) */
+        /* 프로필: 호버 시 수정 버튼 */
         .cn-avatar-edit-zone .cn-avatar-edit-btn {
           opacity: 0;
           transition: opacity .18s ease;
-          pointer-events: none;
         }
         .cn-avatar-edit-zone:hover .cn-avatar-edit-btn,
         .cn-avatar-edit-zone:focus-within .cn-avatar-edit-btn,
-        .cn-avatar-edit-zone .cn-avatar-edit-btn.cn-open {
+        .cn-avatar-edit-zone:hover .cn-avatar-menu-open,
+        .cn-avatar-edit-zone:focus-within .cn-avatar-menu-open {
           opacity: 1;
-          pointer-events: auto;
+        }
+        @media (hover: none) {
+          .cn-hero-edit-zone .cn-hero-edit-btn,
+          .cn-avatar-edit-zone .cn-avatar-edit-btn {
+            opacity: 0.92;
+          }
         }
       `}</style>
     </>
@@ -191,49 +213,49 @@ export default function InlineHeroImageControls({
 
 const styles: Record<string, React.CSSProperties> = {
   overlay: {
+    pointerEvents: 'none',
     position: 'absolute',
     inset: 0,
-    zIndex: 4,
     display: 'flex',
     alignItems: 'flex-start',
     justifyContent: 'flex-end',
     padding: 14,
-    pointerEvents: 'auto',
+    zIndex: 4,
   },
   avatarOverlay: {
+    pointerEvents: 'none',
     position: 'relative',
-    zIndex: 30,
-    pointerEvents: 'auto',
+    width: '100%',
+    height: '100%',
   },
   compactWrap: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
+    pointerEvents: 'auto',
+    display: 'inline-flex',
   },
   editBtn: {
     pointerEvents: 'auto',
-    border: '1px solid rgba(254,252,248,0.7)',
-    background: 'rgba(28,18,8,0.55)',
-    color: '#FEFCF8',
+    border: 0,
     borderRadius: 999,
+    background: 'rgba(28,18,8,0.72)',
+    color: '#FEFCF8',
     padding: '8px 14px',
     fontSize: 12,
-    fontWeight: 500,
+    fontWeight: 600,
     cursor: 'pointer',
-    backdropFilter: 'blur(8px)',
+    boxShadow: '0 2px 10px rgba(0,0,0,0.35)',
+    touchAction: 'manipulation',
   },
   avatarEditBtn: {
     pointerEvents: 'auto',
-    position: 'relative',
-    zIndex: 31,
-    minWidth: 44,
-    height: 36,
-    padding: '0 12px',
+    position: 'absolute',
+    right: -4,
+    bottom: 8,
+    border: 0,
     borderRadius: 999,
-    border: '2px solid #FEFCF8',
-    background: 'rgba(28,18,8,0.88)',
+    background: 'rgba(28,18,8,0.78)',
     color: '#FEFCF8',
-    fontSize: 12,
+    padding: '6px 10px',
+    fontSize: 11,
     fontWeight: 600,
     cursor: 'pointer',
     boxShadow: '0 2px 10px rgba(0,0,0,0.35)',
