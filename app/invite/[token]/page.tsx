@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { getOwnerKey, createOwnerKey } from '@/lib/ownerKey'
+import CoreNullLogo from '@/components/corenull/CoreNullLogo'
 
 export default function InvitePage() {
   const { token } = useParams()
@@ -68,6 +70,10 @@ export default function InvitePage() {
 
   return (
     <div style={styles.container}>
+      <Link href="/yard" style={styles.homeLink} aria-label="CoreNull 본 화면으로 이동">
+        <CoreNullLogo size="sm" variant="onDark" />
+        <span>CoreNull로 이동 <span aria-hidden="true">→</span></span>
+      </Link>
       <div style={styles.card}>
         {status === 'loading' && (
           <div style={styles.center}>
@@ -131,8 +137,14 @@ export default function InvitePage() {
 
 const styles: Record<string, React.CSSProperties> = {
   container: {
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
     minHeight: '100vh', padding: '20px', background: '#FBF8F2',
+  },
+  homeLink: {
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 12,
+    marginBottom: 14, padding: '12px 16px', borderRadius: 12,
+    background: '#0B1220', color: '#F5F0E8', textDecoration: 'none',
+    fontSize: 13, fontWeight: 600, boxShadow: '0 2px 10px rgba(11,18,32,0.16)',
   },
   card: {
     width: '100%', maxWidth: '380px',
