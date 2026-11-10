@@ -21,6 +21,8 @@ type Room = {
   slug: string | null
   house_id: string
   created_at: string
+  cover_image_url?: string | null
+  cover_image_position?: { x?: number; y?: number; scale?: number } | null
 }
 
 type House = {
@@ -106,7 +108,6 @@ export default function RoomClient() {
       }
       setRoom(rData.room)
       let houseData = rData.house || null
-      // house.owner_key 없으면 별도 조회 (설정 버튼 isOwner 판별용)
       if (!houseData?.owner_key && rData.room.house_id) {
         try {
           const hRes = await fetch(`/api/corenull/houses?house_id=${rData.room.house_id}`).then((r) => r.json())
@@ -184,6 +185,29 @@ export default function RoomClient() {
           )}
         </div>
       </div>
+
+      {room.cover_image_url && (
+        <div
+          className="bleed-full"
+          style={{
+            height: 180,
+            width: '100vw',
+            marginLeft: 'calc(50% - 50vw)',
+            backgroundImage: `url(${room.cover_image_url})`,
+            backgroundSize: 'cover',
+            backgroundPosition: `${room.cover_image_position?.x ?? 50}% ${room.cover_image_position?.y ?? 50}%`,
+            position: 'relative',
+          }}
+        >
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background: 'linear-gradient(180deg, rgba(15,25,20,0.05) 0%, rgba(15,25,20,0.35) 100%)',
+            }}
+          />
+        </div>
+      )}
 
       {countdown && (
         <div style={{
@@ -289,9 +313,16 @@ export default function RoomClient() {
           seedMode={!!room.seed_mode}
           ownerKey={ownerKey}
           isOwner={isOwner}
+          coverImageUrl={room.cover_image_url}
           onClose={() => setShowSettings(false)}
           onUpdate={(u) => {
-            setRoom((r) => r ? { ...r, room_name: u.room_name, visibility: u.visibility, seed_mode: u.seed_mode ?? r.seed_mode } : r)
+            setRoom((r) => r ? {
+              ...r,
+              room_name: u.room_name,
+              visibility: u.visibility,
+              seed_mode: u.seed_mode ?? r.seed_mode,
+              cover_image_url: u.cover_image_url !== undefined ? u.cover_image_url : r.cover_image_url,
+            } : r)
           }}
         />
       )}
