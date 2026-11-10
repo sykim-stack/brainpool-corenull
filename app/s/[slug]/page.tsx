@@ -2,8 +2,8 @@
 
 // 씨드 배포 페이지 (초대장)
 // /s/[slug] — 로그인 없이 열림
-// PC: 넓은 레이아웃 + 블록(3-2-3) / 리스트 토글 (거실과 동일 감각)
-// 모바일: 기존처럼 컴팩트
+// PC: 넓은 레이아웃 + 블록(3-2-3) / 리스트 토글
+// cover_image = 방 히어로와 동일 (초대장 비주얼)
 
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { useParams } from 'next/navigation'
@@ -35,6 +35,8 @@ type PageData = {
   posts: SeedPost[]
   room_name: string | null
   house_title: string | null
+  cover_image_url?: string | null
+  cover_image_position?: { x?: number; y?: number; scale?: number } | null
   share_path: string
 }
 
@@ -76,7 +78,6 @@ export default function SeedSharePage() {
       .finally(() => setLoading(false))
   }, [slug])
 
-  // 기록 순서: 공지 최상단 → 최근 위 → 시작(태어난 날) 아래
   const blockPosts = useMemo(() => {
     if (!data) return []
     const ordered = [...data.posts].sort((a, b) => {
@@ -121,13 +122,28 @@ export default function SeedSharePage() {
     )
   }
 
-  const { page, house_title, room_name } = data
+  const { page, house_title, room_name, cover_image_url, cover_image_position } = data
   const title = page.title || room_name || '초대장'
+  const coverPos = cover_image_position || { x: 50, y: 50 }
 
   return (
     <div style={styles.wrap}>
       <div style={styles.shell}>
-        <header style={styles.header}>
+        {cover_image_url && (
+          <div
+            style={{
+              ...styles.coverHero,
+              backgroundImage: `url(${cover_image_url})`,
+              backgroundPosition: `${coverPos.x ?? 50}% ${coverPos.y ?? 50}%`,
+            }}
+          >
+            <div style={styles.coverShade} />
+          </div>
+        )}
+        <header style={{
+          ...styles.header,
+          ...(cover_image_url ? styles.headerWithCover : {}),
+        }}>
           <div style={styles.badge}>
             {page.status === 'fruit' ? '🍎' : page.status === 'open' ? '🌱' : '·'}{' '}
             {STATUS_LABEL[page.status] || page.status}
@@ -227,6 +243,24 @@ const styles: Record<string, CSSProperties> = {
   shell: {
     width: '100%',
     maxWidth: 960,
+  },
+  coverHero: {
+    width: '100%',
+    height: 200,
+    borderRadius: '20px 20px 0 0',
+    backgroundSize: 'cover',
+    backgroundRepeat: 'no-repeat',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  coverShade: {
+    position: 'absolute',
+    inset: 0,
+    background: 'linear-gradient(180deg, rgba(15,25,20,0.08) 0%, rgba(15,25,20,0.28) 100%)',
+  },
+  headerWithCover: {
+    borderRadius: '0 0 20px 20px',
+    marginTop: 0,
   },
   header: {
     background: '#FEFCF8',
