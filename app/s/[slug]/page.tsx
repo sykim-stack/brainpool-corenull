@@ -7,6 +7,7 @@
 
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { useParams } from 'next/navigation'
+import { getOwnerKey } from '@/lib/ownerKey'
 import MyContentBlock from '@/components/blocks/MyContentBlock'
 import PostBlock from '@/components/blocks/PostBlock'
 
@@ -50,6 +51,11 @@ export default function SeedSharePage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [viewMode, setViewMode] = useState<'list' | 'block'>('block')
+  const [ownerKey, setOwnerKey] = useState('')
+
+  useEffect(() => {
+    setOwnerKey(getOwnerKey() || '')
+  }, [])
 
   useEffect(() => {
     if (!slug) return
@@ -185,7 +191,8 @@ export default function SeedSharePage() {
               posts={blockPosts}
               emptyLabel="아직 남긴 글이 없어요"
               showInterest={false}
-              enableInlineComment={false}
+              enableInlineComment
+              ownerKey={ownerKey}
               showHouseName={false}
             />
           ) : (
@@ -195,7 +202,8 @@ export default function SeedSharePage() {
                   key={post.id}
                   post={post}
                   showInterest={false}
-                  enableInlineComment={false}
+                  enableInlineComment
+                  ownerKey={ownerKey}
                 />
               ))}
             </div>
