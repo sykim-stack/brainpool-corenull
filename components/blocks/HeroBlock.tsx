@@ -92,22 +92,26 @@ export default function HeroBlock({
         <div style={styles.title}>{doorplate.title}</div>
         {doorplate.description && <div style={styles.description}>{doorplate.description}</div>}
         {stats && <div style={styles.stats}>{stats}</div>}
-        {doorplateHandles}
         {doorplate.cta && (
           <button
-            style={{ ...styles.cta, opacity: doorplate.cta.disabled ? 0.5 : 1 }}
+            type="button"
+            style={{
+              ...styles.cta,
+              ...(doorplate.cta.disabled ? { opacity: 0.5, cursor: 'default' } : {}),
+            }}
             onClick={doorplate.cta.onClick}
             disabled={doorplate.cta.disabled}
           >
             {doorplate.cta.label}
           </button>
         )}
+        {doorplateHandles}
       </div>
     </div>
   )
 }
 
-function formatCount(n: number | undefined, label: string) {
+function formatCount(n: number | undefined | null, label: string) {
   if (n === undefined || n === null) return ''
   return `${label} ${n}${label === '방' ? '개' : ''}`
 }
@@ -174,7 +178,10 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: 'column',
     alignItems: 'center',
     gap: 6,
-    background: '#FEFCF8',
+    /* 연한 황금(황동) 톤 — 문패 구역 식별 */
+    background: 'linear-gradient(180deg, #FEF9F0 0%, #F8EFD8 55%, #F3E6C8 100%)',
+    borderBottom: '1px solid rgba(193,127,60,0.18)',
+    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.55)',
   },
   flag: { fontSize: 12, color: '#9A8470' },
   title: {
@@ -197,9 +204,9 @@ const styles: Record<string, React.CSSProperties> = {
     marginTop: 10,
     padding: '10px 24px',
     borderRadius: 20,
-    border: '1px solid rgba(74,82,64,0.25)',
-    background: 'rgba(74,82,64,0.06)',
-    color: '#4A5240',
+    border: '1px solid rgba(193,127,60,0.35)',
+    background: 'rgba(193,127,60,0.1)',
+    color: '#8B5A2B',
     fontSize: 13,
     fontWeight: 500,
     cursor: 'pointer',
