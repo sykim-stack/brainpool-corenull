@@ -86,15 +86,10 @@ export default function RoomClient() {
   const canWrite = isOwner || isMember
   const countdown = room?.seed_mode ? getCountdown(room.bloom_date) : null
 
-  const goToLiving = () => {
-    if (house?.id) router.push(`/houses/${house.id}/living`)
-    else router.push('/living')
-  }
-
   useEffect(() => {
+    if (!roomId) return
     const ownerKey = getOwnerKey()
     setOwnerKey(ownerKey)
-    if (!roomId) return
     fetchRoom(ownerKey)
   }, [roomId])
 
@@ -102,88 +97,83 @@ export default function RoomClient() {
     setLoading(true)
     setError(null)
     try {
-      const rRes = await fetch(`/api/corenull/rooms?room_id=${roomId}`)
+      const rRes = await fetch(`/api/corenull/rooms?room_id=${roomId}&owner_key=${ownerKey}`)
       const rData = await rRes.json()
       if (rData._error || !rData.room) {
-        setError('방을 찾을 수 없어요.')
+        setError(rData._error === 'ACCESS_DENIED' ? '이 방을 볼 수 없어요' : (rData._error || '방을 찾을 수 없어요'))
         setLoading(false)
         return
       }
       setRoom(rData.room)
+      setHouse(rData.house || null)
 
-      const hRes = await fetch(`/api/corenull/houses?house_id=${rData.room.house_id}`)
-      const hData = await hRes.json()
-      if (!hData._error && hData.house) {
-        setHouse(hData.house)
+      if (rData.room.house_id) {
+        const deviceId = getDeviceId()
         if (ownerKey) {
-          const deviceId = getDeviceId()
           const mRes = await fetch(
             `/api/corenull/members?house_id=${rData.room.house_id}&device_id=${encodeURIComponent(deviceId || ownerKey)}&owner_key=${encodeURIComponent(ownerKey)}&room_id=${roomId}`
           )
           const mData = await mRes.json()
-          setIsMember(!mData._error && mData.is_member === true)
-        } else {
-          setIsMember(false)
+          const members = mData.data || []
+          setIsMember(members.some((m: any) => m.owner_key === ownerKey || m.device_id === deviceId))
         }
       }
 
       const pRes = await fetch(`/api/corenull/posts?room_id=${roomId}&owner_key=${ownerKey}`)
       const pData = await pRes.json()
-      if (!pData._error && pData.data) {
-        setPosts(pData.data.filter((p: Post) => !p.meta?.archived))
-      }
-    } catch {
-      setError('불러오는 중 문제가 생겼어요.')
-    } finally {
-      setLoading(false)
+      setPosts((pData.data || []).filter((p: Post) => p.type === 'post' && !p.meta?.deleted && !p.meta?.archived))
+    } catch (e) {
+      setError('불러오지 못했어요')
     }
+    setLoading(false)
   }
 
   if (loading) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '50vh' }}>
-        <p style={{ color: '#9A8470', fontSize: '14px' }}>불러오는 중...</p>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '50vh', gap: '12px' }}>
+        <div style={{ fontSize: 28 }}>📖</div>
+        <div style={{ color: '#9A8470', fontSize: 14 }}>불러오는 중…</div>
       </div>
     )
   }
 
   if (error || !room) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '50vh', gap: '12px' }}>
-        <p style={{ color: '#5C3D2E', fontSize: '14px' }}>{error || '방을 찾을 수 없어요.'}</p>
-        <button type="button" onClick={goToLiving} style={btnSecondary}>거실로</button>
+      <div style={{ textAlign: 'center', padding: '48px 16px' }}>
+        <div style={{ fontSize: 40, marginBottom: 12 }}>🔒</div>
+        <p style={{ color: '#9A8470', marginBottom: 16 }}>{error || '방을 찾을 수 없어요'}</p>
+        <button style={btnSecondary} onClick={() => router.push('/yard')}>마당으로</button>
       </div>
     )
   }
 
   return (
     <div>
-      <TopBar logo={<CoreNullLogo size="sm" />} title={room.room_name} />
+      <TopBar
+        logo={<CoreNullLogo size="sm" />}
+        title={room.room_name}
+        right={
+          canWrite ? (
+            <Link href={`/write?room_id=${roomId}`} style={writeBtnStyle}>글쓰기</Link>
+          ) : undefined
+        }
+      />
 
       <div style={metaStrip}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
           {house && (
-            <button type="button" onClick={goToLiving} style={metaHouseBtn}>
-              {LANG_FLAG[house.primary_language] || '🏡'} {house.title}
+            <button type="button" style={metaHouseBtn} onClick={() => router.push(`/houses/${house.id}/living`)}>
+              🏡 {house.title}
             </button>
           )}
-          <span style={{ fontSize: 12, color: '#9A8470' }}>
-            {room.visibility === 'public' ? '공개' : room.visibility === 'invite' ? '이웃공개' : '비공개'}
-          </span>
+          {house?.primary_language && (
+            <span style={{ fontSize: 12 }}>{LANG_FLAG[house.primary_language] || ''}</span>
+          )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <button type="button" onClick={() => setShowShare(true)} style={iconBtn} aria-label="공유">
-            🔗
-          </button>
-          {canWrite && (
-            <button type="button" onClick={() => setShowSettings(true)} style={iconBtn} aria-label="설정">
-              ⚙️
-            </button>
-          )}
-          {canWrite && (
-            <Link href={`/write?room_id=${roomId}`} style={writeBtnStyle}>
-              + 글쓰기
-            </Link>
+          <button type="button" style={iconBtn} onClick={() => setShowShare(true)} aria-label="공유">🔗</button>
+          {isOwner && (
+            <button type="button" style={iconBtn} onClick={() => setShowSettings(true)} aria-label="설정">⚙️</button>
           )}
         </div>
       </div>
@@ -191,22 +181,17 @@ export default function RoomClient() {
       {countdown && (
         <div style={{
           ...countdownBanner,
-          background: countdown.bloomed
-            ? 'linear-gradient(135deg, rgba(193,127,60,0.15), rgba(200,213,185,0.3))'
-            : 'linear-gradient(135deg, rgba(74,82,64,0.08), rgba(193,127,60,0.08))',
-          borderColor: countdown.bloomed ? 'rgba(193,127,60,0.4)' : 'rgba(74,82,64,0.15)',
+          borderColor: countdown.bloomed ? 'rgba(74,124,63,0.3)' : 'rgba(193,127,60,0.3)',
+          background: countdown.bloomed ? 'rgba(74,124,63,0.08)' : '#fef3e2',
+          color: countdown.bloomed ? '#4A7C3F' : '#C17F3C',
         }}>
-          <span style={{ fontSize: 20 }}>{countdown.bloomed ? '🌸' : '🌱'}</span>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: countdown.bloomed ? '#C17F3C' : '#4A5240' }}>
-              {countdown.label}
-            </div>
-            {room.bloom_date && (
-              <div style={{ fontSize: 11, color: '#9A8470', marginTop: 2 }}>
-                {new Date(room.bloom_date).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}
-              </div>
-            )}
-          </div>
+          <span>{countdown.bloomed ? '🌸' : '🌱'}</span>
+          <span>{countdown.label}</span>
+          {room.bloom_date && (
+            <span style={{ fontSize: 11, color: '#9A8470', marginTop: 2 }}>
+              {new Date(room.bloom_date).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}
+            </span>
+          )}
         </div>
       )}
 
@@ -254,7 +239,8 @@ export default function RoomClient() {
             }))}
             emptyLabel="아직 이야기가 없어요"
             onPostClick={(id) => router.push(`/posts/${id}`)}
-            onCommentClick={(id) => router.push(`/posts/${id}`)}
+            enableInlineComment
+            ownerKey={ownerKey}
           />
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -271,36 +257,35 @@ export default function RoomClient() {
                   pinned: !!post.meta?.pinned,
                 }}
                 onClick={() => router.push(`/posts/${post.id}`)}
-                onCommentClick={() => router.push(`/posts/${post.id}`)}
+                enableInlineComment
+                ownerKey={ownerKey}
               />
             ))}
           </div>
         )}
       </main>
 
-      {showShare && room && (
+      {showShare && (
         <ShareModal
-          url={typeof window !== 'undefined' ? window.location.href : `https://corenull.vercel.app/rooms/${roomId}`}
-          title={room.room_name}
+          open={showShare}
           onClose={() => setShowShare(false)}
+          url={typeof window !== 'undefined' ? window.location.href : ''}
+          title={room.room_name}
         />
       )}
 
       {showSettings && room && house && (
         <RoomSettingsModal
-          roomId={roomId}
+          roomId={room.id}
+          houseId={house.id}
           roomName={room.room_name}
           visibility={room.visibility}
           seedMode={!!room.seed_mode}
-          houseId={room.house_id}
           ownerKey={ownerKey}
-          isOwner={isOwner}
           onClose={() => setShowSettings(false)}
-          onUpdate={(updated) => {
-            setRoom((prev) => prev ? { ...prev, ...updated } : prev)
-            setShowSettings(false)
+          onUpdate={(u) => {
+            setRoom((r) => r ? { ...r, room_name: u.room_name, visibility: u.visibility, seed_mode: u.seed_mode ?? r.seed_mode } : r)
           }}
-          onLeft={() => router.push('/living')}
         />
       )}
     </div>
