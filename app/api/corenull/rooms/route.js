@@ -161,7 +161,7 @@ const handlePost = async (req, traceId) => {
 
 const handlePatch = async (req, traceId) => {
   const body = JSON.parse(await req.text())
-  const { room_id, owner_key, room_name, visibility, seed_mode, bloom_date } = body
+  const { room_id, owner_key, room_name, visibility, seed_mode, bloom_date, cover_image_url, cover_image_position } = body
   if (!room_id || !owner_key) return Response.json({ _error: 'room_id_and_owner_key_required', traceId }, { status: 500 })
   const { getSupabase } = await import('@/lib/supabase')
   const supabase = getSupabase()
@@ -177,6 +177,8 @@ const handlePatch = async (req, traceId) => {
   if (visibility !== undefined) update.visibility = visibility
   if (seed_mode !== undefined) update.seed_mode = !!seed_mode
   if (bloom_date !== undefined) update.bloom_date = bloom_date
+  if (cover_image_url !== undefined) update.cover_image_url = cover_image_url
+  if (cover_image_position !== undefined) update.cover_image_position = cover_image_position
 
   const { data, error } = await supabase.from('corenull_rooms').update(update).eq('id', room_id).select().single()
   if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
