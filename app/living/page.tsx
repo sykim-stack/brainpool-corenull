@@ -276,6 +276,17 @@ export default function LivingPage() {
             />
           ) : undefined
         }
+        avatarControls={
+          house && ownerKey ? (
+            <InlineHeroImageControls
+              houseId={house.id}
+              ownerKey={ownerKey}
+              view="avatar"
+              imageUrl={house.avatar_url}
+              onSaved={(nextHouse) => setHouse(nextHouse)}
+            />
+          ) : undefined
+        }
         ring={buildRingData(roomCount)}
         avatar={
           houseAvatarUrl(house) ? (
