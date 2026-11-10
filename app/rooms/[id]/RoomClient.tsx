@@ -159,41 +159,21 @@ export default function RoomClient() {
 
   return (
     <div>
+      {/* 탑메뉴 — 방 이름은 히어로 아래 메타로 이동 */}
       <TopBar
         logo={<CoreNullLogo size="sm" />}
-        title={room.room_name}
+        title=""
         shareUrl={typeof window !== 'undefined' ? window.location.href : undefined}
       />
 
-      <div style={metaStrip}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
-          {house && (
-            <button type="button" style={metaHouseBtn} onClick={() => router.push(`/houses/${house.id}/living`)}>
-              🏡 {house.title}
-            </button>
-          )}
-          {house?.primary_language && (
-            <span style={{ fontSize: 12 }}>{LANG_FLAG[house.primary_language] || ''}</span>
-          )}
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {canWrite && (
-            <Link href={`/write?room_id=${roomId}`} style={writeBtnStyle}>글쓰기</Link>
-          )}
-          <button type="button" style={iconBtn} onClick={() => setShowShare(true)} aria-label="공유">🔗</button>
-          {isOwner && (
-            <button type="button" style={iconBtn} onClick={() => setShowSettings(true)} aria-label="설정">⚙️</button>
-          )}
-        </div>
-      </div>
-
-      {/* 방 배경 히어로 — 없으면 임시 그라데이션. 주인은 호버 시 수정 */}
+      {/* 배경 히어로 = 탑바에 밀착 (중간 메타 제거) */}
       <div
         className="bleed-full"
         style={{
-          height: 180,
+          height: 200,
           width: '100vw',
           marginLeft: 'calc(50% - 50vw)',
+          marginTop: 0,
           position: 'relative',
           overflow: 'hidden',
           isolation: 'isolate',
@@ -245,6 +225,31 @@ export default function RoomClient() {
         )}
       </div>
 
+      {/* 히어로 아래: 집이름 · 방이름 · 글쓰기 */}
+      <div style={metaStrip}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
+          {house && (
+            <button type="button" style={metaHouseBtn} onClick={() => router.push(`/houses/${house.id}/living`)}>
+              🏡 {house.title}
+            </button>
+          )}
+          {house?.primary_language && (
+            <span style={{ fontSize: 11, color: '#9A8470' }}>{LANG_FLAG[house.primary_language] || ''}</span>
+          )}
+          <span style={metaRoomName}>{room.room_name}</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          {canWrite && (
+            <Link href={`/write?room_id=${roomId}`} style={writeBtnStyle}>글쓰기</Link>
+          )}
+          <button type="button" style={iconBtn} onClick={() => setShowShare(true)} aria-label="공유">🔗</button>
+          {isOwner && (
+            <button type="button" style={iconBtn} onClick={() => setShowSettings(true)} aria-label="설정">⚙️</button>
+          )}
+        </div>
+      </div>
+
+      {/* 그 밑: 씨드 날짜 */}
       {countdown && (
         <div style={{
           ...countdownBanner,
@@ -380,13 +385,18 @@ function EmptyState({ isOwner, roomId }: { isOwner: boolean; roomId: string }) {
 
 const metaStrip: React.CSSProperties = {
   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-  padding: '10px 16px', gap: 8,
+  padding: '12px 16px', gap: 10,
   borderBottom: '1px solid rgba(92,61,46,0.08)', background: '#FEFCF8',
+}
+const metaRoomName: React.CSSProperties = {
+  fontSize: 15, fontWeight: 600, color: '#2C1810',
+  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+  minWidth: 0,
 }
 const metaHouseBtn: React.CSSProperties = {
   border: 'none', background: 'transparent', cursor: 'pointer',
   fontSize: 13, color: '#5C3D2E', fontWeight: 500, padding: 0,
-  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 160,
+  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 160, flexShrink: 0,
 }
 const iconBtn: React.CSSProperties = {
   width: 36, height: 36, borderRadius: 10, border: '1px solid rgba(92,61,46,0.12)',
@@ -402,7 +412,7 @@ const btnSecondary: React.CSSProperties = {
   background: '#FEFCF8', color: '#5C3D2E', cursor: 'pointer', fontSize: 13,
 }
 const countdownBanner: React.CSSProperties = {
-  display: 'flex', alignItems: 'center', gap: 12, margin: '12px 16px',
+  display: 'flex', alignItems: 'center', gap: 12, margin: '10px 16px 4px',
   padding: '12px 14px', borderRadius: 12, border: '1px solid',
   background: '#fef3e2', color: '#C17F3C', fontWeight: 600,
 }
