@@ -177,9 +177,10 @@ export default function PlazaPage() {
       status: roomStatusLabel(rm),
     },
   }))
-  const displayPosts = publicPosts.length > 0
-    ? publicPosts
-    : sample.myPosts.map((post) => ({ ...post, room_id: undefined }))
+  const samplePosts = sample.myPosts.map((post) => ({ ...post, room_id: undefined }))
+  const hasPublicImages = publicPosts.some((post) => (post.media?.length || 0) > 0)
+  // 공개 글에 사진이 없으면 텍스트 공개 글은 유지하고 마당의 이미지 샘플을 함께 보여준다.
+  const displayPosts = hasPublicImages ? publicPosts : [...samplePosts, ...publicPosts]
   const displayNeighbors = recommended.length > 0 ? recommended : sample.recommended
 
   return (
