@@ -9,6 +9,7 @@ import TopBar from '@/components/blocks/TopBar'
 import CoreNullLogo from '@/components/corenull/CoreNullLogo'
 import ShareModal from '@/components/corenull/ShareModal'
 import RoomSettingsModal from '@/components/corenull/RoomSettingsModal'
+import InlineHeroImageControls from '@/components/corenull/InlineHeroImageControls'
 import PostBlock, { PostBlockData } from '@/components/blocks/PostBlock'
 import MyContentBlock from '@/components/blocks/MyContentBlock'
 
@@ -186,28 +187,63 @@ export default function RoomClient() {
         </div>
       </div>
 
-      {room.cover_image_url && (
+      {/* 방 배경 히어로 — 없으면 임시 그라데이션. 주인은 호버 시 수정 */}
+      <div
+        className="bleed-full"
+        style={{
+          height: 180,
+          width: '100vw',
+          marginLeft: 'calc(50% - 50vw)',
+          position: 'relative',
+          overflow: 'hidden',
+          isolation: 'isolate',
+          backgroundImage: room.cover_image_url
+            ? `url(${room.cover_image_url})`
+            : 'linear-gradient(135deg, #4A5240 0%, #7A8C6E 55%, #C8D5B9 100%)',
+          backgroundSize: room.cover_image_url
+            ? (room.cover_image_position?.scale && room.cover_image_position.scale !== 1
+                ? `${room.cover_image_position.scale * 100}%`
+                : 'cover')
+            : 'cover',
+          backgroundPosition: room.cover_image_url
+            ? `${room.cover_image_position?.x ?? 50}% ${room.cover_image_position?.y ?? 50}%`
+            : 'center',
+        }}
+      >
         <div
-          className="bleed-full"
           style={{
-            height: 180,
-            width: '100vw',
-            marginLeft: 'calc(50% - 50vw)',
-            backgroundImage: `url(${room.cover_image_url})`,
-            backgroundSize: 'cover',
-            backgroundPosition: `${room.cover_image_position?.x ?? 50}% ${room.cover_image_position?.y ?? 50}%`,
-            position: 'relative',
+            position: 'absolute',
+            inset: 0,
+            background: 'linear-gradient(180deg, rgba(15,25,20,0.05) 0%, rgba(15,25,20,0.35) 100%)',
+            pointerEvents: 'none',
           }}
-        >
-          <div
-            style={{
-              position: 'absolute',
-              inset: 0,
-              background: 'linear-gradient(180deg, rgba(15,25,20,0.05) 0%, rgba(15,25,20,0.35) 100%)',
-            }}
-          />
-        </div>
-      )}
+        />
+        {isOwner && house && (
+          <div style={{ position: 'absolute', inset: 0, zIndex: 3, pointerEvents: 'none' }}>
+            <div style={{ pointerEvents: 'auto', position: 'absolute', inset: 0 }}>
+              <InlineHeroImageControls
+                houseId={house.id}
+                roomId={room.id}
+                ownerKey={ownerKey}
+                view="room"
+                imageUrl={room.cover_image_url}
+                position={room.cover_image_position}
+                onSaved={(next) => {
+                  setRoom((r) =>
+                    r
+                      ? {
+                          ...r,
+                          cover_image_url: (next as any).cover_image_url ?? r.cover_image_url,
+                          cover_image_position: (next as any).cover_image_position ?? r.cover_image_position,
+                        }
+                      : r,
+                  )
+                }}
+              />
+            </div>
+          </div>
+        )}
+      </div>
 
       {countdown && (
         <div style={{
