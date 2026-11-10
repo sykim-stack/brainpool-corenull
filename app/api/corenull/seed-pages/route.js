@@ -59,6 +59,7 @@ const handleGet = async (req, traceId) => {
       startAt: page.start_at || null,
       startPostId: page.start_post_id || null,
     })
+    // open 인데 태그된 글이 0이면 start 기준으로 재태깅 후 재조회
     if (
       page.status === 'open' &&
       posts.length === 0 &&
@@ -157,28 +158,42 @@ const handlePost = async (req, traceId) => {
   const supabase = getSupabase()
   if (!supabase) return Response.json({ _error: 'supabase_init_failed', traceId }, { status: 500 })
 
+  // 방·집 소유 확인
   const { data: room, error: roomErr } = await supabase
     .from('corenull_rooms')
-    .select('*, corenull_houses(owner_key)')
+    .select('id, room_name, house_id')
     .eq('id', room_id)
     .maybeSingle()
   if (roomErr || !room) return Response.json({ _error: 'room_not_found', traceId }, { status: 404 })
-  const houseOwner = room.corenull_houses?.owner_key
-  if (houseOwner !== owner_key) {
+
+  const { data: house, error: houseErr } = await supabase
+    .from('corenull_houses')
+    .select('id, owner_key')
+    .eq('id', room.house_id)
+    .maybeSingle()
+  if (houseErr || !house || house.owner_key !== owner_key) {
     return Response.json({ _error: 'not_house_owner', traceId }, { status: 403 })
   }
 
   const { startSeedRun } = await import('@/lib/seedPeriod')
-  const result = await startSeedRun(supabase, {
+  const started = await startSeedRun(supabase, {
     roomId: room_id,
+    houseId: room.house_id,
     ownerKey: owner_key,
     startPostId: start_post_id,
     endDate: end_date,
-    memo: memo || '',
     title: title || room.room_name || null,
+    memo: memo || '',
   })
-  if (result.error) return Response.json({ _error: result.error, traceId }, { status: 400 })
-  return Response.json({ data: result.page, traceId })
+  if (started.error) {
+    const msg = started.error.message || started.error || 'start_failed'
+    return Response.json({ _error: msg, traceId }, { status: 400 })
+  }
+  return Response.json({
+    data: started.page,
+    alreadyOpen: !!started.alreadyOpen,
+    traceId,
+  })
 }
 
 const handlePatch = async (req, traceId) => {
@@ -199,10 +214,16 @@ const handlePatch = async (req, traceId) => {
 
   const { data: room } = await supabase
     .from('corenull_rooms')
-    .select('house_id, corenull_houses(owner_key)')
+    .select('house_id')
     .eq('id', page.room_id)
     .maybeSingle()
-  if (room?.corenull_houses?.owner_key !== owner_key) {
+  if (!room) return Response.json({ _error: 'room_not_found', traceId }, { status: 404 })
+  const { data: house } = await supabase
+    .from('corenull_houses')
+    .select('owner_key')
+    .eq('id', room.house_id)
+    .maybeSingle()
+  if (!house || house.owner_key !== owner_key) {
     return Response.json({ _error: 'not_house_owner', traceId }, { status: 403 })
   }
 
