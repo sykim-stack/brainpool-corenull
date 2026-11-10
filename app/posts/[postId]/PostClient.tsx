@@ -435,7 +435,7 @@ const styles: any = {
     width: 36, height: 36, borderRadius: 10, border: '1px solid rgba(92,61,46,0.15)',
     background: '#FEFCF8', fontSize: 16, cursor: 'pointer',
   },
-  body: { padding: '16px 16px 100px', maxWidth: 480, margin: '0 auto' },
+  body: { padding: '16px 16px 100px', maxWidth: 840, width: '100%', margin: '0 auto' },
   spaceRow: { display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12, flexWrap: 'wrap' },
   spaceHouse: { fontSize: 13, color: '#5C4A35' },
   spaceSep: { color: '#C4B5A5' },
@@ -471,7 +471,7 @@ const styles: any = {
   commentContent: { fontSize: 14, lineHeight: 1.5, color: '#1C1208' },
   commentTime: { fontSize: 11, color: '#9A8470', marginTop: 2 },
   commentInput: {
-    position: 'fixed', bottom: 0, left: 0, right: 0, maxWidth: 480, margin: '0 auto',
+    position: 'fixed', bottom: 0, left: 0, right: 0, maxWidth: 840, width: '100%', margin: '0 auto',
     display: 'flex', gap: 8, padding: '10px 16px calc(10px + env(safe-area-inset-bottom))',
     background: '#FEFCF8', borderTop: '1px solid rgba(92,61,46,0.1)', zIndex: 20,
   },
