@@ -175,6 +175,7 @@ export default function InlineHeroImageControls({
           url={imageUrl}
           value={position}
           label={`${meta.label} Hero`}
+          previewHeight={view === 'room' ? 200 : 220}
           onSave={savePosition}
           onClose={() => setEditing(false)}
         />

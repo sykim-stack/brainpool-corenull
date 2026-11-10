@@ -15,6 +15,8 @@ type Props = {
   url: string
   value?: Partial<HeroImagePosition> | null
   label: string
+  /** 화면 Hero의 실제 고정 높이. 미리보기에서 실제 viewport 비율을 재현한다. */
+  previewHeight?: number
   onSave: (value: HeroImagePosition) => Promise<void> | void
   onClose: () => void
 }
@@ -27,14 +29,26 @@ function normalize(value?: Partial<HeroImagePosition> | null): HeroImagePosition
   }
 }
 
-export default function HeroImageEditor({ url, value, label, onSave, onClose }: Props) {
+export default function HeroImageEditor({ url, value, label, previewHeight = 220, onSave, onClose }: Props) {
   const [position, setPosition] = useState(() => normalize(value))
   const [saving, setSaving] = useState(false)
   const [mounted, setMounted] = useState(false)
-  const dragRef = useRef<{ x: number; y: number; startX: number; startY: number } | null>(null)
+  const [viewportWidth, setViewportWidth] = useState(0)
+  const dragRef = useRef<{
+    x: number
+    y: number
+    startX: number
+    startY: number
+    width: number
+    height: number
+  } | null>(null)
 
   useEffect(() => {
+    const updateViewportWidth = () => setViewportWidth(window.innerWidth)
+    updateViewportWidth()
+    window.addEventListener('resize', updateViewportWidth)
     setMounted(true)
+    return () => window.removeEventListener('resize', updateViewportWidth)
   }, [])
 
   useEffect(() => {
@@ -51,11 +65,14 @@ export default function HeroImageEditor({ url, value, label, onSave, onClose }: 
 
   const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     event.currentTarget.setPointerCapture(event.pointerId)
+    const bounds = event.currentTarget.getBoundingClientRect()
     dragRef.current = {
       x: position.x,
       y: position.y,
       startX: event.clientX,
       startY: event.clientY,
+      width: bounds.width,
+      height: bounds.height,
     }
   }
 
@@ -64,8 +81,8 @@ export default function HeroImageEditor({ url, value, label, onSave, onClose }: 
     if (!drag) return
     setPosition((current) => ({
       ...current,
-      x: Math.min(100, Math.max(0, drag.x - (event.clientX - drag.startX) / 3)),
-      y: Math.min(100, Math.max(0, drag.y - (event.clientY - drag.startY) / 2)),
+      x: Math.min(100, Math.max(0, drag.x - ((event.clientX - drag.startX) / drag.width) * 100)),
+      y: Math.min(100, Math.max(0, drag.y - ((event.clientY - drag.startY) / drag.height) * 100)),
     }))
   }
 
@@ -91,7 +108,7 @@ export default function HeroImageEditor({ url, value, label, onSave, onClose }: 
         <div style={styles.header}>
           <div>
             <div style={styles.title}>{label} 위치 조절</div>
-            <div style={styles.hint}>이미지를 끌어서 중심을 맞추고 확대율을 조절하세요.</div>
+            <div style={styles.hint}>상자 안에 보이는 장면이 실제 Hero에 표시됩니다. 화면 비율에 맞춰 미리보기합니다.</div>
           </div>
           <button type="button" onClick={onClose} style={styles.close} disabled={saving} aria-label="닫기">×</button>
         </div>
@@ -99,6 +116,7 @@ export default function HeroImageEditor({ url, value, label, onSave, onClose }: 
         <div
           style={{
             ...styles.canvas,
+            aspectRatio: `${viewportWidth || 1} / ${previewHeight}`,
             backgroundImage: `url(${url})`,
             backgroundPosition: `${position.x}% ${position.y}%`,
             backgroundSize: position.scale === 1 ? 'cover' : `${position.scale * 100}%`,
@@ -108,9 +126,12 @@ export default function HeroImageEditor({ url, value, label, onSave, onClose }: 
           onPointerUp={stopDragging}
           onPointerCancel={stopDragging}
         >
-          <div style={styles.overlay}>드래그 · 확대</div>
+          <div style={styles.overlay}>실제 화면 적용 영역 · 드래그</div>
         </div>
 
+        <div style={styles.positionReadout}>
+          화면 위치 · 가로 {Math.round(position.x)}% / 세로 {Math.round(position.y)}%
+        </div>
         <label style={styles.sliderLabel}>
           확대
           <input
@@ -150,7 +171,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: 16,
   },
   modal: {
-    width: 'min(100%, 520px)',
+    width: 'min(100%, 1000px)',
     background: '#FEFCF8',
     borderRadius: 18,
     padding: 16,
@@ -163,8 +184,7 @@ const styles: Record<string, React.CSSProperties> = {
   hint: { marginTop: 4, fontSize: 11, color: '#9A8470' },
   close: { border: 0, background: 'none', color: '#9A8470', fontSize: 26, lineHeight: 1, cursor: 'pointer' },
   canvas: {
-    height: 'min(52vw, 250px)',
-    minHeight: 170,
+    width: '100%',
     borderRadius: 14,
     backgroundRepeat: 'no-repeat',
     cursor: 'grab',
@@ -185,7 +205,8 @@ const styles: Record<string, React.CSSProperties> = {
     pointerEvents: 'none',
     whiteSpace: 'nowrap',
   },
-  sliderLabel: { display: 'flex', alignItems: 'center', gap: 10, marginTop: 16, color: '#5C4A35', fontSize: 12 },
+  positionReadout: { marginTop: 8, textAlign: 'right', color: '#9A8470', fontSize: 10 },
+  sliderLabel: { display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, color: '#5C4A35', fontSize: 12 },
   slider: { flex: 1, accentColor: '#C17F3C' },
   footer: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 18 },
   footerRight: { display: 'flex', gap: 8 },
