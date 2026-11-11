@@ -192,7 +192,6 @@ export default function YardPage() {
           } as NeighborChip
         }),
       )
-      setRecommended(chips)
 
       const feedNested = await Promise.all(
         acceptedSlice.map(async (n: any) => {
@@ -227,7 +226,7 @@ export default function YardPage() {
           }
         }),
       )
-      setNeighborFeed(feedNested.flat().slice(0, 20))
+      const neighborFeedReal = feedNested.flat().slice(0, 20)
 
       // 내 방 최신: 방당 최신 1 · brick 3-2-3-2-3 / 2-1-2-1-2 (상한 40방)
       const mineNested = await Promise.all(
@@ -254,7 +253,19 @@ export default function YardPage() {
           }
         }),
       )
-      setMyPosts(mineNested.filter(Boolean) as PostBlockData[])
+      const myPostsReal = mineNested.filter(Boolean) as PostBlockData[]
+
+      // 거실과 동일: 내 집 실제 상위 글 0개면 마당 피드/추천을 샘플 View로 채움 (DB 미기록)
+      if (myPostsReal.length === 0) {
+        const sample = createYardSampleView(key)
+        setMyPosts(sample.myPosts)
+        setNeighborFeed(neighborFeedReal.length > 0 ? neighborFeedReal : sample.neighborFeed)
+        setRecommended(chips.length > 0 ? chips : sample.recommended)
+      } else {
+        setMyPosts(myPostsReal)
+        setNeighborFeed(neighborFeedReal)
+        setRecommended(chips)
+      }
     } finally {
       setLoading(false)
     }
