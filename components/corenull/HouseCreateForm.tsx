@@ -102,7 +102,13 @@ export default function HouseCreateForm({
         return
       }
       setActiveHouseId(data.data.id)
-      router.push('/yard')
+      // /yard 모달에서 생성 시 동일 경로 soft push는 리마운트되지 않아
+      // needsHouseCreate 모달이 그대로 남음 → 하드 이동으로 마당을 다시 로드
+      if (isModal) {
+        window.location.href = '/yard'
+      } else {
+        router.push('/yard')
+      }
     } catch {
       setError('네트워크 오류가 발생했어요. 다시 시도해 주세요.')
     } finally {
