@@ -8,7 +8,6 @@ const BATCH = 20
 const MAX_ATTEMPTS = 8
 
 function backoffSeconds(attempts) {
-  // 15s, 30s, 60s, 120s ... cap 30m
   return Math.min(30 * 60, 15 * Math.pow(2, Math.max(0, attempts - 1)))
 }
 
@@ -16,7 +15,7 @@ function backoffSeconds(attempts) {
  * POST /api/corenull/outbox/flush
  * pending outbox → CoreHub facts
  *
- * Auth (optional but recommended):
+ * Auth (optional):
  *   Authorization: Bearer <CRON_SECRET>
  *   or x-cron-secret: <CRON_SECRET>
  */
@@ -32,18 +31,19 @@ export async function POST(req) {
     }
   }
 
-  const { getSupabase } = await import('@/lib/supabase')
-  const supabase = getSupabase()
+  const { getSupabaseAdmin, getSupabase } = await import('@/lib/supabase')
+  const supabase = getSupabaseAdmin() || getSupabase()
   if (!supabase) {
     return Response.json({ _error: 'supabase_init_failed', traceId }, { status: 500 })
   }
 
   const now = new Date().toISOString()
-  const { data: rows, error: selectError } = await supabase
+  // next_attempt_at 이 null 인 행도 처리 (레거시/수동 insert)
+  const { data: due, error: selectError } = await supabase
     .from('corenull_message_outbox')
     .select('*')
     .eq('status', 'pending')
-    .lte('next_attempt_at', now)
+    .or(`next_attempt_at.is.null,next_attempt_at.lte.${now}`)
     .order('created_at', { ascending: true })
     .limit(BATCH)
 
@@ -52,18 +52,24 @@ export async function POST(req) {
   }
 
   const results = []
-  for (const row of rows || []) {
-    const result = await processRow(supabase, row, traceId)
-    results.push(result)
+  for (const row of due || []) {
+    results.push(await processRow(supabase, row, traceId))
   }
 
   return Response.json({
-    data: {
-      claimed: (rows || []).length,
-      results,
-    },
+    data: { claimed: (due || []).length, results },
     traceId,
   })
+}
+
+async function markRow(supabase, id, patch) {
+  const { data, error } = await supabase
+    .from('corenull_message_outbox')
+    .update(patch)
+    .eq('id', id)
+    .select('id, status, attempts, sent_at, last_error')
+    .maybeSingle()
+  return { data, error }
 }
 
 async function processRow(supabase, row, traceId) {
@@ -83,20 +89,20 @@ async function processRow(supabase, row, traceId) {
   }
 
   if (!row.owner_key) {
-    await supabase
-      .from('corenull_message_outbox')
-      .update({
-        status: 'failed',
-        attempts,
-        last_error: 'owner_key_missing',
-        next_attempt_at: null,
-      })
-      .eq('id', row.id)
-    return { id: row.id, ok: false, error: 'owner_key_missing' }
+    const { data, error } = await markRow(supabase, row.id, {
+      status: 'failed',
+      attempts,
+      last_error: 'owner_key_missing',
+    })
+    return {
+      id: row.id,
+      ok: false,
+      error: 'owner_key_missing',
+      update_error: error?.message || null,
+      row: data,
+    }
   }
 
-  let httpStatus = 0
-  let responseText = ''
   try {
     const res = await fetch(COREHUB_URL, {
       method: 'POST',
@@ -107,24 +113,27 @@ async function processRow(supabase, row, traceId) {
       body: JSON.stringify(factBody),
       signal: AbortSignal.timeout(15000),
     })
-    httpStatus = res.status
-    responseText = await res.text().catch(() => '')
+    const httpStatus = res.status
+    const responseText = await res.text().catch(() => '')
 
     if (res.ok) {
-      await supabase
-        .from('corenull_message_outbox')
-        .update({
-          status: 'sent',
-          attempts,
-          sent_at: new Date().toISOString(),
-          last_error: null,
-          next_attempt_at: null,
-        })
-        .eq('id', row.id)
-      return { id: row.id, ok: true, status: httpStatus }
+      const { data, error } = await markRow(supabase, row.id, {
+        status: 'sent',
+        attempts,
+        sent_at: new Date().toISOString(),
+        last_error: null,
+        // next_attempt_at NOT NULL 대비: 과거로 두지 않고 현재 유지
+        next_attempt_at: row.next_attempt_at || new Date().toISOString(),
+      })
+      return {
+        id: row.id,
+        ok: !error,
+        status: httpStatus,
+        update_error: error?.message || null,
+        row: data,
+      }
     }
 
-    // 4xx (except 408/429): stop retrying
     const permanent =
       httpStatus >= 400 &&
       httpStatus < 500 &&
@@ -132,62 +141,75 @@ async function processRow(supabase, row, traceId) {
       httpStatus !== 429
 
     if (permanent || attempts >= MAX_ATTEMPTS) {
-      await supabase
-        .from('corenull_message_outbox')
-        .update({
-          status: 'failed',
-          attempts,
-          last_error: `http_${httpStatus}:${responseText.slice(0, 200)}`,
-          next_attempt_at: null,
-        })
-        .eq('id', row.id)
-      return { id: row.id, ok: false, status: httpStatus, permanent: true }
+      const { data, error } = await markRow(supabase, row.id, {
+        status: 'failed',
+        attempts,
+        last_error: `http_${httpStatus}:${responseText.slice(0, 200)}`,
+      })
+      return {
+        id: row.id,
+        ok: false,
+        status: httpStatus,
+        permanent: true,
+        update_error: error?.message || null,
+        row: data,
+      }
     }
 
     const next = new Date(Date.now() + backoffSeconds(attempts) * 1000).toISOString()
-    await supabase
-      .from('corenull_message_outbox')
-      .update({
-        status: 'pending',
-        attempts,
-        last_error: `http_${httpStatus}:${responseText.slice(0, 200)}`,
-        next_attempt_at: next,
-      })
-      .eq('id', row.id)
-    return { id: row.id, ok: false, status: httpStatus, next_attempt_at: next }
+    const { data, error } = await markRow(supabase, row.id, {
+      status: 'pending',
+      attempts,
+      last_error: `http_${httpStatus}:${responseText.slice(0, 200)}`,
+      next_attempt_at: next,
+    })
+    return {
+      id: row.id,
+      ok: false,
+      status: httpStatus,
+      next_attempt_at: next,
+      update_error: error?.message || null,
+      row: data,
+    }
   } catch (e) {
     const msg = e?.message || String(e)
     if (attempts >= MAX_ATTEMPTS) {
-      await supabase
-        .from('corenull_message_outbox')
-        .update({
-          status: 'failed',
-          attempts,
-          last_error: msg.slice(0, 300),
-          next_attempt_at: null,
-        })
-        .eq('id', row.id)
-      return { id: row.id, ok: false, error: msg, permanent: true }
-    }
-    const next = new Date(Date.now() + backoffSeconds(attempts) * 1000).toISOString()
-    await supabase
-      .from('corenull_message_outbox')
-      .update({
-        status: 'pending',
+      const { data, error } = await markRow(supabase, row.id, {
+        status: 'failed',
         attempts,
         last_error: msg.slice(0, 300),
-        next_attempt_at: next,
       })
-      .eq('id', row.id)
-    return { id: row.id, ok: false, error: msg, next_attempt_at: next }
+      return {
+        id: row.id,
+        ok: false,
+        error: msg,
+        permanent: true,
+        update_error: error?.message || null,
+        row: data,
+      }
+    }
+    const next = new Date(Date.now() + backoffSeconds(attempts) * 1000).toISOString()
+    const { data, error } = await markRow(supabase, row.id, {
+      status: 'pending',
+      attempts,
+      last_error: msg.slice(0, 300),
+      next_attempt_at: next,
+    })
+    return {
+      id: row.id,
+      ok: false,
+      error: msg,
+      next_attempt_at: next,
+      update_error: error?.message || null,
+      row: data,
+    }
   }
 }
 
-export async function GET(req) {
-  // 상태 조회용 (전송 안 함)
+export async function GET() {
   const traceId = crypto.randomUUID()
-  const { getSupabase } = await import('@/lib/supabase')
-  const supabase = getSupabase()
+  const { getSupabaseAdmin, getSupabase } = await import('@/lib/supabase')
+  const supabase = getSupabaseAdmin() || getSupabase()
   if (!supabase) {
     return Response.json({ _error: 'supabase_init_failed', traceId }, { status: 500 })
   }
