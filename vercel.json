@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/corenull/outbox/flush",
-      "schedule": "*/5 * * * *"
+      "schedule": "0 19 * * *"
     }
   ]
 }
