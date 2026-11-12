@@ -99,7 +99,15 @@ export default function TopBar({ logo, title, shareUrl }: TopBarProps) {
     >
       <div className="app-shell-content" style={styles.inner}>
         <div style={styles.left}>
-          {logo ?? <CoreNullLogo size="sm" variant="onDark" />}
+          <button
+            type="button"
+            onClick={() => router.push('/yard')}
+            aria-label="마당으로 이동"
+            title="마당"
+            style={styles.logoBtn}
+          >
+            {logo ?? <CoreNullLogo size="sm" variant="onDark" />}
+          </button>
           {titleIcon ? (
             <span
               style={{ ...styles.titleIcon, opacity: 0.92 }}
@@ -168,6 +176,16 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '0 16px', boxSizing: 'border-box',
   },
   left: { display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 },
+  logoBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    background: 'none',
+    border: 'none',
+    padding: 0,
+    margin: 0,
+    cursor: 'pointer',
+    WebkitTapHighlightColor: 'transparent',
+  },
   title: {
     fontFamily: "'Noto Serif KR', serif", fontSize: '14px', fontWeight: 500,
     whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
