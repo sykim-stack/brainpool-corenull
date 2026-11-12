@@ -179,10 +179,41 @@ const handlePatch = async (req, traceId) => {
   const supabase = getSupabase()
   if (!supabase) return Response.json({ _error: 'supabase_init_failed', traceId }, { status: 500 })
 
-  const { data: room, error: roomError } = await supabase.from('corenull_rooms').select('house_id').eq('id', room_id).single()
+  const { data: room, error: roomError } = await supabase.from('corenull_rooms').select('house_id, seed_mode').eq('id', room_id).single()
   if (roomError || !room) return Response.json({ _error: 'room_not_found', traceId }, { status: 500 })
   const { data: house, error: houseError } = await supabase.from('corenull_houses').select('id').eq('id', room.house_id).eq('owner_key', owner_key).single()
   if (houseError || !house) return Response.json({ _error: 'not_house_owner', traceId }, { status: 500 })
+
+  // 씨드 해제: seed_mode true → false 이면 releaseSeed (페이지 released + 메타)
+  if (seed_mode === false && room.seed_mode) {
+    const { releaseSeed } = await import('@/lib/seedPeriod')
+    await releaseSeed(supabase, room_id)
+    const { data: afterRelease, error: relErr } = await supabase
+      .from('corenull_rooms')
+      .select('*')
+      .eq('id', room_id)
+      .single()
+    if (relErr) return Response.json({ _error: relErr.message, traceId }, { status: 500 })
+
+    // 이름·공개범위 등 다른 필드도 함께 온 경우 이어서 반영
+    const extra = {}
+    if (room_name !== undefined) extra.room_name = room_name
+    if (visibility !== undefined) extra.visibility = visibility
+    if (bloom_date !== undefined) extra.bloom_date = bloom_date
+    if (cover_image_url !== undefined) extra.cover_image_url = cover_image_url
+    if (cover_image_position !== undefined) extra.cover_image_position = cover_image_position
+    if (Object.keys(extra).length > 0) {
+      const { data: patched, error: pErr } = await supabase
+        .from('corenull_rooms')
+        .update(extra)
+        .eq('id', room_id)
+        .select()
+        .single()
+      if (pErr) return Response.json({ _error: pErr.message, traceId }, { status: 500 })
+      return Response.json({ data: patched, traceId })
+    }
+    return Response.json({ data: afterRelease, traceId })
+  }
 
   const update = {}
   if (room_name !== undefined) update.room_name = room_name
