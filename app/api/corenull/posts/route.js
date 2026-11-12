@@ -10,6 +10,52 @@ const pushFact = async (fact) => {
   }).catch(() => null)
 }
 
+/**
+ * Durable outbox enqueue (existing corenull_message_outbox schema).
+ * Message write 성공 후 호출. 실패해도 message 응답은 유지 (fail-soft).
+ * Worker가 pending → CoreHub facts 로 전송.
+ */
+const enqueueMessageOutbox = async (supabase, {
+  messageId,
+  ownerKey,
+  factType,
+  roomId,
+  houseId,
+  messageType,
+  content,
+  meta,
+  relations,
+  language,
+  traceId,
+}) => {
+  const idempotency_key = `corenull:messages:${messageId}:v1`
+  const payload = {
+    message_id: messageId,
+    house_id: houseId || null,
+    room_id: roomId || null,
+    type: messageType,
+    content,
+    meta: meta || {},
+    relations: relations || {},
+    language: language || null,
+    owner_key: ownerKey,
+  }
+  const { error } = await supabase.from('corenull_message_outbox').insert({
+    message_id: messageId,
+    owner_key: ownerKey,
+    fact_type: factType,
+    payload,
+    idempotency_key,
+    status: 'pending',
+    attempts: 0,
+    next_attempt_at: new Date().toISOString(),
+  })
+  if (error) {
+    // unique 충돌(재시도)은 무시, 그 외는 로그만
+    console.error('[outbox] enqueue failed', error.message, { idempotency_key, traceId })
+  }
+}
+
 const handler = async (req) => {
   const traceId = crypto.randomUUID()
   if (req.method === 'GET') return handleGet(req, traceId)
@@ -203,6 +249,23 @@ const handlePost = async (req, traceId) => {
 
   const { data, error } = await supabase.from('messages').insert(insertPayload).select().single()
   if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
+
+  // Stage A: 상위 글 outbox (comment 제외). CoreHub 전송은 worker.
+  if (messageType === 'post' || messageType === 'fruit') {
+    await enqueueMessageOutbox(supabase, {
+      messageId: data.id,
+      ownerKey: owner_key,
+      factType: 'space.message.created',
+      roomId: room_id,
+      houseId: auth.house_id,
+      messageType,
+      content: data.content,
+      meta: data.meta,
+      relations: data.relations,
+      language: data.language,
+      traceId,
+    })
+  }
 
   let seedPage = null
   if (seed_start) {
