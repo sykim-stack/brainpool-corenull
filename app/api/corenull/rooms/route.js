@@ -1,15 +1,5 @@
 export const dynamic = 'force-dynamic'
 
-const COREHUB_URL = 'https://brainpool-corehub.vercel.app/api/corehub/facts'
-
-const pushFact = (fact) => {
-  fetch(COREHUB_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(fact),
-  }).catch(() => null)
-}
-
 const handler = async (req) => {
   const traceId = crypto.randomUUID()
   if (req.method === 'GET')   return handleGet(req, traceId)
@@ -166,7 +156,17 @@ const handlePost = async (req, traceId) => {
   }).select().single()
   if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
   if (data?.seed_mode) {
-    pushFact({ source: 'CoreNull', fact_type: 'space.seed.created', owner_key, house_id, payload: { room_id: data.id, bloom_date: data.bloom_date || null } })
+    const { enqueueFact } = await import('@/lib/corehubOutbox')
+    await enqueueFact(supabase, {
+      fact_type: 'space.seed.created',
+      owner_key,
+      idempotency_key: `corenull:space.seed.created:room:${data.id}:v1`,
+      payload: {
+        room_id: data.id,
+        house_id,
+        bloom_date: data.bloom_date || null,
+      },
+    })
   }
   return Response.json({ data, traceId })
 }
