@@ -11,24 +11,20 @@ function backoffSeconds(attempts) {
   return Math.min(30 * 60, 15 * Math.pow(2, Math.max(0, attempts - 1)))
 }
 
-/**
- * POST /api/corenull/outbox/flush
- * pending outbox → CoreHub facts
- *
- * Auth (optional):
- *   Authorization: Bearer <CRON_SECRET>
- *   or x-cron-secret: <CRON_SECRET>
- */
-export async function POST(req) {
-  const traceId = crypto.randomUUID()
+function assertCronAuth(req) {
   const expected = (process.env.CRON_SECRET || '').trim()
-  if (expected) {
-    const auth = req.headers.get('authorization') || ''
-    const bearer = auth.startsWith('Bearer ') ? auth.slice(7).trim() : ''
-    const header = (req.headers.get('x-cron-secret') || '').trim()
-    if (bearer !== expected && header !== expected) {
-      return Response.json({ _error: 'unauthorized', traceId }, { status: 401 })
-    }
+  if (!expected) return true
+  const auth = req.headers.get('authorization') || ''
+  const bearer = auth.startsWith('Bearer ') ? auth.slice(7).trim() : ''
+  const header = (req.headers.get('x-cron-secret') || '').trim()
+  // Vercel Cron may send CRON_SECRET via Authorization automatically on some setups
+  return bearer === expected || header === expected
+}
+
+async function runFlush(req) {
+  const traceId = crypto.randomUUID()
+  if (!assertCronAuth(req)) {
+    return Response.json({ _error: 'unauthorized', traceId }, { status: 401 })
   }
 
   const { getSupabaseAdmin, getSupabase } = await import('@/lib/supabase')
@@ -38,7 +34,6 @@ export async function POST(req) {
   }
 
   const now = new Date().toISOString()
-  // next_attempt_at 이 null 인 행도 처리 (레거시/수동 insert)
   const { data: due, error: selectError } = await supabase
     .from('corenull_message_outbox')
     .select('*')
@@ -53,7 +48,7 @@ export async function POST(req) {
 
   const results = []
   for (const row of due || []) {
-    results.push(await processRow(supabase, row, traceId))
+    results.push(await processRow(supabase, row))
   }
 
   return Response.json({
@@ -72,7 +67,7 @@ async function markRow(supabase, id, patch) {
   return { data, error }
 }
 
-async function processRow(supabase, row, traceId) {
+async function processRow(supabase, row) {
   const attempts = (row.attempts || 0) + 1
   const factBody = {
     source: 'CoreNull',
@@ -122,7 +117,6 @@ async function processRow(supabase, row, traceId) {
         attempts,
         sent_at: new Date().toISOString(),
         last_error: null,
-        // next_attempt_at NOT NULL 대비: 과거로 두지 않고 현재 유지
         next_attempt_at: row.next_attempt_at || new Date().toISOString(),
       })
       return {
@@ -206,23 +200,36 @@ async function processRow(supabase, row, traceId) {
   }
 }
 
-export async function GET() {
-  const traceId = crypto.randomUUID()
-  const { getSupabaseAdmin, getSupabase } = await import('@/lib/supabase')
-  const supabase = getSupabaseAdmin() || getSupabase()
-  if (!supabase) {
-    return Response.json({ _error: 'supabase_init_failed', traceId }, { status: 500 })
+/** POST: 수동 flush */
+export async function POST(req) {
+  return runFlush(req)
+}
+
+/**
+ * GET: Vercel Cron 기본 호출 = flush
+ * GET ?stats=1: pending/sent 개수만
+ */
+export async function GET(req) {
+  const url = new URL(req.url)
+  if (url.searchParams.get('stats') === '1') {
+    const traceId = crypto.randomUUID()
+    const { getSupabaseAdmin, getSupabase } = await import('@/lib/supabase')
+    const supabase = getSupabaseAdmin() || getSupabase()
+    if (!supabase) {
+      return Response.json({ _error: 'supabase_init_failed', traceId }, { status: 500 })
+    }
+    const { count: pending } = await supabase
+      .from('corenull_message_outbox')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'pending')
+    const { count: sent } = await supabase
+      .from('corenull_message_outbox')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'sent')
+    return Response.json({
+      data: { pending: pending ?? 0, sent: sent ?? 0 },
+      traceId,
+    })
   }
-  const { count: pending } = await supabase
-    .from('corenull_message_outbox')
-    .select('*', { count: 'exact', head: true })
-    .eq('status', 'pending')
-  const { count: sent } = await supabase
-    .from('corenull_message_outbox')
-    .select('*', { count: 'exact', head: true })
-    .eq('status', 'sent')
-  return Response.json({
-    data: { pending: pending ?? 0, sent: sent ?? 0 },
-    traceId,
-  })
+  return runFlush(req)
 }
