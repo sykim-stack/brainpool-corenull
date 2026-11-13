@@ -16,6 +16,11 @@ const LANG_FLAG: Record<string, string> = {
   ko: '🇰🇷', vi: '🇻🇳', en: '🇺🇸', ja: '🇯🇵', zh: '🇨🇳',
 }
 
+/** 골목: accepted 이웃이 이 수 미만이면 광장(discover) 집을 섞어 채움 */
+const ALLEY_NEIGHBOR_THRESHOLD = 5
+/** 골목 슬롯 상한 (이웃 우선, 부족분은 광장) */
+const ALLEY_MAX_SLOTS = 6
+
 function roomStatusLabel(rm: any): string {
   const parts: string[] = []
   if (rm.visibility === 'public') parts.push('공개')
@@ -97,8 +102,7 @@ export default function YardClient() {
   const { houseId } = useParams<{ houseId: string }>()
   const router = useRouter()
 
-  const [house, setHouse] = useState<any>(null)
-  const [rooms, setRooms] = useState<any[]>([])
+  const [house, setHouse] = useStaten  const [rooms, setRooms] = useState<any[]>([])
   const [publicPosts, setPublicPosts] = useState<PostBlockData[]>([])
   const [loading, setLoading] = useState(true)
   const [ownerKey, setOwnerKey] = useState('')
@@ -114,6 +118,7 @@ export default function YardClient() {
   const [inviteUrl, setInviteUrl] = useState('')
   const [inviteLoading, setInviteLoading] = useState(false)
   const [relationActing, setRelationActing] = useState(false)
+  const [applyLoadingHouseId, setApplyLoadingHouseId] = useState<string | null>(null)
 
   const isOwner = relation.kind === 'self'
   const isVisitor = !isOwner
@@ -154,7 +159,9 @@ export default function YardClient() {
           }))
       )
 
-      // 골목 = 이 집의 accepted 이웃 (방문·소유 공통, 허전하지 않게 방 슬롯 포함)
+      // 골목 = accepted 이웃 우선.
+      // 이웃 < ALLEY_NEIGHBOR_THRESHOLD 이면 광장(discover) 집으로 슬롯을 채워 허전함 해소.
+      // 5명 이상이면 이웃만.
       const alley: NeighborChip[] = await Promise.all(
         acceptedRows.map(async (n: any) => {
           const roomSlots = await loadHouseRoomSlots(n.house)
@@ -169,6 +176,44 @@ export default function YardClient() {
           }
         })
       )
+
+      if (acceptedRows.length < ALLEY_NEIGHBOR_THRESHOLD) {
+        try {
+          const disc = await fetch(
+            `/api/corenull/houses?action=discover&house_id=${houseId}`
+          ).then((r) => r.json())
+          const pendingIds = new Set(
+            nbRows
+              .filter((n: any) => n.status === 'pending' && n.house?.id)
+              .map((n: any) => n.house.id as string)
+          )
+          const have = new Set(alley.map((a) => a.houseId))
+          const need = Math.max(0, ALLEY_MAX_SLOTS - alley.length)
+          const candidates = (disc.data || [])
+            .filter((h: any) => h?.id && !have.has(h.id))
+            .slice(0, need)
+
+          const extras: NeighborChip[] = await Promise.all(
+            candidates.map(async (h: any) => {
+              const roomSlots = await loadHouseRoomSlots(h)
+              return {
+                neighborId: `discover:${h.id}`,
+                houseId: h.id,
+                title: h.title,
+                langFlag: LANG_FLAG[h.primary_language] || '🌐',
+                avatarUrl: h.avatar_url || null,
+                coverUrl: h.yard_image_url || null,
+                rooms: roomSlots,
+                requestPending: pendingIds.has(h.id),
+              }
+            })
+          )
+          alley.push(...extras)
+        } catch {
+          /* discover 실패 시 이웃만 유지 */
+        }
+      }
+
       setAlleyNeighbors(alley)
 
       const myHouse = myHouses.data?.[0]
@@ -296,6 +341,51 @@ export default function YardClient() {
     setRelationActing(false)
   }
 
+  /** 골목 광장 집 → 이웃 신청 (본인 마당, mode=recommend 일 때만 UI 노출) */
+  const handleApplyNeighbor = async (targetHouseId: string) => {
+    if (applyLoadingHouseId || !myHouseId || !ownerKey || !targetHouseId) return
+    if (targetHouseId === myHouseId) return
+    setApplyLoadingHouseId(targetHouseId)
+    try {
+      const res = await fetch('/api/corenull/houses?action=neighbor-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          house_a_id: myHouseId,
+          owner_key: ownerKey,
+          house_b_id: targetHouseId,
+        }),
+      })
+      const data = await res.json()
+      if (data.data) {
+        let appliedTitle = '이웃 신청'
+        setAlleyNeighbors((prev) => {
+          const hit = prev.find((n) => n.houseId === targetHouseId)
+          if (hit?.title) appliedTitle = hit.title
+          return prev.map((n) =>
+            n.houseId === targetHouseId ? { ...n, requestPending: true } : n
+          )
+        })
+        setRelations((prev) => {
+          if (prev.some((r) => r.houseId === targetHouseId)) return prev
+          return [
+            ...prev,
+            {
+              id: data.data.id,
+              status: 'pending' as const,
+              direction: 'outgoing' as const,
+              title: appliedTitle,
+              houseId: targetHouseId,
+            },
+          ]
+        })
+      }
+    } catch {
+      /* ignore */
+    }
+    setApplyLoadingHouseId(null)
+  }
+
   const relationCta = (() => {
     if (isOwner) return undefined
     switch (relation.kind) {
@@ -417,6 +507,8 @@ export default function YardClient() {
         recommended={alleyNeighbors}
         onRecommendHouseClick={(hId) => router.push(`/houses/${hId}/yard`)}
         onAcceptedNeighborClick={(hId) => router.push(`/houses/${hId}/living`)}
+        onApplyNeighbor={isOwner ? handleApplyNeighbor : undefined}
+        applyLoadingHouseId={applyLoadingHouseId}
         relations={relations}
         publicPosts={publicPosts}
         myPosts={isOwner ? publicPosts : []}
