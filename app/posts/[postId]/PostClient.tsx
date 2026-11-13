@@ -79,7 +79,8 @@ export default function PostDetailPage() {
   const isPostOwner = post?.owner_key === ownerKey
   const isHouseOwner = house?.owner_key === ownerKey
   const isSeedRoom = room?.seed_mode === true
-  const showFruitActions = isHouseOwner && isSeedRoom && post?.type === 'post'
+  // 열매는 방 단위 (RoomClient 개화 배너). 글 상세에서는 노출하지 않음.
+  const showFruitActions = false
   const isHarvested = !!fruit?.harvested_at
 
   const handleEditOpen = () => {
@@ -456,31 +457,21 @@ const styles: any = {
   editCancelBtn: { padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(92,61,46,0.2)', background: '#F5F0E8', fontSize: 14, cursor: 'pointer' },
   translateToggle: { display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', marginBottom: 8, border: 'none', background: 'transparent' },
   translateLabel: { fontSize: 12, color: '#5C4A35' },
-  translateResult: { background: 'rgba(92,61,46,0.06)', borderRadius: 10, padding: 12, fontSize: 14, lineHeight: 1.7, color: '#1C1208', marginBottom: 12 },
+  translateResult: { background: '#F5F0E8', borderRadius: 12, padding: 14, fontSize: 14, lineHeight: 1.7, color: '#5C4A35', marginBottom: 12 },
   fruitSection: { margin: '12px 0' },
-  fruitBtn: { width: '100%', padding: 12, borderRadius: 10, border: 'none', background: '#C17F3C', color: 'white', fontSize: 14, cursor: 'pointer' },
-  harvestBtn: { width: '100%', padding: 12, borderRadius: 10, border: 'none', background: '#2C1810', color: 'white', fontSize: 14, cursor: 'pointer' },
-  harvestedBadge: { fontSize: 13, color: '#4A5240', background: 'rgba(74,82,64,0.1)', padding: '10px 12px', borderRadius: 10 },
-  divider: { height: 1, background: 'rgba(92,61,46,0.1)', margin: '16px 0' },
-  commentCount: { fontSize: 14, fontWeight: 500, color: '#1C1208', marginBottom: 12 },
+  fruitBtn: { padding: '10px 16px', borderRadius: 10, border: 'none', background: '#2C1810', color: '#FEFCF8', fontSize: 13, fontWeight: 600, cursor: 'pointer' },
+  harvestBtn: { padding: '10px 16px', borderRadius: 10, border: '1px solid rgba(74,124,63,0.3)', background: '#FEFCF8', color: '#4A7C3F', fontSize: 13, fontWeight: 600, cursor: 'pointer' },
+  harvestedBadge: { display: 'inline-block', padding: '8px 12px', borderRadius: 10, background: 'rgba(74,124,63,0.1)', color: '#4A7C3F', fontSize: 13, fontWeight: 600 },
+  divider: { height: 1, background: 'rgba(92,61,46,0.08)', margin: '16px 0' },
+  commentCount: { fontSize: 14, fontWeight: 600, color: '#2C1810', marginBottom: 12 },
   emptyComment: { fontSize: 13, color: '#9A8470', padding: '12px 0' },
   commentList: { display: 'flex', flexDirection: 'column', gap: 12 },
   commentItem: { display: 'flex', gap: 10 },
-  commentAvatar: { width: 28, height: 28, borderRadius: '50%', background: '#F5F0E8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 },
-  commentBody: { flex: 1 },
-  commentContent: { fontSize: 14, lineHeight: 1.5, color: '#1C1208' },
+  commentAvatar: { width: 28, height: 28, borderRadius: '50%', background: '#F5F0E8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0 },
+  commentBody: { flex: 1, minWidth: 0 },
+  commentContent: { fontSize: 14, lineHeight: 1.55, color: '#1C1208', whiteSpace: 'pre-wrap' },
   commentTime: { fontSize: 11, color: '#9A8470', marginTop: 2 },
-  commentInput: {
-    position: 'fixed', bottom: 0, left: 0, right: 0, maxWidth: 840, width: '100%', margin: '0 auto',
-    display: 'flex', gap: 8, padding: '10px 16px calc(10px + env(safe-area-inset-bottom))',
-    background: '#FEFCF8', borderTop: '1px solid rgba(92,61,46,0.1)', zIndex: 20,
-  },
-  commentField: {
-    flex: 1, height: 40, borderRadius: 20, border: '1px solid rgba(92,61,46,0.15)',
-    padding: '0 14px', fontSize: 14, outline: 'none',
-  },
-  commentSubmit: {
-    width: 40, height: 40, borderRadius: '50%', border: 'none',
-    background: '#2C1810', color: '#FEFCF8', fontSize: 16, cursor: 'pointer',
-  },
+  commentInput: { position: 'fixed', bottom: 0, left: 0, right: 0, display: 'flex', gap: 8, padding: '10px 16px', background: '#FEFCF8', borderTop: '1px solid rgba(92,61,46,0.08)', maxWidth: 840, margin: '0 auto' },
+  commentField: { flex: 1, border: '1px solid rgba(92,61,46,0.15)', borderRadius: 20, padding: '10px 14px', fontSize: 14, outline: 'none', background: '#fff' },
+  commentSubmit: { width: 40, height: 40, borderRadius: '50%', border: 'none', background: '#2C1810', color: '#FEFCF8', fontSize: 16, cursor: 'pointer' },
 }
