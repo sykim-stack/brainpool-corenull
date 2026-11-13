@@ -102,7 +102,8 @@ export default function YardClient() {
   const { houseId } = useParams<{ houseId: string }>()
   const router = useRouter()
 
-  const [house, setHouse] = useStaten  const [rooms, setRooms] = useState<any[]>([])
+  const [house, setHouse] = useState<any>(null)
+  const [rooms, setRooms] = useState<any[]>([])
   const [publicPosts, setPublicPosts] = useState<PostBlockData[]>([])
   const [loading, setLoading] = useState(true)
   const [ownerKey, setOwnerKey] = useState('')
