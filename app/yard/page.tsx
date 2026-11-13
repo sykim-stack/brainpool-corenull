@@ -27,6 +27,10 @@ const LANG_FLAG: Record<string, string> = {
   ko: '🇰🇷', vi: '🇻🇳', en: '🇺🇸', ja: '🇯🇵', zh: '🇨🇳',
 }
 
+/** 골목·발견: accepted 이웃이 이 수 미만이면 광장/기타 집을 섞어 채움 */
+const ALLEY_NEIGHBOR_THRESHOLD = 5
+const ALLEY_MAX_SLOTS = 8
+
 function isYardVisibleRoom(rm: any) {
   return rm.visibility === 'public' || rm.visibility === 'invite'
 }
@@ -58,7 +62,10 @@ function buildRingData(roomCount: number, neighborCount: number): RingData {
 async function loadHouseRoomSlots(h: any): Promise<NeighborRoomSlot[]> {
   try {
     const rd = await fetch(`/api/corenull/rooms?house_id=${h.id}`).then((r) => r.json())
-    const list = (rd.data || []).filter(isYardVisibleRoom).slice(0, 6)
+    const all = rd.data || []
+    // 공개·이웃공개 우선. 없으면 비공개 방이라도 올려 골목이 비지 않게 함 (콜드스타트).
+    const visible = all.filter(isYardVisibleRoom)
+    const list = (visible.length > 0 ? visible : all).slice(0, 6)
     return Promise.all(
       list.map(async (rm: any) => {
         try {
@@ -150,7 +157,8 @@ export default function YardPage() {
       const [roomsRes, nbRes, discRes] = await Promise.all([
         fetch(`/api/corenull/rooms?house_id=${active.id}`).then((r) => r.json()),
         fetch(`/api/corenull/houses?action=neighbors&house_id=${active.id}`).then((r) => r.json()),
-        fetch(`/api/corenull/houses?action=discover&owner_key=${key}`).then((r) => r.json()).catch(() => ({ data: [] })),
+        // discover API는 house_id 필수 (관계 없는 집). owner_key만 넘기면 빈 결과.
+        fetch(`/api/corenull/houses?action=discover&house_id=${active.id}`).then((r) => r.json()).catch(() => ({ data: [] })),
       ])
 
       const myRooms = roomsRes.data || []
@@ -174,11 +182,46 @@ export default function YardPage() {
       const pendingTargetIds = new Set(
         pending.filter((n: any) => n.direction === 'outgoing').map((n: any) => n.house?.id).filter(Boolean),
       )
-      const discoverList = (discRes.data || []).slice(0, 8)
       const acceptedSlice = accepted.slice(0, 8).filter((n: any) => n.house?.id)
 
+      // 골목·발견: 광장(discover) 우선. 집이 적거나 이웃 < 5면 비공개 포함 다른 집·이웃으로 슬롯 채움.
+      // discover는 방 visibility와 무관하게 집 단위로 오므로 비공개방만 있는 집도 포함된다.
+      let discoverList = (discRes.data || []).filter((h: any) => h?.id)
+
+      const haveIds = new Set<string>()
+      const chipSources: { hh: any; requestPending?: boolean; fromNeighbor?: boolean }[] = []
+
+      for (const hh of discoverList) {
+        if (!hh?.id || haveIds.has(hh.id) || hh.id === active.id) continue
+        haveIds.add(hh.id)
+        chipSources.push({ hh, requestPending: pendingTargetIds.has(hh.id) })
+        if (chipSources.length >= ALLEY_MAX_SLOTS) break
+      }
+
+      // 이웃 < 임계값 이고 슬롯이 비면 accepted 이웃 집도 골목에 올려 허전함 해소
+      if (accepted.length < ALLEY_NEIGHBOR_THRESHOLD && chipSources.length < ALLEY_MAX_SLOTS) {
+        for (const n of acceptedSlice) {
+          const hh = n.house
+          if (!hh?.id || haveIds.has(hh.id)) continue
+          haveIds.add(hh.id)
+          chipSources.push({ hh, fromNeighbor: true })
+          if (chipSources.length >= ALLEY_MAX_SLOTS) break
+        }
+      }
+
+      // 여전히 비면 pending 상대 집도 노출 (신청중 표시)
+      if (chipSources.length < ALLEY_MAX_SLOTS) {
+        for (const n of pending) {
+          const hh = n.house
+          if (!hh?.id || haveIds.has(hh.id)) continue
+          haveIds.add(hh.id)
+          chipSources.push({ hh, requestPending: n.direction === 'outgoing' })
+          if (chipSources.length >= ALLEY_MAX_SLOTS) break
+        }
+      }
+
       const chips = await Promise.all(
-        discoverList.map(async (hh: any, idx: number) => {
+        chipSources.map(async ({ hh, requestPending }, idx) => {
           const slots = await loadHouseRoomSlots(hh)
           return {
             neighborId: hh.id,
@@ -188,7 +231,7 @@ export default function YardPage() {
             avatarUrl: hh.avatar_url || null,
             coverUrl: hh.yard_image_url || `/alley/alley-0${(idx % 5) + 1}.jpg`,
             rooms: slots,
-            requestPending: pendingTargetIds.has(hh.id),
+            requestPending: !!requestPending,
           } as NeighborChip
         }),
       )
