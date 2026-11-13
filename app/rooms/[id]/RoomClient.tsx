@@ -72,6 +72,9 @@ export default function RoomClient() {
   const [showSettings, setShowSettings] = useState(false)
   const [ownerKey, setOwnerKey] = useState('')
   const [viewMode, setViewMode] = useState<'list' | 'block'>('list')
+  /** 방 단위 열매 (1 Room · 1 Fruit). 글마다가 아니라 개화 배너에서 다룸 */
+  const [fruit, setFruit] = useState<any | null>(null)
+  const [fruitLoading, setFruitLoading] = useState(false)
 
   useEffect(() => {
     try {
@@ -88,6 +91,43 @@ export default function RoomClient() {
   const isOwner = house?.owner_key === ownerKey
   const canWrite = isOwner || isMember
   const countdown = room?.seed_mode ? getCountdown(room.bloom_date) : null
+  const isHarvested = !!(fruit?.harvested_at)
+
+  const handleMakeFruit = async () => {
+    if (!room || !ownerKey || fruitLoading || fruit) return
+    setFruitLoading(true)
+    try {
+      const res = await fetch('/api/corenull/posts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          room_id: room.id,
+          owner_key: ownerKey,
+          type: 'fruit',
+          content: room.room_name || '열매',
+          meta: { source: 'room', room_id: room.id },
+        }),
+      })
+      const data = await res.json()
+      if (data.data) setFruit(data.data)
+    } catch { /* ignore */ }
+    setFruitLoading(false)
+  }
+
+  const handleHarvest = async () => {
+    if (!fruit || !ownerKey || fruitLoading || isHarvested) return
+    setFruitLoading(true)
+    try {
+      const res = await fetch('/api/corenull/posts', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ post_id: fruit.id, owner_key: ownerKey, action: 'harvest' }),
+      })
+      const data = await res.json()
+      if (data.data) setFruit(data.data)
+    } catch { /* ignore */ }
+    setFruitLoading(false)
+  }
 
   useEffect(() => {
     if (!roomId) return
@@ -131,7 +171,12 @@ export default function RoomClient() {
 
       const pRes = await fetch(`/api/corenull/posts?room_id=${roomId}&owner_key=${ownerKey}`)
       const pData = await pRes.json()
-      setPosts((pData.data || []).filter((p: Post) => p.type === 'post' && !p.meta?.deleted && !p.meta?.archived))
+      const all = pData.data || []
+      setPosts(all.filter((p: Post) => p.type === 'post' && !p.meta?.deleted && !p.meta?.archived))
+      // 방 단위 열매 1개 (가장 최근 fruit)
+      const fruits = all.filter((p: any) => p.type === 'fruit' && !p.meta?.deleted)
+      fruits.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      setFruit(fruits[0] || null)
     } catch (e) {
       setError('불러오지 못했어요')
     }
@@ -258,7 +303,7 @@ export default function RoomClient() {
           <Link href="/living" style={exploreLink}>둘러보기 <span aria-hidden="true">→</span></Link>
         </div>
       )}
-      {/* 그 밑: 씨드 날짜 */}
+      {/* 그 밑: 씨드 날짜 · 개화 시 오른쪽 열매 버튼 (방 단위 1 Fruit) */}
       {countdown && (
         <div style={{
           ...countdownBanner,
@@ -266,12 +311,41 @@ export default function RoomClient() {
           background: countdown.bloomed ? 'rgba(74,124,63,0.08)' : '#fef3e2',
           color: countdown.bloomed ? '#4A7C3F' : '#C17F3C',
         }}>
-          <span>{countdown.bloomed ? '🌸' : '🌱'}</span>
-          <span>{countdown.label}</span>
-          {room.bloom_date && (
-            <span style={{ fontSize: 11, color: '#9A8470', marginTop: 2 }}>
-              {new Date(room.bloom_date).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}
-            </span>
+          <div style={countdownLeft}>
+            <span>{countdown.bloomed ? '🌸' : '🌱'}</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+              <span>{countdown.label}</span>
+              {room.bloom_date && (
+                <span style={{ fontSize: 11, color: '#9A8470', fontWeight: 500 }}>
+                  {new Date(room.bloom_date).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}
+                </span>
+              )}
+            </div>
+          </div>
+          {countdown.bloomed && isOwner && (
+            <div style={countdownRight}>
+              {!fruit ? (
+                <button
+                  type="button"
+                  style={fruitBtn}
+                  onClick={handleMakeFruit}
+                  disabled={fruitLoading}
+                >
+                  {fruitLoading ? '…' : '🍎 열매 만들기'}
+                </button>
+              ) : isHarvested ? (
+                <span style={harvestedBadge}>수확 완료</span>
+              ) : (
+                <button
+                  type="button"
+                  style={harvestBtn}
+                  onClick={handleHarvest}
+                  disabled={fruitLoading}
+                >
+                  {fruitLoading ? '…' : '수확하기'}
+                </button>
+              )}
+            </div>
           )}
         </div>
       )}
@@ -442,9 +516,30 @@ const btnSecondary: React.CSSProperties = {
   background: '#FEFCF8', color: '#5C3D2E', cursor: 'pointer', fontSize: 13,
 }
 const countdownBanner: React.CSSProperties = {
-  display: 'flex', alignItems: 'center', gap: 12, margin: '10px 16px 4px',
-  padding: '12px 14px', borderRadius: 12, border: '1px solid',
+  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+  margin: '10px 16px 4px', padding: '12px 14px', borderRadius: 12, border: '1px solid',
   background: '#fef3e2', color: '#C17F3C', fontWeight: 600,
+}
+const countdownLeft: React.CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1,
+}
+const countdownRight: React.CSSProperties = {
+  flexShrink: 0, display: 'flex', alignItems: 'center',
+}
+const fruitBtn: React.CSSProperties = {
+  border: 'none', borderRadius: 999, padding: '8px 14px',
+  background: '#2C1810', color: '#FEFCF8', fontSize: 12, fontWeight: 700,
+  cursor: 'pointer', whiteSpace: 'nowrap',
+}
+const harvestBtn: React.CSSProperties = {
+  border: '1px solid rgba(74,124,63,0.35)', borderRadius: 999, padding: '8px 14px',
+  background: '#FEFCF8', color: '#4A7C3F', fontSize: 12, fontWeight: 700,
+  cursor: 'pointer', whiteSpace: 'nowrap',
+}
+const harvestedBadge: React.CSSProperties = {
+  fontSize: 12, fontWeight: 700, color: '#4A7C3F',
+  background: 'rgba(74,124,63,0.12)', border: '1px solid rgba(74,124,63,0.25)',
+  borderRadius: 999, padding: '6px 12px',
 }
 
 const viewToggleRow: React.CSSProperties = {
