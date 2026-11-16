@@ -3,6 +3,7 @@
 
 import { redirect } from 'next/navigation'
 
-export default function HousePage({ params }: { params: { houseId: string } }) {
-  redirect(`/houses/${params.houseId}/yard`)
+export default async function HousePage({ params }: { params: Promise<{ houseId: string }> }) {
+  const { houseId } = await params
+  redirect(`/houses/${houseId}/yard`)
 }
