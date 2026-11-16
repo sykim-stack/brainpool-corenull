@@ -35,10 +35,13 @@ function isYardVisibleRoom(rm: any) {
 }
 
 const COREHUB_URL = 'https://brainpool-corehub.vercel.app/api/corehub/opportunities'
-const ACTION_LABEL: Record<string, string> = {
-  'trigger.hajunai.nudge': '🌱 씨앗이 기다리고 있어요',
-  'trigger.hajunai.celebrate': '🍎 씨앗이 열매가 됐어요',
-  'suggest.corering': '💬 번역 도움이 필요하신가요?',
+// A-5 (2026-11-16): 마당 라벨은 CoreNull이 자기 영역에서 붙인다.
+// CoreHub은 소비자를 지정하지 않으므로(action_type 폐지) 제안 "종류"로 매핑하고,
+// Hub가 쓴 문구(payload.message)에 의존하지 않는다.
+const OPPORTUNITY_LABEL: Record<string, string> = {
+  'nudge.seed.owner': '🌱 씨앗이 기다리고 있어요',
+  'celebrate.achievement': '🍎 씨앗이 열매가 됐어요',
+  'suggest.translation.help': '💬 번역 도움이 필요하신가요?',
 }
 
 function buildRingData(roomCount: number, neighborCount: number): RingData {
@@ -282,10 +285,7 @@ export default function YardClient() {
         const items = Array.isArray(d.data) ? d.data : []
         const mapped: DiscoveryItem[] = items.slice(0, 3).map((item: any) => ({
           id: item.id,
-          label:
-            ACTION_LABEL[item.action_type] ||
-            item.payload?.message ||
-            '발견',
+          label: OPPORTUNITY_LABEL[item.opportunity_type] || '발견',
         }))
         setDiscoveries(mapped)
       })
