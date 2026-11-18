@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 export type MediaItem = {
   type: 'image' | 'video' | 'audio' | 'pdf' | 'file' | string
@@ -59,6 +59,136 @@ function Thumb({ item, active, onSelect }: { item: MediaItem; active: boolean; o
   )
 }
 
+/** 모바일 핀치 줌 + 패닝 (라이트박스 이미지 전용) */
+function ZoomableImage({ src, alt = '' }: { src: string; alt?: string }) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [scale, setScale] = useState(1)
+  const [tx, setTx] = useState(0)
+  const [ty, setTy] = useState(0)
+
+  // refs so handlers always see latest values without re-binding
+  const scaleRef = useRef(1)
+  const txRef = useRef(0)
+  const tyRef = useRef(0)
+  const pinchRef = useRef<{
+    dist: number
+    scale: number
+    cx: number
+    cy: number
+  } | null>(null)
+  const panRef = useRef<{ x: number; y: number; tx: number; ty: number } | null>(null)
+  const lastTapRef = useRef(0)
+
+  const apply = useCallback((s: number, x: number, y: number) => {
+    const next = Math.min(4, Math.max(1, s))
+    // reset translate when fully zoomed out
+    const nx = next <= 1 ? 0 : x
+    const ny = next <= 1 ? 0 : y
+    scaleRef.current = next
+    txRef.current = nx
+    tyRef.current = ny
+    setScale(next)
+    setTx(nx)
+    setTy(ny)
+  }, [])
+
+  // reset when src changes (slide change)
+  useEffect(() => {
+    apply(1, 0, 0)
+  }, [src, apply])
+
+  const getDistance = (t1: React.Touch, t2: React.Touch) => {
+    const dx = t1.clientX - t2.clientX
+    const dy = t1.clientY - t2.clientY
+    return Math.hypot(dx, dy)
+  }
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      e.preventDefault()
+      panRef.current = null
+      const dist = getDistance(e.touches[0], e.touches[1])
+      const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2
+      const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2
+      pinchRef.current = {
+        dist,
+        scale: scaleRef.current,
+        cx,
+        cy,
+      }
+    } else if (e.touches.length === 1 && scaleRef.current > 1) {
+      panRef.current = {
+        x: e.touches[0].clientX,
+        y: e.touches[0].clientY,
+        tx: txRef.current,
+        ty: tyRef.current,
+      }
+      pinchRef.current = null
+    }
+  }
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    if (e.touches.length === 2 && pinchRef.current) {
+      e.preventDefault()
+      const dist = getDistance(e.touches[0], e.touches[1])
+      const ratio = dist / pinchRef.current.dist
+      const nextScale = pinchRef.current.scale * ratio
+      apply(nextScale, txRef.current, tyRef.current)
+    } else if (e.touches.length === 1 && panRef.current && scaleRef.current > 1) {
+      e.preventDefault()
+      const dx = e.touches[0].clientX - panRef.current.x
+      const dy = e.touches[0].clientY - panRef.current.y
+      apply(scaleRef.current, panRef.current.tx + dx, panRef.current.ty + dy)
+    }
+  }
+
+  const onTouchEnd = (e: React.TouchEvent) => {
+    if (e.touches.length < 2) pinchRef.current = null
+    if (e.touches.length === 0) panRef.current = null
+
+    // double-tap toggle zoom
+    if (e.changedTouches.length === 1 && e.touches.length === 0) {
+      const now = Date.now()
+      if (now - lastTapRef.current < 300) {
+        if (scaleRef.current > 1) {
+          apply(1, 0, 0)
+        } else {
+          apply(2.2, 0, 0)
+        }
+        lastTapRef.current = 0
+      } else {
+        lastTapRef.current = now
+      }
+    }
+  }
+
+  return (
+    <div
+      ref={containerRef}
+      style={{
+        ...styles.zoomWrap,
+        touchAction: scale > 1 ? 'none' : 'manipulation',
+      }}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <img
+        src={src}
+        alt={alt}
+        draggable={false}
+        style={{
+          ...styles.lbImg,
+          transform: `translate(${tx}px, ${ty}px) scale(${scale})`,
+          transition: pinchRef.current || panRef.current ? 'none' : 'transform 0.15s ease-out',
+          cursor: scale > 1 ? 'grab' : 'default',
+        }}
+      />
+    </div>
+  )
+}
+
 export default function MediaRenderer({
   media,
   aspect = '4 / 3',
@@ -92,6 +222,11 @@ export default function MediaRenderer({
   }
 
   const onTouchStart = (e: React.TouchEvent) => {
+    // 줌 중이면 스와이프 전환 막기
+    if (e.touches.length > 1) {
+      touchX.current = null
+      return
+    }
     touchX.current = e.touches[0].clientX
   }
   const onTouchEndStage = (e: React.TouchEvent) => {
@@ -103,6 +238,11 @@ export default function MediaRenderer({
   }
   const onTouchEndLightbox = (e: React.TouchEvent) => {
     if (touchX.current == null) return
+    // 핀치 중이었거나 줌 상태면 슬라이드 전환하지 않음
+    if (e.changedTouches.length !== 1) {
+      touchX.current = null
+      return
+    }
     const dx = e.changedTouches[0].clientX - touchX.current
     touchX.current = null
     if (Math.abs(dx) < 40) return
@@ -117,7 +257,13 @@ export default function MediaRenderer({
       if (e.key === 'ArrowRight') goLightbox(1)
     }
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    // body scroll lock while lightbox open
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prev
+    }
   }, [lightbox, slides.length])
 
   const guard = (e: React.SyntheticEvent) => {
@@ -269,7 +415,7 @@ export default function MediaRenderer({
           )}
           <div style={styles.lbContent} onClick={(e) => e.stopPropagation()}>
             {slides[lightbox].type === 'image' ? (
-              <img src={slides[lightbox].url} alt="" style={styles.lbImg} />
+              <ZoomableImage src={slides[lightbox].url} />
             ) : (
               <video
                 src={slides[lightbox].url}
@@ -419,7 +565,7 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#fff',
     fontSize: 16,
     cursor: 'pointer',
-    zIndex: 1,
+    zIndex: 2,
   },
   nav: {
     position: 'absolute',
@@ -433,18 +579,36 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#fff',
     fontSize: 26,
     cursor: 'pointer',
-    zIndex: 1,
+    zIndex: 2,
   },
   lbContent: {
     maxWidth: '100%',
     maxHeight: '100%',
+    width: '100%',
     padding: 16,
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
     gap: 10,
   },
-  lbImg: { maxWidth: '100%', maxHeight: '75vh', objectFit: 'contain' },
+  zoomWrap: {
+    width: '100%',
+    maxHeight: '75vh',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    touchAction: 'none',
+  },
+  lbImg: {
+    maxWidth: '100%',
+    maxHeight: '75vh',
+    objectFit: 'contain',
+    transformOrigin: 'center center',
+    userSelect: 'none',
+    WebkitUserSelect: 'none',
+    pointerEvents: 'auto',
+  },
   lbVideo: { maxWidth: '100%', maxHeight: '75vh' },
   lbCount: { color: 'rgba(255,255,255,0.7)', fontSize: 12 },
   lbThumbRow: {
