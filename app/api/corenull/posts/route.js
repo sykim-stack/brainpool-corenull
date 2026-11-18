@@ -239,6 +239,37 @@ const handlePost = async (req, traceId) => {
   const { data, error } = await supabase.from('messages').insert(insertPayload).select().single()
   if (error) return Response.json({ _error: error.message, traceId }, { status: 500 })
 
+  // A-1: 비한국어 게시물 → CoreRing 번역 경로 (공간은 CoreNull, 번역은 CoreRing)
+  if (sourceLang !== 'ko' && data.content) {
+    try {
+      const ringUrl = process.env.CORERING_URL || 'https://corering.vercel.app'
+      const transRes = await fetch(`${ringUrl}/api/translate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(owner_key ? { 'x-owner-key': owner_key } : {}),
+        },
+        body: JSON.stringify({
+          text: data.content,
+          direction: 'vi-ko',
+          source_lang: sourceLang,
+          message_id: data.id,
+          message_source: 'post',
+        }),
+      })
+      if (transRes.ok) {
+        const transData = await transRes.json()
+        if (transData.translated) {
+          await supabase
+            .from('messages')
+            .update({ translated_ko: transData.translated, translation_status: 'completed' })
+            .eq('id', data.id)
+        }
+      }
+    } catch (e) {
+      console.error('[A-1] CoreRing translation failed:', e)
+    }
+  }
   // Stage A: 상위 글 outbox (comment 제외). CoreHub 전송은 worker.
   if (messageType === 'post' || messageType === 'fruit') {
     await enqueueMessageOutbox(supabase, {
